@@ -670,5 +670,118 @@ describe("apply_patch", () => {
 				);
 			});
 		});
+
+		it("allows delete then add same path in same patch", async () => {
+			await withTempDir(async (cwd) => {
+				const filePath = path.join(cwd, "foo.txt");
+				await fs.writeFile(filePath, "old\n", "utf8");
+
+				const operations = [
+					{ type: "delete" as const, absolutePath: filePath },
+					{ type: "add" as const, absolutePath: filePath, contents: "new\n" },
+				];
+
+				const summary = await __test__.applyResolvedPatch(operations, cwd);
+				// Deduplication keeps the last operation per path (add wins).
+				expect(summary.added).toEqual(["foo.txt"]);
+				expect(await fs.readFile(filePath, "utf8")).toBe("new\n");
+			});
+		});
+
+		it("allows move then add back original path in same patch", async () => {
+			await withTempDir(async (cwd) => {
+				const fileA = path.join(cwd, "a.txt");
+				const fileB = path.join(cwd, "b.txt");
+				await fs.writeFile(fileA, "a content\n", "utf8");
+
+				const operations = [
+					{
+						type: "update" as const,
+						absolutePath: fileA,
+						movePath: fileB,
+						chunks: [{ oldLines: ["a content"], newLines: ["b content"], isEndOfFile: false }],
+					},
+					{ type: "add" as const, absolutePath: fileA, contents: "new a\n" },
+				];
+
+				const summary = await __test__.applyResolvedPatch(operations, cwd);
+				expect(summary.modified).toEqual(["b.txt"]);
+				expect(summary.added).toEqual(["a.txt"]);
+				expect(await fs.readFile(fileB, "utf8")).toBe("b content\n");
+				expect(await fs.readFile(fileA, "utf8")).toBe("new a\n");
+			});
+		});
+
+		it("allows delete destination then move to it in same patch", async () => {
+			await withTempDir(async (cwd) => {
+				const fileA = path.join(cwd, "a.txt");
+				const fileB = path.join(cwd, "b.txt");
+				await fs.writeFile(fileA, "a content\n", "utf8");
+				await fs.writeFile(fileB, "b content\n", "utf8");
+
+				const operations = [
+					{ type: "delete" as const, absolutePath: fileB },
+					{
+						type: "update" as const,
+						absolutePath: fileA,
+						movePath: fileB,
+						chunks: [{ oldLines: ["a content"], newLines: ["c content"], isEndOfFile: false }],
+					},
+				];
+
+				const summary = await __test__.applyResolvedPatch(operations, cwd);
+				// Deduplication keeps the last operation per path (move wins).
+				expect(summary.modified).toEqual(["b.txt"]);
+				expect(await fs.readFile(fileB, "utf8")).toBe("c content\n");
+				await expect(fs.stat(fileA)).rejects.toThrow();
+			});
+		});
+
+		it("deletes move source even when destination is updated later in same patch", async () => {
+			await withTempDir(async (cwd) => {
+				const fileA = path.join(cwd, "a.txt");
+				const fileB = path.join(cwd, "b.txt");
+				await fs.writeFile(fileA, "a content\n", "utf8");
+				await fs.writeFile(fileB, "b content\n", "utf8");
+
+				const operations = [
+					{
+						type: "update" as const,
+						absolutePath: fileA,
+						movePath: fileB,
+						chunks: [{ oldLines: ["a content"], newLines: ["a moved"], isEndOfFile: false }],
+					},
+					{
+						type: "update" as const,
+						absolutePath: fileB,
+						chunks: [{ oldLines: ["a moved"], newLines: ["b updated"], isEndOfFile: false }],
+					},
+				];
+
+				const summary = await __test__.applyResolvedPatch(operations, cwd);
+				expect(summary.modified).toEqual(["b.txt"]);
+				expect(await fs.readFile(fileB, "utf8")).toBe("b updated\n");
+				await expect(fs.stat(fileA)).rejects.toThrow();
+			});
+		});
+
+		it("creates parent directories for updates on newly added files in same patch", async () => {
+			await withTempDir(async (cwd) => {
+				const filePath = path.join(cwd, "newdir", "file.txt");
+
+				const operations = [
+					{ type: "add" as const, absolutePath: filePath, contents: "initial\n" },
+					{
+						type: "update" as const,
+						absolutePath: filePath,
+						chunks: [{ oldLines: ["initial"], newLines: ["updated"], isEndOfFile: false }],
+					},
+				];
+
+				const summary = await __test__.applyResolvedPatch(operations, cwd);
+				expect(summary.modified).toEqual(["newdir/file.txt"]);
+				expect(await fs.readFile(filePath, "utf8")).toBe("updated\n");
+			});
+		});
 	});
 });
