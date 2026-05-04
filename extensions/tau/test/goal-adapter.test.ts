@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Effect, Layer, ManagedRuntime } from "effect";
 
 import type {
+	AgentEndEvent,
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
@@ -116,6 +117,23 @@ function makeAssistantMessage(tokens: number): AssistantMessage {
 		stopReason: "stop",
 		timestamp: 0,
 	};
+}
+
+function makeAssistantToolCallMessage(): AssistantMessage {
+	return {
+		...makeAssistantMessage(0),
+		content: [{ type: "toolCall", id: "call-1", name: "read", arguments: {} }],
+		stopReason: "toolUse",
+	};
+}
+
+function makeAbortedPiContext(ctx: ExtensionContext): ExtensionContext {
+	const controller = new AbortController();
+	controller.abort();
+	return {
+		...ctx,
+		signal: controller.signal,
+	} as ExtensionContext;
 }
 
 async function fireEvent(
@@ -235,5 +253,55 @@ describe("goal adapter", () => {
 		expect(result).toMatchObject({
 			systemPrompt: expect.stringContaining("<untrusted_objective>\nship the feature"),
 		});
+	});
+
+	it("pauses the goal when pi reports an interrupted turn", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const interruptedCtx = makeAbortedPiContext(harness.ctx);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(
+			harness,
+			"turn_end",
+			{
+				type: "turn_end",
+				message: makeAssistantMessage(0),
+			},
+			interruptedCtx,
+		);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+	});
+
+	it("does not continue the goal when pi reports an interrupted agent end after tool work", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const interruptedCtx = makeAbortedPiContext(harness.ctx);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [makeAssistantToolCallMessage()],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd, interruptedCtx);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.sentMessages).toHaveLength(0);
 	});
 });

@@ -126,6 +126,14 @@ function shouldAutoContinue(
 	);
 }
 
+function wasInterruptedByPi(ctx: ExtensionContext): boolean {
+	if (!("signal" in ctx)) {
+		return false;
+	}
+	const signalHolder = ctx as ExtensionContext & { readonly signal: unknown };
+	return signalHolder.signal instanceof AbortSignal && signalHolder.signal.aborted;
+}
+
 class GoalWidget implements Component {
 	private snapshot: GoalSnapshot;
 
@@ -554,14 +562,18 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	});
 
 	pi.on("turn_end", async (event: TurnEndEvent, ctx) => {
+		const sessionId = sessionIdFromContext(ctx);
 		const result = await withGoal(runtime, (goal) =>
-			goal.accountTurnEnd(sessionIdFromContext(ctx), event.message, Date.now()),
+			goal.accountTurnEnd(sessionId, event.message, Date.now()),
 		);
+		if (wasInterruptedByPi(ctx)) {
+			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+			await updateGoalUi(ctx);
+			return;
+		}
 		await updateGoalUi(ctx);
 		if (result.budgetLimitReached && result.snapshot !== null) {
-			await withGoal(runtime, (goal) =>
-				goal.markBudgetLimitPromptSent(sessionIdFromContext(ctx)),
-			);
+			await withGoal(runtime, (goal) => goal.markBudgetLimitPromptSent(sessionId));
 			pi.sendMessage(
 				{
 					customType: GOAL_BUDGET_MESSAGE_TYPE,
@@ -579,6 +591,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		const result = await withGoal(runtime, (goal) =>
 			goal.accountAgentEnd(sessionId, event, Date.now()),
 		);
+		if (wasInterruptedByPi(ctx)) {
+			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+			await updateGoalUi(ctx);
+			return;
+		}
 		await updateGoalUi(ctx);
 
 		if (result.budgetLimitReached && result.snapshot !== null) {
