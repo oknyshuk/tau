@@ -511,7 +511,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 				const objective = parsed.objective ?? "";
 				const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
-				if (existing !== null) {
+				if (existing !== null && existing.status !== "complete") {
 					const confirmed = await ctx.ui.confirm(
 						"Replace thread goal?",
 						`Current: ${existing.objective}\n\nNew: ${objective}`,

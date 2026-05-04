@@ -119,6 +119,23 @@ describe("goal service", () => {
 		).rejects.toMatchObject({ reason: "a thread goal already exists" });
 	});
 
+	it("allows a model-created goal after the previous goal is complete", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "first", null, { failIfExists: true });
+				yield* goal.setStatus("session-1", "complete");
+				return yield* goal.create("session-1", "second", null, { failIfExists: true });
+			}),
+		);
+
+		expect(snapshot.objective).toBe("second");
+		expect(snapshot.status).toBe("active");
+	});
+
 	it("rehydrates the latest goal entry on the active branch", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

@@ -36,6 +36,7 @@ type GoalAdapterHarness = {
 	readonly commands: Map<string, RegisteredCommand>;
 	readonly events: Map<string, EventHandler[]>;
 	readonly sentMessages: SentMessage[];
+	readonly confirmations: ReadonlyArray<{ readonly title: string; readonly message: string }>;
 	readonly ctx: ExtensionCommandContext;
 	readonly run: <A, E>(effect: Effect.Effect<A, E, Goal>) => Promise<A>;
 	readonly dispose: () => Promise<void>;
@@ -45,6 +46,7 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 	const commands = new Map<string, RegisteredCommand>();
 	const events = new Map<string, EventHandler[]>();
 	const sentMessages: SentMessage[] = [];
+	const confirmations: Array<{ readonly title: string; readonly message: string }> = [];
 	const piBase = {
 		on: (name: string, handler: EventHandler) => {
 			const handlers = events.get(name) ?? [];
@@ -75,7 +77,10 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 		},
 		ui: {
 			notify: () => undefined,
-			confirm: async () => true,
+			confirm: async (title: string, message: string) => {
+				confirmations.push({ title, message });
+				return true;
+			},
 			setStatus: () => undefined,
 			setWidget: () => undefined,
 		},
@@ -87,6 +92,7 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 		commands,
 		events,
 		sentMessages,
+		confirmations,
 		ctx,
 		run: (effect) => runtime.runPromise(effect),
 		dispose: () => runtime.dispose(),
@@ -210,6 +216,20 @@ describe("goal adapter", () => {
 
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+	});
+
+	it("sets a new command goal without replacement confirmation after completion", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "first goal");
+		await runGoalCommand(harness, "complete");
+		harness.sentMessages.length = 0;
+		await runGoalCommand(harness, "second goal");
+
+		expect(harness.confirmations).toHaveLength(0);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.content).toContain("second goal");
 	});
 
 	it("accounts assistant token usage on turn_end", async () => {
