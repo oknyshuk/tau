@@ -172,7 +172,6 @@ export async function checkBashApproval(
 
 	// Strip ANSI codes for display
 	const cleanCmd = stripAnsi(command);
-	const cmdPreview = cleanCmd.length > 60 ? cleanCmd.slice(0, 60) + "..." : cleanCmd;
 
 	// "on-request" - run sandboxed unless model requests escalation
 	if (policy === "on-request") {
@@ -184,7 +183,7 @@ export async function checkBashApproval(
 		return requestUnsandboxedApproval(
 			ctx,
 			broker,
-			cmdPreview,
+			cleanCmd,
 			timeoutMs,
 			options?.justification,
 			options?.prefixRule,
@@ -198,7 +197,7 @@ export async function checkBashApproval(
 			return requestUnsandboxedApproval(
 				ctx,
 				broker,
-				cmdPreview,
+				cleanCmd,
 				timeoutMs,
 				options?.justification,
 				options?.prefixRule,
@@ -220,7 +219,7 @@ export async function checkBashApproval(
 			ctx,
 			broker,
 			"Command requires approval",
-			`This command is not in the safe list:\n\n${cmdPreview}\n\nAllow?`,
+			`This command is not in the safe list:\n\n${cleanCmd}\n\nAllow?`,
 			timeoutMs,
 			"Command not approved (declined or timed out)",
 			{ approved: true, runUnsandboxed: false },
@@ -296,14 +295,13 @@ export async function requestApprovalAfterFailure(
 	const cleanCmd = stripAnsi(command);
 	const cleanErr = stripAnsi(error);
 
-	const cmdPreview = cleanCmd.length > 60 ? cleanCmd.slice(0, 60) + "..." : cleanCmd;
 	const errPreview = cleanErr.length > 200 ? cleanErr.slice(-200) : cleanErr;
 
 	const approved = await promptForApproval(
 		ctx,
 		broker,
 		"Command blocked by sandbox",
-		`Command: ${cmdPreview}\n\nError: ${errPreview}\n\nRetry without sandbox?`,
+		`Command: ${cleanCmd}\n\nError: ${errPreview}\n\nRetry without sandbox?`,
 		timeoutMs,
 	);
 
