@@ -38,6 +38,7 @@ export interface GoalService {
 		sessionId: string,
 		objective: string,
 		tokenBudget: number | null,
+		timeBudgetSeconds?: number | null,
 		options?: { readonly failIfExists?: boolean },
 	) => Effect.Effect<GoalSnapshot, GoalError, never>;
 	readonly setStatus: (
@@ -88,7 +89,7 @@ function appendSnapshot(
 	snapshot: GoalSnapshot | null,
 ): void {
 	pi.appendEntry(GOAL_ENTRY_TYPE, {
-		version: 1,
+		version: 2,
 		snapshot,
 	});
 }
@@ -121,6 +122,20 @@ function validateTokenBudget(
 		);
 	}
 	return Effect.succeed(tokenBudget);
+}
+
+function validateTimeBudgetSeconds(
+	timeBudgetSeconds: number | null,
+): Effect.Effect<number | null, GoalConflictError, never> {
+	if (timeBudgetSeconds === null) {
+		return Effect.succeed(null);
+	}
+	if (!Number.isInteger(timeBudgetSeconds) || timeBudgetSeconds <= 0) {
+		return Effect.fail(
+			new GoalConflictError({ reason: "time_budget_seconds must be a positive integer" }),
+		);
+	}
+	return Effect.succeed(timeBudgetSeconds);
 }
 
 function assistantMessageUsageTokens(message: AgentMessage): number {
@@ -210,7 +225,7 @@ export const GoalLive = Layer.effect(
 			);
 
 		const create: GoalService["create"] = Effect.fn("Goal.create")(
-			function* (sessionId, objectiveInput, tokenBudgetInput, options) {
+			function* (sessionId, objectiveInput, tokenBudgetInput, timeBudgetSecondsInput, options) {
 				const objective = normalizeObjective(objectiveInput);
 				if (objective.length === 0) {
 					return yield* Effect.fail(
@@ -225,8 +240,11 @@ export const GoalLive = Layer.effect(
 					);
 				}
 				const tokenBudget = yield* validateTokenBudget(tokenBudgetInput);
+				const timeBudgetSeconds = yield* validateTimeBudgetSeconds(
+					timeBudgetSecondsInput ?? null,
+				);
 				const nowIso = new Date().toISOString();
-				const snapshot = makeGoalSnapshot(objective, tokenBudget, nowIso);
+				const snapshot = makeGoalSnapshot(objective, tokenBudget, timeBudgetSeconds, nowIso);
 				const failIfExists = options?.failIfExists === true;
 				const existing = yield* get(sessionId);
 				if (failIfExists && existing !== null && existing.status !== "complete") {
@@ -242,6 +260,7 @@ export const GoalLive = Layer.effect(
 					const nextSnapshot = withUpdatedSnapshot(existing, nowIso, {
 						status: "active",
 						tokenBudget,
+						timeBudgetSeconds,
 						continuationSuppressed: false,
 						budgetLimitPromptSent: false,
 					});
@@ -359,11 +378,12 @@ export const GoalLive = Layer.effect(
 								continuationSuppressed: true,
 							});
 						}
-						if (
-							snapshot.status === "active" &&
-							snapshot.tokenBudget !== null &&
-							snapshot.tokensUsed >= snapshot.tokenBudget
-						) {
+						const tokenBudgetReached =
+							snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget;
+						const timeBudgetReached =
+							snapshot.timeBudgetSeconds !== null &&
+							snapshot.timeUsedSeconds >= snapshot.timeBudgetSeconds;
+						if (snapshot.status === "active" && (tokenBudgetReached || timeBudgetReached)) {
 							snapshot = withUpdatedSnapshot(snapshot, nowIso, {
 								status: "budget_limited",
 							});

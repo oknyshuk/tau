@@ -5,7 +5,7 @@ import type { AgentEndEvent, ExtensionAPI, SessionEntry } from "@mariozechner/pi
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 
 import { PiAPILive } from "../src/effect/pi.js";
-import { GOAL_ENTRY_TYPE, makeGoalSnapshot, type GoalEntry } from "../src/goal/schema.js";
+import { GOAL_ENTRY_TYPE, makeGoalSnapshot } from "../src/goal/schema.js";
 import { Goal, GoalLive } from "../src/services/goal.js";
 
 type AppendedEntry = {
@@ -69,7 +69,7 @@ function makeAgentEnd(tokens: number, withToolCall = false): AgentEndEvent {
 	};
 }
 
-function makeCustomEntry(id: string, data: GoalEntry): SessionEntry {
+function makeCustomEntry(id: string, data: unknown): SessionEntry {
 	return {
 		type: "custom",
 		id,
@@ -96,7 +96,7 @@ describe("goal service", () => {
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
 				const goal = yield* Goal;
-				return yield* goal.create("session-1", "  ship goal support  ", 1_000, {
+				return yield* goal.create("session-1", "  ship goal support  ", 1_000, null, {
 					failIfExists: true,
 				});
 			}),
@@ -111,7 +111,7 @@ describe("goal service", () => {
 			harness.run(
 				Effect.gen(function* () {
 					const goal = yield* Goal;
-					return yield* goal.create("session-1", "replace", null, {
+					return yield* goal.create("session-1", "replace", null, null, {
 						failIfExists: true,
 					});
 				}),
@@ -126,9 +126,9 @@ describe("goal service", () => {
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
 				const goal = yield* Goal;
-				yield* goal.create("session-1", "first", null, { failIfExists: true });
+				yield* goal.create("session-1", "first", null, null, { failIfExists: true });
 				yield* goal.setStatus("session-1", "complete");
-				return yield* goal.create("session-1", "second", null, { failIfExists: true });
+				return yield* goal.create("session-1", "second", null, null, { failIfExists: true });
 			}),
 		);
 
@@ -139,21 +139,50 @@ describe("goal service", () => {
 	it("rehydrates the latest goal entry on the active branch", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
-		const first = makeGoalSnapshot("first", null, "2026-05-01T00:00:00.000Z");
-		const second = makeGoalSnapshot("second", 100, "2026-05-01T00:01:00.000Z");
+		const first = makeGoalSnapshot("first", null, null, "2026-05-01T00:00:00.000Z");
+		const second = makeGoalSnapshot("second", 100, null, "2026-05-01T00:01:00.000Z");
 
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
 				const goal = yield* Goal;
 				return yield* goal.rehydrate("session-1", [
-					makeCustomEntry("a", { version: 1, snapshot: first }),
-					makeCustomEntry("b", { version: 1, snapshot: second }),
+					makeCustomEntry("a", { version: 2, snapshot: first }),
+					makeCustomEntry("b", { version: 2, snapshot: second }),
 				]);
 			}),
 		);
 
 		expect(snapshot?.objective).toBe("second");
 		expect(snapshot?.tokenBudget).toBe(100);
+	});
+
+	it("rejects old goal entry versions with a clear error", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		await expect(
+			harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					return yield* goal.rehydrate("session-1", [
+						makeCustomEntry("a", {
+							version: 1,
+							snapshot: {
+								objective: "old",
+								status: "active",
+								tokenBudget: null,
+								tokensUsed: 0,
+								timeUsedSeconds: 0,
+								createdAt: "2026-05-01T00:00:00.000Z",
+								updatedAt: "2026-05-01T00:00:00.000Z",
+								continuationSuppressed: false,
+								budgetLimitPromptSent: false,
+							},
+						}),
+					]);
+				}),
+			),
+		).rejects.toMatchObject({ reason: expect.stringContaining("unsupported goal entry version 1") });
 	});
 
 	it("accounts turn usage and budget-limits the goal before agent end", async () => {
@@ -177,6 +206,24 @@ describe("goal service", () => {
 		expect(result.snapshot?.status).toBe("budget_limited");
 		expect(result.snapshot?.tokensUsed).toBe(150);
 		expect(result.snapshot?.timeUsedSeconds).toBe(2);
+	});
+
+	it("budget-limits the goal when time budget is reached", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null, 5);
+				yield* goal.markAgentStart("session-1", 0);
+				return yield* goal.accountAgentEnd("session-1", makeAgentEnd(0), 5_000);
+			}),
+		);
+
+		expect(result.budgetLimitReached).toBe(true);
+		expect(result.snapshot?.status).toBe("budget_limited");
+		expect(result.snapshot?.timeUsedSeconds).toBe(5);
 	});
 
 	it("returns a live snapshot while a goal turn is running", async () => {

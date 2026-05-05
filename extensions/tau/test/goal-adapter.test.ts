@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Effect, Layer, ManagedRuntime } from "effect";
 
 import type {
@@ -171,6 +171,7 @@ describe("goal adapter", () => {
 	const harnesses: GoalAdapterHarness[] = [];
 
 	afterEach(async () => {
+		vi.useRealTimers();
 		for (const harness of harnesses.splice(0)) {
 			await harness.dispose();
 		}
@@ -190,6 +191,46 @@ describe("goal adapter", () => {
 			triggerTurn: true,
 			deliverAs: "followUp",
 		});
+	});
+
+	it("sets a time budget from /goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--time-budget 5m ship the feature");
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.timeBudgetSeconds).toBe(300);
+	});
+
+	it("sends the budget-limit prompt when the time budget is reached", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--time-budget 1 finish");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_000);
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantMessage(0)],
+		});
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
+		expect(harness.sentMessages[0]?.message.content).toContain("reached its budget");
 	});
 
 	it("does not start a turn when the session is not idle", async () => {

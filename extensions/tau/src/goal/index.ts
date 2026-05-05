@@ -34,6 +34,7 @@ type GoalToolDetails = {
 type CreateGoalParams = {
 	readonly objective: string;
 	readonly token_budget?: number;
+	readonly time_budget_seconds?: number;
 };
 
 type UpdateGoalParams = {
@@ -60,13 +61,41 @@ function decodeCreateGoalParams(raw: unknown): CreateGoalParams {
 		throw new Error("objective must be a non-empty string");
 	}
 	const tokenBudget = raw["token_budget"];
-	if (tokenBudget === undefined) {
-		return { objective };
-	}
-	if (typeof tokenBudget !== "number" || !Number.isInteger(tokenBudget) || tokenBudget <= 0) {
+	const timeBudgetSeconds = raw["time_budget_seconds"];
+	if (
+		tokenBudget !== undefined &&
+		(typeof tokenBudget !== "number" || !Number.isInteger(tokenBudget) || tokenBudget <= 0)
+	) {
 		throw new Error("token_budget must be a positive integer");
 	}
-	return { objective, token_budget: tokenBudget };
+	if (
+		timeBudgetSeconds !== undefined &&
+		(typeof timeBudgetSeconds !== "number" ||
+			!Number.isInteger(timeBudgetSeconds) ||
+			timeBudgetSeconds <= 0)
+	) {
+		throw new Error("time_budget_seconds must be a positive integer");
+	}
+	const parsedTokenBudget = typeof tokenBudget === "number" ? tokenBudget : undefined;
+	const parsedTimeBudgetSeconds =
+		typeof timeBudgetSeconds === "number" ? timeBudgetSeconds : undefined;
+	if (tokenBudget === undefined && timeBudgetSeconds === undefined) {
+		return { objective };
+	}
+	if (parsedTokenBudget === undefined && parsedTimeBudgetSeconds !== undefined) {
+		return { objective, time_budget_seconds: parsedTimeBudgetSeconds };
+	}
+	if (parsedTokenBudget !== undefined && parsedTimeBudgetSeconds === undefined) {
+		return { objective, token_budget: parsedTokenBudget };
+	}
+	if (parsedTokenBudget !== undefined && parsedTimeBudgetSeconds !== undefined) {
+		return {
+			objective,
+			token_budget: parsedTokenBudget,
+			time_budget_seconds: parsedTimeBudgetSeconds,
+		};
+	}
+	throw new Error("invalid goal budgets");
 }
 
 function decodeUpdateGoalParams(raw: unknown): UpdateGoalParams {
@@ -97,11 +126,14 @@ function describeGoal(goal: GoalSnapshot | null): string {
 		goal.tokenBudget === null
 			? "no budget"
 			: `${formatTokenCount(goal.tokensUsed)}/${formatTokenCount(goal.tokenBudget)} tokens`;
-	const runtime = formatDuration(goal.timeUsedSeconds * 1_000);
+	const timeBudget =
+		goal.timeBudgetSeconds === null
+			? formatDuration(goal.timeUsedSeconds * 1_000)
+			: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
 	return [
 		`Goal: ${goal.objective}`,
 		`Status: ${goal.status}`,
-		`Usage: ${budget}, ${runtime}`,
+		`Usage: ${budget}, ${timeBudget}`,
 	].join("\n");
 }
 
@@ -110,7 +142,11 @@ function describeGoalInline(goal: GoalSnapshot): string {
 		goal.tokenBudget === null
 			? formatTokenCount(goal.tokensUsed)
 			: `${formatTokenCount(goal.tokensUsed)}/${formatTokenCount(goal.tokenBudget)}`;
-	return `goal ${goal.status} ${budget}`;
+	const timeBudget =
+		goal.timeBudgetSeconds === null
+			? formatDuration(goal.timeUsedSeconds * 1_000)
+			: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
+	return `goal ${goal.status} ${budget} ${timeBudget}`;
 }
 
 function shouldAutoContinue(
@@ -153,7 +189,7 @@ class GoalWidget implements Component {
 			` Goal: ${goal.objective}`,
 			` Status: ${goal.status}`,
 			` Usage: ${formatTokenCount(goal.tokensUsed)} tokens`,
-			` Time: ${formatDuration(goal.timeUsedSeconds * 1_000)}`,
+			` Time: ${formatDuration(goal.timeUsedSeconds * 1_000)}${goal.timeBudgetSeconds === null ? "" : `/${formatDuration(goal.timeBudgetSeconds * 1_000)}`}`,
 		];
 		return maxWidth === 0 ? lines.map(() => "") : lines.map((line) => truncateToWidth(line, maxWidth));
 	}
@@ -224,6 +260,7 @@ function parseGoalCommand(args: string): {
 	readonly command: "show" | "clear" | "pause" | "resume" | "complete" | "set";
 	readonly objective?: string;
 	readonly tokenBudget?: number | null;
+	readonly timeBudgetSeconds?: number | null;
 } {
 	const trimmed = args.trim();
 	if (trimmed.length === 0) {
@@ -241,23 +278,67 @@ function parseGoalCommand(args: string): {
 	}
 
 	const parts = trimmed.split(/\s+/);
-	if (parts[0] === "--budget") {
-		const rawBudget = parts[1];
-		if (rawBudget === undefined) {
-			throw new GoalConflictError({ reason: "Usage: /goal --budget <tokens> <objective>" });
+	let tokenBudget: number | null = null;
+	let timeBudgetSeconds: number | null = null;
+	let index = 0;
+	while (index < parts.length) {
+		const part = parts[index];
+		if (part !== "--budget" && part !== "--time-budget") {
+			break;
 		}
-		const budget = Number.parseInt(rawBudget, 10);
-		if (!Number.isInteger(budget) || budget <= 0 || String(budget) !== rawBudget) {
-			throw new GoalConflictError({ reason: "budget must be a positive integer" });
+		const value = parts[index + 1];
+		if (value === undefined) {
+			throw new GoalConflictError({
+				reason: "Usage: /goal [--budget <tokens>] [--time-budget <duration>] <objective>",
+			});
 		}
-		const objective = parts.slice(2).join(" ").trim();
+		if (part === "--budget") {
+			const budget = Number.parseInt(value, 10);
+			if (!Number.isInteger(budget) || budget <= 0 || String(budget) !== value) {
+				throw new GoalConflictError({ reason: "budget must be a positive integer" });
+			}
+			tokenBudget = budget;
+		} else {
+			timeBudgetSeconds = parseTimeBudgetSeconds(value);
+		}
+		index += 2;
+	}
+	if (index > 0) {
+		const objective = parts.slice(index).join(" ").trim();
 		if (objective.length === 0) {
 			throw new GoalConflictError({ reason: "objective must be non-empty" });
 		}
-		return { command: "set", objective, tokenBudget: budget };
+		return { command: "set", objective, tokenBudget, timeBudgetSeconds };
 	}
 
-	return { command: "set", objective: trimmed, tokenBudget: null };
+	return { command: "set", objective: trimmed, tokenBudget: null, timeBudgetSeconds: null };
+}
+
+function parseTimeBudgetSeconds(input: string): number {
+	const match = /^(\d+)([smh]?)$/.exec(input);
+	if (match === null) {
+		throw new GoalConflictError({ reason: "time budget must be a positive duration like 300, 5m, or 1h" });
+	}
+	const amountText = match[1];
+	const unit = match[2];
+	if (amountText === undefined || unit === undefined) {
+		throw new GoalConflictError({
+			reason: "time budget must be a positive duration like 300, 5m, or 1h",
+		});
+	}
+	const amount = Number.parseInt(amountText, 10);
+	if (!Number.isInteger(amount) || amount <= 0 || String(amount) !== amountText) {
+		throw new GoalConflictError({
+			reason: "time budget must be a positive duration like 300, 5m, or 1h",
+		});
+	}
+	if (unit === "h") {
+		return amount * 3_600;
+	}
+	if (unit === "m") {
+		return amount * 60;
+	}
+	return amount;
 }
 
 async function withGoal<A>(
@@ -396,7 +477,13 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			parameters: Type.Object({
 				objective: Type.String({ description: "Concrete objective for this thread." }),
 				token_budget: Type.Optional(
-					Type.Integer({ description: "Optional positive token budget." }),
+					Type.Integer({ description: "Optional positive token budget.", minimum: 1 }),
+				),
+				time_budget_seconds: Type.Optional(
+					Type.Integer({
+						description: "Optional positive time budget in seconds.",
+						minimum: 1,
+					}),
 				),
 			}),
 			decodeParams: decodeCreateGoalParams,
@@ -410,6 +497,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						sessionIdFromContext(ctx),
 						params.objective,
 						params.token_budget ?? null,
+						params.time_budget_seconds ?? null,
 						{
 							failIfExists: true,
 						},
@@ -521,7 +609,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					}
 				}
 				const snapshot = await withGoal(runtime, (goal) =>
-					goal.create(sessionId, objective, parsed.tokenBudget ?? null),
+					goal.create(
+						sessionId,
+						objective,
+						parsed.tokenBudget ?? null,
+						parsed.timeBudgetSeconds ?? null,
+					),
 				);
 				await updateGoalUi(ctx);
 				ctx.ui.notify(`Set thread goal.\n${describeGoal(snapshot)}`, "info");
