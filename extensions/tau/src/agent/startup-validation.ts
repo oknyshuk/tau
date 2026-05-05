@@ -35,6 +35,14 @@ export function validateResolvedAgentConfiguration(
 				return;
 			}
 
+			if (definition.models.length === 0) {
+				return yield* Effect.fail(
+					new AgentRegistryConfigError({
+						message: `Agent "${name}" has no models configured. Set agents.${name}.models in ~/.pi/agent/settings.json or .pi/settings.json.`,
+					}),
+				);
+			}
+
 			if (definition.tools !== undefined) {
 				const invalidTools = [
 					...new Set(definition.tools.filter((tool) => !availableTools.has(tool))),

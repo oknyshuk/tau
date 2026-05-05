@@ -232,16 +232,40 @@ function makeRunTauStub(): {
 
 describe("memory tool runtime", () => {
 	let tempHome: string;
+	let originalHome: string | undefined;
 	let originalTauMemoryDir: string | undefined;
 
 	beforeEach(async () => {
 		tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "tau-memory-tool-runtime-"));
 		await fs.mkdir(path.join(tempHome, ".git"), { recursive: true });
+		await fs.mkdir(path.join(tempHome, ".pi", "agent"), { recursive: true });
+		await fs.writeFile(
+			path.join(tempHome, ".pi", "agent", "settings.json"),
+			JSON.stringify(
+				{
+					agents: {
+						smart: { models: [{ model: "inherit", thinking: "inherit" }] },
+						deep: { models: [{ model: "inherit", thinking: "inherit" }] },
+						rush: { models: [{ model: "inherit", thinking: "inherit" }] },
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+		originalHome = process.env["HOME"];
+		process.env["HOME"] = tempHome;
 		originalTauMemoryDir = process.env["TAU_MEMORY_DIR"];
 		process.env["TAU_MEMORY_DIR"] = path.join(tempHome, ".pi", "agent", "tau", "memories");
 	});
 
 	afterEach(async () => {
+		if (originalHome === undefined) {
+			delete process.env["HOME"];
+		} else {
+			process.env["HOME"] = originalHome;
+		}
 		if (originalTauMemoryDir === undefined) {
 			delete process.env["TAU_MEMORY_DIR"];
 		} else {

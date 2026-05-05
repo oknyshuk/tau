@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -10,6 +10,36 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 import { runTau } from "../src/app.js";
 import tau from "../src/index.js";
+
+const tempHomes: string[] = [];
+
+function writeRequiredBundledAgentModels(tempHome: string, agents: Record<string, unknown> = {}): void {
+	fs.mkdirSync(path.join(tempHome, ".pi", "agent"), { recursive: true });
+	fs.writeFileSync(
+		path.join(tempHome, ".pi", "agent", "settings.json"),
+		JSON.stringify(
+			{
+				agents: {
+					smart: { models: [{ model: "inherit", thinking: "inherit" }] },
+					deep: { models: [{ model: "inherit", thinking: "inherit" }] },
+					rush: { models: [{ model: "inherit", thinking: "inherit" }] },
+					...agents,
+				},
+			},
+			null,
+			2,
+		),
+		"utf-8",
+	);
+}
+
+function useValidHome(): string {
+	const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "tau-home-"));
+	writeRequiredBundledAgentModels(tempHome);
+	tempHomes.push(tempHome);
+	vi.stubEnv("HOME", tempHome);
+	return tempHome;
+}
 
 function makePiStub(): ExtensionAPI {
 	const eventHandlers = new Map<string, Array<(payload: unknown) => void>>();
@@ -103,6 +133,20 @@ function makePiStub(): ExtensionAPI {
 }
 
 describe("runTau runtime", () => {
+	beforeEach(() => {
+		useValidHome();
+	});
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		while (tempHomes.length > 0) {
+			const tempHome = tempHomes.pop();
+			if (tempHome !== undefined) {
+				fs.rmSync(tempHome, { recursive: true, force: true });
+			}
+		}
+	});
+
 	it("registers backlog-only planning surfaces during startup", async () => {
 		const pi = makePiStub() as ExtensionAPI & {
 			readonly __registeredTools: string[];
@@ -316,22 +360,12 @@ describe("runTau runtime", () => {
 	it("fails startup when resolved agent configuration is invalid", async () => {
 		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "tau-home-"));
 
-		fs.mkdirSync(path.join(tempHome, ".pi", "agent"), { recursive: true });
-		fs.writeFileSync(
-			path.join(tempHome, ".pi", "agent", "settings.json"),
-			JSON.stringify(
-				{
-					agents: {
-						deep: {
-							tools: ["read", "imaginary_tool"],
-						},
-					},
-				},
-				null,
-				2,
-			),
-			"utf-8",
-		);
+		writeRequiredBundledAgentModels(tempHome, {
+			deep: {
+				models: [{ model: "inherit", thinking: "inherit" }],
+				tools: ["read", "imaginary_tool"],
+			},
+		});
 
 		vi.stubEnv("HOME", tempHome);
 
@@ -340,7 +374,6 @@ describe("runTau runtime", () => {
 				'Invalid tools for agent "deep": imaginary_tool',
 			);
 		} finally {
-			vi.unstubAllEnvs();
 			fs.rmSync(tempHome, { recursive: true, force: true });
 		}
 	});

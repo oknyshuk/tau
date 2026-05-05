@@ -36,7 +36,7 @@ const VALID_AGENT_DEFINITION_FRONTMATTER_KEYS = new Set<string>(
 const AgentDefinitionFrontmatterSchema = Schema.Struct({
 	name: Schema.String,
 	description: Schema.String,
-	models: Schema.NonEmptyArray(Schema.Unknown),
+	models: Schema.optional(Schema.Array(Schema.Unknown)),
 	tools: Schema.optional(Schema.Array(Schema.Unknown)),
 	spawns: Schema.optional(
 		Schema.Union([Schema.Literal("*"), Schema.Array(Schema.String)]),
@@ -112,7 +112,7 @@ export function parseAgentDefinition(
 			),
 		),
 		Effect.flatMap((parsedFrontmatter) =>
-			Effect.forEach(parsedFrontmatter.models, (entry) =>
+			Effect.forEach(parsedFrontmatter.models ?? [], (entry) =>
 				decodeAgentModelSpec(entry, "Invalid agent model spec").pipe(
 					Effect.mapError(
 						(error) =>

@@ -2,9 +2,6 @@
 name: deep
 description: |
   Deep agent. High-reasoning agent for hard codebase analysis, architecture, and complex debugging.
-models:
-  - model: openai-codex/gpt-5.4
-    thinking: xhigh
 tools:
   - read
   - exec_command

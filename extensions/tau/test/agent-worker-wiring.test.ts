@@ -223,6 +223,35 @@ describe("AgentWorker structured-output wiring", () => {
 		expect(applyAgentToolAllowlistMock).toHaveBeenCalledTimes(1);
 	});
 
+	it("fails instead of creating a fallback session when the configured model cannot resolve", async () => {
+		await expect(
+			Effect.runPromise(
+				AgentWorker.make({
+					definition: {
+						...TEST_DEFINITION,
+						models: [{ model: "unknown-provider/nope" }],
+					},
+					depth: 0,
+					cwd: process.cwd(),
+					parentSessionFile: "parent-session",
+					executionState: TEST_EXECUTION_STATE,
+					executionProfile: TEST_EXECUTION_PROFILE,
+					parentSandboxConfig: PARENT_SANDBOX_CONFIG,
+					parentModel: TEST_MODEL,
+					approvalBroker: undefined,
+					modelRegistry: makeModelRegistry() as never,
+					resultSchema: undefined,
+					runPromise: async () => {
+						throw new Error("unused");
+					},
+					runFork: runForkForTests,
+				}),
+			),
+		).rejects.toThrow('Agent model "unknown-provider/nope" is not available');
+
+		expect(createAgentSessionMock).not.toHaveBeenCalled();
+	});
+
 	it("reinstalls toolOnlyStreamFn after session recreation on model switch", async () => {
 		const worker = await Effect.runPromise(
 			AgentWorker.make({

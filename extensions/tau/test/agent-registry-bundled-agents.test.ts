@@ -12,7 +12,7 @@ describe("agent-registry: bundled execution agents", () => {
 		vi.unstubAllEnvs();
 	});
 
-	it("loads smart, deep, and rush as ordinary bundled agents without plan", async () => {
+	it("loads smart, deep, and rush as ordinary bundled agents without plan or model defaults", async () => {
 		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "tau-home-"));
 		vi.stubEnv("HOME", tempHome);
 
@@ -25,9 +25,9 @@ describe("agent-registry: bundled execution agents", () => {
 			const plan = registry.resolve("plan");
 			const defaultMode = registry.resolve("default");
 
-			expect(smart?.models).toEqual([{ model: "anthropic/claude-opus-4-5", thinking: "medium" }]);
-			expect(deep?.models).toEqual([{ model: "openai-codex/gpt-5.4", thinking: "xhigh" }]);
-			expect(rush?.models).toEqual([{ model: "kimi-coding/kimi-k2-thinking", thinking: "off" }]);
+			expect(smart?.models).toEqual([]);
+			expect(deep?.models).toEqual([]);
+			expect(rush?.models).toEqual([]);
 			expect(smart?.description).not.toContain("mode");
 			expect(smart?.systemPrompt).toContain("powerful AI coding agent");
 			expect(deep?.systemPrompt).toContain("maximum reasoning capabilities");

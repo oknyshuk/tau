@@ -41,9 +41,12 @@ function writeInvalidAgentSettings(tempHome: string): void {
 		JSON.stringify(
 			{
 				agents: {
+					smart: { models: [{ model: "inherit", thinking: "inherit" }] },
 					deep: {
+						models: [{ model: "inherit", thinking: "inherit" }],
 						tools: ["read", "imaginary_tool"],
 					},
+					rush: { models: [{ model: "inherit", thinking: "inherit" }] },
 				},
 			},
 			null,
@@ -51,6 +54,33 @@ function writeInvalidAgentSettings(tempHome: string): void {
 		),
 		"utf-8",
 	);
+}
+
+function writeRequiredBundledAgentModels(tempHome: string): void {
+	const agentDir = path.join(tempHome, ".pi", "agent");
+	fs.mkdirSync(agentDir, { recursive: true });
+	fs.writeFileSync(
+		path.join(agentDir, "settings.json"),
+		JSON.stringify(
+			{
+				agents: {
+					smart: { models: [{ model: "inherit", thinking: "inherit" }] },
+					deep: { models: [{ model: "inherit", thinking: "inherit" }] },
+					rush: { models: [{ model: "inherit", thinking: "inherit" }] },
+				},
+			},
+			null,
+			2,
+		),
+		"utf-8",
+	);
+}
+
+function useValidHome(): string {
+	const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "tau-agents-menu-home-"));
+	writeRequiredBundledAgentModels(tempHome);
+	vi.stubEnv("HOME", tempHome);
+	return tempHome;
 }
 
 function writeRalphState(
@@ -174,6 +204,7 @@ describe("agents menu", () => {
 	});
 
 	it("does not recompute global tool availability on non-UI session_start", async () => {
+		const tempHome = useValidHome();
 		const { pi, handlers, setActiveToolsCalls } = makePiStub();
 		let refreshCount = 0;
 
@@ -195,9 +226,11 @@ describe("agents menu", () => {
 
 		expect(refreshCount).toBe(refreshBaseline);
 		expect(setActiveToolsCalls).toHaveLength(setActiveToolsBaseline);
+		fs.rmSync(tempHome, { recursive: true, force: true });
 	});
 
 	it("recomputes global tool availability on visible session_start", async () => {
+		const tempHome = useValidHome();
 		const { pi, handlers } = makePiStub();
 		let refreshCount = 0;
 
@@ -215,9 +248,11 @@ describe("agents menu", () => {
 		);
 
 		expect(refreshCount).toBe(1);
+		fs.rmSync(tempHome, { recursive: true, force: true });
 	});
 
 	it("refreshes the agent tool description from Ralph loop policy before agent start", async () => {
+		const tempHome = useValidHome();
 		const { pi, handlers } = makePiStub();
 		const refreshedDescriptions: string[] = [];
 		const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "tau-agents-menu-ralph-"));
@@ -258,11 +293,13 @@ describe("agents menu", () => {
 			expect(refreshedDescription).not.toContain("- oracle:");
 			expect(refreshedDescription).not.toContain("- smart:");
 		} finally {
+			fs.rmSync(tempHome, { recursive: true, force: true });
 			fs.rmSync(workspace, { recursive: true, force: true });
 		}
 	});
 
 	it("does not re-add the agent tool when Ralph contract disables it", async () => {
+		const tempHome = useValidHome();
 		const { pi, handlers, setActiveToolsCalls } = makePiStub();
 		const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "tau-agents-menu-tools-"));
 		const controllerSession = path.join(workspace, ".pi", "sessions", "controller.jsonl");
@@ -298,6 +335,7 @@ describe("agents menu", () => {
 
 			expect(setActiveToolsCalls.at(-1)).toEqual([]);
 		} finally {
+			fs.rmSync(tempHome, { recursive: true, force: true });
 			fs.rmSync(workspace, { recursive: true, force: true });
 		}
 	});

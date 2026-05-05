@@ -14,7 +14,7 @@ import { Effect } from "effect";
 import type { ApprovalBroker } from "../approval-broker.js";
 import { setWorkerApprovalBroker } from "../approval-broker.js";
 import { isExecutionThinkingLevel } from "../model-spec.js";
-import type { AgentError } from "../services.js";
+import { AgentError } from "../services.js";
 import { applyAgentToolAllowlist } from "../tool-allowlist.js";
 import type { AgentDefinition, ModelSpec } from "../types.js";
 import type { ResolvedSandboxConfig } from "../../sandbox/config.js";
@@ -72,9 +72,20 @@ export function createSessionForModel(
 ): Effect.Effect<AgentSession, AgentError> {
 	return Effect.gen(function* () {
 		const resolvedModel =
-			spec.model !== "inherit"
-				? resolveModelPattern(spec.model, modelRegistry.getAll())
-				: parentModel;
+			spec.model === "inherit"
+				? parentModel
+				: resolveModelPattern(spec.model, modelRegistry.getAll());
+
+		if (resolvedModel === undefined) {
+			return yield* Effect.fail(
+				new AgentError({
+					message:
+						spec.model === "inherit"
+							? "Agent model inherits from parent, but the parent session has no active model"
+							: `Agent model "${spec.model}" is not available`,
+				}),
+			);
+		}
 
 		const sessionOpts = {
 			cwd: infra.cwd,
@@ -84,7 +95,7 @@ export function createSessionForModel(
 			settingsManager: infra.settingsManager,
 			resourceLoader: infra.resourceLoader,
 			customTools: infra.customTools,
-			...(resolvedModel ? { model: resolvedModel } : {}),
+			model: resolvedModel,
 		};
 		const { session } = yield* Effect.promise(() => createAgentSession(sessionOpts));
 

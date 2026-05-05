@@ -2,9 +2,6 @@
 name: smart
 description: |
   Smart agent. Balanced coding agent for implementation, debugging, and general engineering tasks.
-models:
-  - model: anthropic/claude-opus-4-5
-    thinking: medium
 tools:
   - read
   - exec_command

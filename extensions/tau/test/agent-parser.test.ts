@@ -160,7 +160,7 @@ Find stuff.`;
 		);
 	});
 
-	it("should throw on missing models", async () => {
+	it("should parse missing models as unresolved", async () => {
 		const content = `---
 name: oracle
 description: The oracle agent
@@ -169,7 +169,9 @@ approval_timeout: 60
 ---
 Prompt`;
 
-		await expect(Effect.runPromise(parseAgentDefinition(content))).rejects.toThrow(/\["models"\]/);
+		await expect(Effect.runPromise(parseAgentDefinition(content))).resolves.toMatchObject({
+			models: [],
+		});
 	});
 
 	it("should throw on duplicate tools", async () => {
@@ -192,7 +194,7 @@ Prompt`;
 		);
 	});
 
-	it("should throw on empty models array", async () => {
+	it("should parse empty models array as unresolved", async () => {
 		const content = `---
 name: oracle
 description: The oracle agent
@@ -202,7 +204,9 @@ approval_timeout: 60
 ---
 Prompt`;
 
-		await expect(Effect.runPromise(parseAgentDefinition(content))).rejects.toThrow(/\["models"\]/);
+		await expect(Effect.runPromise(parseAgentDefinition(content))).resolves.toMatchObject({
+			models: [],
+		});
 	});
 
 	it("should throw on missing frontmatter", async () => {

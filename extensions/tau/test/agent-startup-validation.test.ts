@@ -32,6 +32,24 @@ You are ${name}.
 `;
 }
 
+function writeRequiredBundledAgentModels(tempHome: string, agents: Record<string, unknown> = {}): void {
+	writeFile(
+		path.join(tempHome, ".pi", "agent", "settings.json"),
+		JSON.stringify(
+			{
+				agents: {
+					smart: { models: [{ model: "inherit", thinking: "inherit" }] },
+					deep: { models: [{ model: "inherit", thinking: "inherit" }] },
+					rush: { models: [{ model: "inherit", thinking: "inherit" }] },
+					...agents,
+				},
+			},
+			null,
+			2,
+		),
+	);
+}
+
 function runValidation(cwd: string) {
 	return Effect.runPromise(
 		AgentRegistry.load(cwd).pipe(Effect.flatMap(validateResolvedAgentConfiguration)),
@@ -44,6 +62,34 @@ describe("agent startup validation", () => {
 		vi.unstubAllEnvs();
 	});
 
+	it("fails startup when configurable bundled agents do not have model settings", async () => {
+		const tempHome = mkdtemp("tau-home-");
+		const tempProject = mkdtemp("tau-project-");
+
+		writeFile(
+			path.join(tempHome, ".pi", "agent", "settings.json"),
+			JSON.stringify(
+				{
+					agents: {
+						deep: { models: [{ model: "inherit", thinking: "inherit" }] },
+						rush: { models: [{ model: "inherit", thinking: "inherit" }] },
+					},
+				},
+				null,
+				2,
+			),
+		);
+
+		vi.stubEnv("HOME", tempHome);
+
+		await expect(runValidation(tempProject)).rejects.toThrow(
+			'Agent "smart" has no models configured. Set agents.smart.models in ~/.pi/agent/settings.json or .pi/settings.json.',
+		);
+
+		fs.rmSync(tempHome, { recursive: true, force: true });
+		fs.rmSync(tempProject, { recursive: true, force: true });
+	});
+
 	it("allows startup when user agent markdown files are valid", async () => {
 		const tempHome = mkdtemp("tau-home-");
 		const tempProject = mkdtemp("tau-project-");
@@ -52,6 +98,7 @@ describe("agent startup validation", () => {
 			path.join(tempHome, ".pi", "agent", "agents", "oracle.md"),
 			validAgentMarkdown("oracle"),
 		);
+		writeRequiredBundledAgentModels(tempHome);
 
 		vi.stubEnv("HOME", tempHome);
 
@@ -86,20 +133,12 @@ describe("agent startup validation", () => {
 		const tempHome = mkdtemp("tau-home-");
 		const tempProject = mkdtemp("tau-project-");
 
-		writeFile(
-			path.join(tempHome, ".pi", "agent", "settings.json"),
-			JSON.stringify(
-				{
-					agents: {
-						deep: {
-							tools: ["read", "imaginary_tool"],
-						},
-					},
-				},
-				null,
-				2,
-			),
-		);
+		writeRequiredBundledAgentModels(tempHome, {
+			deep: {
+				models: [{ model: "inherit", thinking: "inherit" }],
+				tools: ["read", "imaginary_tool"],
+			},
+		});
 
 		vi.stubEnv("HOME", tempHome);
 
@@ -115,20 +154,12 @@ describe("agent startup validation", () => {
 		const tempHome = mkdtemp("tau-home-");
 		const tempProject = mkdtemp("tau-project-");
 
-		writeFile(
-			path.join(tempHome, ".pi", "agent", "settings.json"),
-			JSON.stringify(
-				{
-					agents: {
-						deep: {
-							tools: ["read", "backlog"],
-						},
-					},
-				},
-				null,
-				2,
-			),
-		);
+		writeRequiredBundledAgentModels(tempHome, {
+			deep: {
+				models: [{ model: "inherit", thinking: "inherit" }],
+				tools: ["read", "backlog"],
+			},
+		});
 
 		vi.stubEnv("HOME", tempHome);
 

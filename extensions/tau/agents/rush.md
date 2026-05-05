@@ -2,9 +2,6 @@
 name: rush
 description: |
   Rush agent. Fast implementation agent for focused changes with minimal deliberation.
-models:
-  - model: kimi-coding/kimi-k2-thinking
-    thinking: off
 tools:
   - read
   - exec_command
