@@ -34,7 +34,11 @@ function makeGoalRuntime(): GoalRuntimeHarness {
 	};
 }
 
-function makeAssistantMessage(tokens: number, withToolCall: boolean): AssistantMessage {
+function makeAssistantMessage(
+	tokens: number,
+	withToolCall: boolean,
+	stopReason: AssistantMessage["stopReason"] = "stop",
+): AssistantMessage {
 	return {
 		role: "assistant",
 		api: "openai-responses",
@@ -57,7 +61,7 @@ function makeAssistantMessage(tokens: number, withToolCall: boolean): AssistantM
 				total: 0,
 			},
 		},
-		stopReason: "stop",
+		stopReason,
 		timestamp: 0,
 	};
 }
@@ -66,6 +70,16 @@ function makeAgentEnd(tokens: number, withToolCall = false): AgentEndEvent {
 	return {
 		type: "agent_end",
 		messages: [makeAssistantMessage(tokens, withToolCall)],
+	};
+}
+
+function makeAbortedAgentEndAfterToolCall(): AgentEndEvent {
+	return {
+		type: "agent_end",
+		messages: [
+			makeAssistantMessage(0, true, "toolUse"),
+			makeAssistantMessage(0, false, "aborted"),
+		],
 	};
 }
 
@@ -275,6 +289,48 @@ describe("goal service", () => {
 			}),
 		);
 
+		expect(result.snapshot?.continuationSuppressed).toBe(true);
+	});
+
+	it("suppresses repeated continuation when a dispatched continuation is aborted after tool work", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.markContinuationDispatched("session-1");
+				return yield* goal.accountAgentEnd(
+					"session-1",
+					makeAbortedAgentEndAfterToolCall(),
+					1_000,
+				);
+			}),
+		);
+
+		expect(result.snapshot?.status).toBe("paused");
+		expect(result.snapshot?.continuationSuppressed).toBe(true);
+	});
+
+	it("pauses the goal when an active turn ends with an aborted assistant message", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.markAgentStart("session-1", 0);
+				return yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(0, false, "aborted"),
+					1_000,
+				);
+			}),
+		);
+
+		expect(result.snapshot?.status).toBe("paused");
 		expect(result.snapshot?.continuationSuppressed).toBe(true);
 	});
 });

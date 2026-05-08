@@ -99,7 +99,10 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 	};
 }
 
-function makeAssistantMessage(tokens: number): AssistantMessage {
+function makeAssistantMessage(
+	tokens: number,
+	stopReason: AssistantMessage["stopReason"] = "stop",
+): AssistantMessage {
 	return {
 		role: "assistant",
 		api: "openai-responses",
@@ -120,7 +123,7 @@ function makeAssistantMessage(tokens: number): AssistantMessage {
 				total: 0,
 			},
 		},
-		stopReason: "stop",
+		stopReason,
 		timestamp: 0,
 	};
 }
@@ -342,6 +345,26 @@ describe("goal adapter", () => {
 		expect(snapshot?.status).toBe("paused");
 	});
 
+	it("pauses the goal when the assistant event reports an aborted turn", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(0, "aborted"),
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+	});
+
 	it("does not continue the goal when pi reports an interrupted agent end after tool work", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
@@ -354,6 +377,29 @@ describe("goal adapter", () => {
 		await runGoalCommand(harness, "ship the feature");
 		harness.sentMessages.length = 0;
 		await fireEvent(harness, "agent_end", agentEnd, interruptedCtx);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("does not continue the goal when an aborted agent end has no pi signal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [makeAssistantToolCallMessage(), makeAssistantMessage(0, "aborted")],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
 
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
