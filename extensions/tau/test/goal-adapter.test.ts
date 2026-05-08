@@ -145,6 +145,20 @@ function makeAbortedPiContext(ctx: ExtensionContext): ExtensionContext {
 	} as ExtensionContext;
 }
 
+function makePiSignalContext(
+	ctx: ExtensionContext,
+	controller: AbortController,
+): ExtensionContext {
+	return {
+		...ctx,
+		signal: controller.signal,
+	} as ExtensionContext;
+}
+
+function flushPromises(): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 async function fireEvent(
 	harness: GoalAdapterHarness,
 	name: string,
@@ -345,15 +359,22 @@ describe("goal adapter", () => {
 		expect(snapshot?.status).toBe("paused");
 	});
 
-	it("pauses the goal when the assistant event reports an aborted turn", async () => {
+	it("pauses the goal from the pi interrupt signal before completion events", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
+		const controller = new AbortController();
+		const signalCtx = makePiSignalContext(harness.ctx, controller);
 
 		await runGoalCommand(harness, "ship the feature");
-		await fireEvent(harness, "turn_end", {
-			type: "turn_end",
-			message: makeAssistantMessage(0, "aborted"),
-		});
+		harness.sentMessages.length = 0;
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			signalCtx,
+		);
+		controller.abort();
+		await flushPromises();
 
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
@@ -363,6 +384,15 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.status).toBe("paused");
+
+		await fireEvent(
+			harness,
+			"agent_end",
+			{ type: "agent_end", messages: [makeAssistantToolCallMessage()] },
+			signalCtx,
+		);
+
+		expect(harness.sentMessages).toHaveLength(0);
 	});
 
 	it("does not continue the goal when pi reports an interrupted agent end after tool work", async () => {
@@ -389,7 +419,38 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
-	it("does not continue the goal when an aborted agent end has no pi signal", async () => {
+	it("does not continue when pi clears the signal before agent end handling", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const controller = new AbortController();
+		const signalCtx = makePiSignalContext(harness.ctx, controller);
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			signalCtx,
+		);
+		controller.abort();
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantToolCallMessage()],
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("does not pause the goal from an aborted assistant event without a pi interrupt signal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const agentEnd: AgentEndEvent = {
@@ -408,7 +469,9 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("paused");
-		expect(harness.sentMessages).toHaveLength(0);
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
 	});
+
 });

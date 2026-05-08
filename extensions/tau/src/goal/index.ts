@@ -163,11 +163,15 @@ function shouldAutoContinue(
 }
 
 function wasInterruptedByPi(ctx: ExtensionContext): boolean {
+	return signalFromContext(ctx)?.aborted === true;
+}
+
+function signalFromContext(ctx: ExtensionContext): AbortSignal | undefined {
 	if (!("signal" in ctx)) {
-		return false;
+		return undefined;
 	}
 	const signalHolder = ctx as ExtensionContext & { readonly signal: unknown };
-	return signalHolder.signal instanceof AbortSignal && signalHolder.signal.aborted;
+	return signalHolder.signal instanceof AbortSignal ? signalHolder.signal : undefined;
 }
 
 class GoalWidget implements Component {
@@ -204,6 +208,11 @@ type GoalUiState = {
 	component: GoalWidget | undefined;
 	tui: TUI | undefined;
 	context: ExtensionContext | undefined;
+};
+
+type GoalInterruptListener = {
+	readonly signal: AbortSignal;
+	readonly onAbort: () => void;
 };
 
 function clearGoalUi(ctx: ExtensionContext, state: GoalUiState): void {
@@ -389,6 +398,8 @@ async function dispatchGoalContinuation(
 export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	let tickerFiber: Fiber.Fiber<void, never> | undefined;
 	let tickerCtx: ExtensionContext | undefined;
+	const interruptedSessions = new Set<string>();
+	const interruptListeners = new Map<string, GoalInterruptListener>();
 	const goalUiState: GoalUiState = {
 		mounted: false,
 		component: undefined,
@@ -403,6 +414,51 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			void runtime.runPromise(Fiber.interrupt(fiber).pipe(Effect.asVoid));
 		}
 		tickerCtx = undefined;
+	};
+
+	const pauseGoalFromInterrupt = async (ctx: ExtensionContext): Promise<void> => {
+		const sessionId = sessionIdFromContext(ctx);
+		await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+		await updateGoalUi(ctx);
+	};
+
+	const clearGoalInterruptListener = (sessionId: string): void => {
+		const listener = interruptListeners.get(sessionId);
+		if (listener === undefined) {
+			return;
+		}
+		listener.signal.removeEventListener("abort", listener.onAbort);
+		interruptListeners.delete(sessionId);
+	};
+
+	const clearAllGoalInterruptListeners = (): void => {
+		for (const sessionId of interruptListeners.keys()) {
+			clearGoalInterruptListener(sessionId);
+		}
+		interruptedSessions.clear();
+	};
+
+	const observeGoalInterrupt = (ctx: ExtensionContext): void => {
+		const signal = signalFromContext(ctx);
+		if (signal === undefined) {
+			return;
+		}
+		const sessionId = sessionIdFromContext(ctx);
+		const current = interruptListeners.get(sessionId);
+		if (current?.signal === signal) {
+			return;
+		}
+		clearGoalInterruptListener(sessionId);
+		const onAbort = (): void => {
+			interruptedSessions.add(sessionId);
+			void pauseGoalFromInterrupt(ctx);
+		};
+		interruptListeners.set(sessionId, { signal, onAbort });
+		if (signal.aborted) {
+			onAbort();
+			return;
+		}
+		signal.addEventListener("abort", onAbort, { once: true });
 	};
 
 	const updateGoalUi = async (ctx: ExtensionContext): Promise<GoalSnapshot | null> => {
@@ -649,6 +705,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		if (snapshot?.status !== "active" && snapshot?.status !== "budget_limited") {
 			return;
 		}
+		observeGoalInterrupt(ctx);
 		return {
 			systemPrompt: `${event.systemPrompt}\n\n${goalSystemPrompt(snapshot)}`,
 		};
@@ -659,7 +716,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		const result = await withGoal(runtime, (goal) =>
 			goal.accountTurnEnd(sessionId, event.message, Date.now()),
 		);
-		if (wasInterruptedByPi(ctx)) {
+		if (wasInterruptedByPi(ctx) || interruptedSessions.has(sessionId)) {
 			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 			await updateGoalUi(ctx);
 			return;
@@ -684,7 +741,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		const result = await withGoal(runtime, (goal) =>
 			goal.accountAgentEnd(sessionId, event, Date.now()),
 		);
-		if (wasInterruptedByPi(ctx)) {
+		const interrupted = wasInterruptedByPi(ctx) || interruptedSessions.has(sessionId);
+		clearGoalInterruptListener(sessionId);
+		interruptedSessions.delete(sessionId);
+		if (interrupted) {
 			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 			await updateGoalUi(ctx);
 			return;
@@ -713,5 +773,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 	pi.on("session_shutdown", () => {
 		stopGoalTicker();
+		clearAllGoalInterruptListeners();
 	});
 }

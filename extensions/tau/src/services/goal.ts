@@ -142,19 +142,11 @@ function assistantMessageUsageTokens(message: AgentMessage): number {
 	if (message.role !== "assistant") {
 		return 0;
 	}
-	if (message.stopReason === "aborted" || message.stopReason === "error") {
+	if (message.stopReason === "error") {
 		return 0;
 	}
 	const { usage } = message;
 	return usage.totalTokens || usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
-}
-
-function assistantMessageWasAborted(message: AgentMessage): boolean {
-	return message.role === "assistant" && message.stopReason === "aborted";
-}
-
-function hasAssistantAbort(event: AgentEndEvent): boolean {
-	return event.messages.some(assistantMessageWasAborted);
 }
 
 function hasAssistantToolCall(event: AgentEndEvent): boolean {
@@ -341,7 +333,6 @@ export const GoalLive = Layer.effect(
 			options: {
 				readonly finishActiveAccounting: boolean;
 				readonly continuationHadToolCall: boolean | null;
-				readonly turnAborted: boolean;
 			},
 		): Effect.Effect<GoalAgentEndResult, never, never> =>
 			Effect.gen(function* () {
@@ -379,12 +370,6 @@ export const GoalLive = Layer.effect(
 							tokensUsed: runtime.snapshot.tokensUsed + tokens,
 							timeUsedSeconds: runtime.snapshot.timeUsedSeconds + seconds,
 						});
-						if (options.turnAborted) {
-							snapshot = withUpdatedSnapshot(snapshot, nowIso, {
-								status: "paused",
-								continuationSuppressed: true,
-							});
-						}
 						if (
 							runtime.continuationInFlight &&
 							options.continuationHadToolCall === false
@@ -408,7 +393,6 @@ export const GoalLive = Layer.effect(
 						shouldPersist =
 							tokens > 0 ||
 							seconds > 0 ||
-							options.turnAborted ||
 							runtime.continuationInFlight ||
 							budgetLimitReached;
 						return {
@@ -428,16 +412,12 @@ export const GoalLive = Layer.effect(
 			accountUsage(sessionId, assistantMessageUsageTokens(message), nowMs, {
 				finishActiveAccounting: false,
 				continuationHadToolCall: null,
-				turnAborted: assistantMessageWasAborted(message),
 			});
 
 		const accountAgentEnd: GoalService["accountAgentEnd"] = (sessionId, event, nowMs) =>
 			accountUsage(sessionId, 0, nowMs, {
 				finishActiveAccounting: true,
-				continuationHadToolCall: hasAssistantAbort(event)
-					? false
-					: hasAssistantToolCall(event),
-				turnAborted: hasAssistantAbort(event),
+				continuationHadToolCall: hasAssistantToolCall(event),
 			});
 
 		const markContinuationDispatched: GoalService["markContinuationDispatched"] = (sessionId) =>

@@ -73,16 +73,6 @@ function makeAgentEnd(tokens: number, withToolCall = false): AgentEndEvent {
 	};
 }
 
-function makeAbortedAgentEndAfterToolCall(): AgentEndEvent {
-	return {
-		type: "agent_end",
-		messages: [
-			makeAssistantMessage(0, true, "toolUse"),
-			makeAssistantMessage(0, false, "aborted"),
-		],
-	};
-}
-
 function makeCustomEntry(id: string, data: unknown): SessionEntry {
 	return {
 		type: "custom",
@@ -292,28 +282,7 @@ describe("goal service", () => {
 		expect(result.snapshot?.continuationSuppressed).toBe(true);
 	});
 
-	it("suppresses repeated continuation when a dispatched continuation is aborted after tool work", async () => {
-		const harness = makeGoalRuntime();
-		runtimes.push(harness);
-
-		const result = await harness.run(
-			Effect.gen(function* () {
-				const goal = yield* Goal;
-				yield* goal.create("session-1", "finish", null);
-				yield* goal.markContinuationDispatched("session-1");
-				return yield* goal.accountAgentEnd(
-					"session-1",
-					makeAbortedAgentEndAfterToolCall(),
-					1_000,
-				);
-			}),
-		);
-
-		expect(result.snapshot?.status).toBe("paused");
-		expect(result.snapshot?.continuationSuppressed).toBe(true);
-	});
-
-	it("pauses the goal when an active turn ends with an aborted assistant message", async () => {
+	it("accounts aborted assistant messages without changing goal status", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
 
@@ -324,13 +293,15 @@ describe("goal service", () => {
 				yield* goal.markAgentStart("session-1", 0);
 				return yield* goal.accountTurnEnd(
 					"session-1",
-					makeAssistantMessage(0, false, "aborted"),
+					makeAssistantMessage(25, false, "aborted"),
 					1_000,
 				);
 			}),
 		);
 
-		expect(result.snapshot?.status).toBe("paused");
-		expect(result.snapshot?.continuationSuppressed).toBe(true);
+		expect(result.snapshot?.status).toBe("active");
+		expect(result.snapshot?.tokensUsed).toBe(25);
+		expect(result.snapshot?.timeUsedSeconds).toBe(1);
 	});
+
 });
