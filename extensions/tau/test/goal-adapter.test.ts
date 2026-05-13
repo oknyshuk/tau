@@ -36,6 +36,7 @@ type GoalAdapterHarness = {
 	readonly commands: Map<string, RegisteredCommand>;
 	readonly events: Map<string, EventHandler[]>;
 	readonly sentMessages: SentMessage[];
+	readonly notifications: ReadonlyArray<{ readonly message: string; readonly type: string }>;
 	readonly confirmations: ReadonlyArray<{ readonly title: string; readonly message: string }>;
 	readonly ctx: ExtensionCommandContext;
 	readonly run: <A, E>(effect: Effect.Effect<A, E, Goal>) => Promise<A>;
@@ -46,6 +47,7 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 	const commands = new Map<string, RegisteredCommand>();
 	const events = new Map<string, EventHandler[]>();
 	const sentMessages: SentMessage[] = [];
+	const notifications: Array<{ readonly message: string; readonly type: string }> = [];
 	const confirmations: Array<{ readonly title: string; readonly message: string }> = [];
 	const piBase = {
 		on: (name: string, handler: EventHandler) => {
@@ -76,7 +78,9 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 			getBranch: () => [],
 		},
 		ui: {
-			notify: () => undefined,
+			notify: (message: string, type: string) => {
+				notifications.push({ message, type });
+			},
 			confirm: async (title: string, message: string) => {
 				confirmations.push({ title, message });
 				return true;
@@ -92,6 +96,7 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 		commands,
 		events,
 		sentMessages,
+		notifications,
 		confirmations,
 		ctx,
 		run: (effect) => runtime.runPromise(effect),
@@ -133,6 +138,14 @@ function makeAssistantToolCallMessage(): AssistantMessage {
 		...makeAssistantMessage(0),
 		content: [{ type: "toolCall", id: "call-1", name: "read", arguments: {} }],
 		stopReason: "toolUse",
+	};
+}
+
+function makeErrorAssistantMessage(errorMessage: string): AssistantMessage {
+	return {
+		...makeAssistantMessage(0, "error"),
+		content: [{ type: "text", text: errorMessage }],
+		errorMessage,
 	};
 }
 
@@ -474,4 +487,255 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
 	});
 
+	it("does not dispatch a normal continuation after an assistant error following tool work", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("pauses instead of retrying context length errors", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("invalid_request_error: context_length_exceeded"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.sentMessages).toHaveLength(0);
+		expect(harness.notifications.at(-1)?.message).toContain("context_length_exceeded");
+	});
+
+	it("pauses after three consecutive retryable assistant errors", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+		await fireEvent(harness, "agent_end", agentEnd);
+		await fireEvent(harness, "agent_end", agentEnd);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.sentMessages).toHaveLength(0);
+		expect(harness.notifications.at(-1)?.message).toContain("3 consecutive errors");
+	});
+
+	it("sends a delayed recovery retry for a retryable assistant error", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+
+		expect(harness.sentMessages).toHaveLength(0);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
+		expect(harness.sentMessages[0]?.message.content).toContain("provider returned error: 503");
+	});
+
+	it("sends a delayed recovery retry when an assistant error happens before tool work", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [makeErrorAssistantMessage("provider returned error: 503")],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
+	});
+
+	it("reschedules a delayed recovery retry while the agent is still running", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		let idle = false;
+		const busyCtx = {
+			...harness.ctx,
+			isIdle: () => idle,
+		} as ExtensionContext;
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd, busyCtx);
+		await vi.advanceTimersByTimeAsync(60_000);
+		expect(harness.sentMessages).toHaveLength(0);
+
+		idle = true;
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
+	});
+
+	it("clears retry error state when a delayed recovery retry cannot dispatch", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const blockedCtx = {
+			...harness.ctx,
+			hasPendingMessages: () => true,
+		} as ExtensionContext;
+		const errorEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", errorEnd, blockedCtx);
+		await vi.advanceTimersByTimeAsync(60_000);
+		await fireEvent(harness, "agent_end", errorEnd);
+		await fireEvent(harness, "agent_end", errorEnd);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("keeps retry error state when a delayed recovery retry is blocked by a running agent", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const busyCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+		} as ExtensionContext;
+		const errorEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", errorEnd, busyCtx);
+		await vi.advanceTimersByTimeAsync(60_000);
+		await fireEvent(harness, "agent_end", errorEnd);
+		await fireEvent(harness, "agent_end", errorEnd);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("resets consecutive assistant errors after a successful assistant turn", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const errorEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+		const successEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [makeAssistantToolCallMessage(), makeAssistantMessage(0)],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", errorEnd);
+		await fireEvent(harness, "agent_end", errorEnd);
+		await fireEvent(harness, "agent_end", successEnd);
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", errorEnd);
+		await fireEvent(harness, "agent_end", errorEnd);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
 });
