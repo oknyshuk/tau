@@ -7,6 +7,7 @@ import type {
 	Theme,
 	TurnEndEvent,
 } from "@earendil-works/pi-coding-agent";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { Type } from "@sinclair/typebox";
 import { Text, truncateToWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 import { Effect, Fiber } from "effect";
@@ -16,7 +17,12 @@ import { defineDecodedTool, textToolResult } from "../shared/decoded-tool.js";
 import { formatDuration } from "../shared/format-duration.js";
 import { formatTokenCount } from "../shared/format-tokens.js";
 import { GoalConflictError, GoalValidationError } from "./errors.js";
-import { budgetLimitPrompt, continuationPrompt, goalSystemPrompt } from "./prompts.js";
+import {
+	budgetLimitPrompt,
+	continuationPrompt,
+	errorRecoveryPrompt,
+	goalSystemPrompt,
+} from "./prompts.js";
 import type { GoalSnapshot, GoalStatus } from "./schema.js";
 
 export type GoalRuntime = {
@@ -26,6 +32,12 @@ export type GoalRuntime = {
 
 const GOAL_CONTINUATION_MESSAGE_TYPE = "tau:goal-continuation";
 const GOAL_BUDGET_MESSAGE_TYPE = "tau:goal-budget-limit";
+const GOAL_ERROR_RETRY_MESSAGE_TYPE = "tau:goal-error-retry";
+const MAX_CONSECUTIVE_GOAL_ERRORS = 3;
+const GOAL_ERROR_RETRY_BASE_DELAY_MS = 5_000;
+const GOAL_ERROR_RETRY_MAX_DELAY_MS = 30_000;
+const GOAL_ERROR_RETRY_JITTER_MS = 1_000;
+const GOAL_ERROR_RETRY_BUSY_DELAY_MS = 1_000;
 
 type GoalToolDetails = {
 	readonly snapshot: GoalSnapshot | null;
@@ -215,6 +227,64 @@ type GoalInterruptListener = {
 	readonly onAbort: () => void;
 };
 
+type GoalErrorRetryState = {
+	readonly consecutiveErrors: number;
+	readonly fingerprint: string;
+	readonly generation: number;
+	readonly errorMessage: string;
+	readonly timeout: ReturnType<typeof setTimeout> | undefined;
+};
+
+function latestAssistantMessage(event: AgentEndEvent): AssistantMessage | undefined {
+	let latest: AssistantMessage | undefined;
+	for (const message of event.messages) {
+		if (message.role === "assistant") {
+			latest = message as AssistantMessage;
+		}
+	}
+	return latest;
+}
+
+function assistantErrorMessage(message: AssistantMessage): string {
+	if (typeof message.errorMessage === "string" && message.errorMessage.trim().length > 0) {
+		return message.errorMessage.trim();
+	}
+	const text: string[] = [];
+	for (const content of message.content) {
+		if (content.type === "text" && content.text.trim().length > 0) {
+			text.push(content.text.trim());
+		}
+	}
+	return text.length === 0 ? "assistant request failed" : text.join("\n");
+}
+
+function fingerprintGoalError(errorMessage: string): string {
+	return errorMessage.replace(/\s+/g, " ").trim().toLowerCase().slice(0, 500);
+}
+
+function isContextLengthGoalError(errorMessage: string): boolean {
+	return /context.?length.?exceeded|input exceeds.*context|exceeds.*context window|maximum context length|too many tokens/i.test(
+		errorMessage,
+	);
+}
+
+function isRetryableGoalError(errorMessage: string): boolean {
+	if (isContextLengthGoalError(errorMessage)) {
+		return false;
+	}
+	return /overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|network.?error|connection.?error|connection.?refused|connection.?lost|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|http2 request did not get a response|timed? out|timeout|terminated|retry delay/i.test(
+		errorMessage,
+	);
+}
+
+function goalErrorRetryDelayMs(consecutiveErrors: number): number {
+	const exponential = Math.min(
+		GOAL_ERROR_RETRY_MAX_DELAY_MS,
+		GOAL_ERROR_RETRY_BASE_DELAY_MS * 2 ** Math.max(0, consecutiveErrors - 1),
+	);
+	return exponential + Math.floor(Math.random() * GOAL_ERROR_RETRY_JITTER_MS);
+}
+
 function clearGoalUi(ctx: ExtensionContext, state: GoalUiState): void {
 	state.mounted = false;
 	state.component = undefined;
@@ -400,6 +470,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	let tickerCtx: ExtensionContext | undefined;
 	const interruptedSessions = new Set<string>();
 	const interruptListeners = new Map<string, GoalInterruptListener>();
+	const errorRetryStates = new Map<string, GoalErrorRetryState>();
 	const goalUiState: GoalUiState = {
 		mounted: false,
 		component: undefined,
@@ -414,6 +485,28 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			void runtime.runPromise(Fiber.interrupt(fiber).pipe(Effect.asVoid));
 		}
 		tickerCtx = undefined;
+	};
+
+	const clearGoalErrorRetry = (sessionId: string): void => {
+		const state = errorRetryStates.get(sessionId);
+		if (state?.timeout !== undefined) {
+			clearTimeout(state.timeout);
+		}
+		errorRetryStates.delete(sessionId);
+	};
+
+	const clearAllGoalErrorRetries = (): void => {
+		for (const sessionId of errorRetryStates.keys()) {
+			clearGoalErrorRetry(sessionId);
+		}
+	};
+
+	const currentGoalErrorRetry = (
+		sessionId: string,
+		generation: number,
+	): GoalErrorRetryState | undefined => {
+		const state = errorRetryStates.get(sessionId);
+		return state?.generation === generation ? state : undefined;
 	};
 
 	const pauseGoalFromInterrupt = async (ctx: ExtensionContext): Promise<void> => {
@@ -472,6 +565,133 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			stopGoalTicker();
 		}
 		return snapshot;
+	};
+
+	const pauseGoalFromError = async (
+		ctx: ExtensionContext,
+		errorMessage: string,
+		reason: string,
+	): Promise<void> => {
+		const sessionId = sessionIdFromContext(ctx);
+		clearGoalErrorRetry(sessionId);
+		await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+		await updateGoalUi(ctx);
+		if (ctx.hasUI) {
+			ctx.ui.notify(`${reason}\nLast error: ${errorMessage}`, "warning");
+		}
+	};
+
+	const dispatchGoalErrorRetry = async (
+		ctx: ExtensionContext,
+		generation: number,
+		attempt: number,
+	): Promise<void> => {
+		const sessionId = sessionIdFromContext(ctx);
+		const state = currentGoalErrorRetry(sessionId, generation);
+		if (state === undefined) {
+			return;
+		}
+		const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+		const current = currentGoalErrorRetry(sessionId, generation);
+		if (current === undefined) {
+			return;
+		}
+		if (
+			snapshot === null ||
+			snapshot.status !== "active" ||
+			ctx.hasPendingMessages()
+		) {
+			clearGoalErrorRetry(sessionId);
+			return;
+		}
+		if (!ctx.isIdle()) {
+			const timeout = setTimeout(() => {
+				void dispatchGoalErrorRetry(ctx, generation, attempt);
+			}, GOAL_ERROR_RETRY_BUSY_DELAY_MS);
+			errorRetryStates.set(sessionId, { ...current, timeout });
+			return;
+		}
+		const ready = currentGoalErrorRetry(sessionId, generation);
+		if (ready === undefined) {
+			return;
+		}
+		errorRetryStates.set(sessionId, { ...ready, timeout: undefined });
+		pi.sendMessage(
+			{
+				customType: GOAL_ERROR_RETRY_MESSAGE_TYPE,
+				content: errorRecoveryPrompt(
+					snapshot,
+					ready.errorMessage,
+					attempt,
+					MAX_CONSECUTIVE_GOAL_ERRORS - 1,
+				),
+				display: false,
+					details: {
+					objective: snapshot.objective,
+					error: ready.errorMessage,
+					attempt,
+				},
+			},
+			{ triggerTurn: true, deliverAs: "followUp" },
+		);
+		await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionId));
+	};
+
+	const handleGoalAssistantError = async (
+		ctx: ExtensionContext,
+		snapshot: GoalSnapshot | null,
+		message: AssistantMessage,
+	): Promise<void> => {
+		const sessionId = sessionIdFromContext(ctx);
+		const errorMessage = assistantErrorMessage(message);
+		if (snapshot?.status !== "active") {
+			clearGoalErrorRetry(sessionId);
+			return;
+		}
+		if (isContextLengthGoalError(errorMessage)) {
+			await pauseGoalFromError(
+				ctx,
+				errorMessage,
+				"Paused goal because the provider rejected the request for exceeding the context window.",
+			);
+			return;
+		}
+		if (!isRetryableGoalError(errorMessage)) {
+			await pauseGoalFromError(
+				ctx,
+				errorMessage,
+				"Paused goal because the assistant request failed with a non-retryable error.",
+			);
+			return;
+		}
+
+		const fingerprint = fingerprintGoalError(errorMessage);
+		const previous = errorRetryStates.get(sessionId);
+		if (previous?.timeout !== undefined) {
+			clearTimeout(previous.timeout);
+		}
+		const consecutiveErrors = previous === undefined ? 1 : previous.consecutiveErrors + 1;
+		const generation = (previous?.generation ?? 0) + 1;
+		if (consecutiveErrors >= MAX_CONSECUTIVE_GOAL_ERRORS) {
+			await pauseGoalFromError(
+				ctx,
+				errorMessage,
+				`Paused goal after ${MAX_CONSECUTIVE_GOAL_ERRORS} consecutive errors to avoid an automatic retry loop.`,
+			);
+			return;
+		}
+
+		const attempt = consecutiveErrors;
+		const timeout = setTimeout(() => {
+			void dispatchGoalErrorRetry(ctx, generation, attempt);
+		}, goalErrorRetryDelayMs(consecutiveErrors));
+		errorRetryStates.set(sessionId, {
+			consecutiveErrors,
+			fingerprint,
+			generation,
+			errorMessage,
+			timeout,
+		});
 	};
 
 	const startGoalTicker = (ctx: ExtensionContext): void => {
@@ -683,6 +903,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 	const onSessionReady = async (_event: unknown, ctx: ExtensionContext) => {
 		try {
+			clearAllGoalErrorRetries();
 			await rehydrateAndUpdate(runtime, ctx, goalUiState);
 			await updateGoalUi(ctx);
 		} catch (error) {
@@ -739,15 +960,23 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		const result = await withGoal(runtime, (goal) =>
 			goal.accountAgentEnd(sessionId, event, Date.now()),
 		);
+		const latestAssistant = latestAssistantMessage(event);
 		const interrupted = wasInterruptedByPi(ctx) || interruptedSessions.has(sessionId);
 		clearGoalInterruptListener(sessionId);
 		interruptedSessions.delete(sessionId);
 		if (interrupted) {
+			clearGoalErrorRetry(sessionId);
 			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 			await updateGoalUi(ctx);
 			return;
 		}
 		await updateGoalUi(ctx);
+
+		if (latestAssistant?.stopReason === "error") {
+			await handleGoalAssistantError(ctx, result.snapshot, latestAssistant);
+			return;
+		}
+		clearGoalErrorRetry(sessionId);
 
 		if (result.budgetLimitReached && result.snapshot !== null) {
 			await withGoal(runtime, (goal) => goal.markBudgetLimitPromptSent(sessionId));
@@ -772,5 +1001,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	pi.on("session_shutdown", () => {
 		stopGoalTicker();
 		clearAllGoalInterruptListeners();
+		clearAllGoalErrorRetries();
 	});
 }
