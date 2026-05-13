@@ -7,7 +7,7 @@ import type {
 	Theme,
 	TurnEndEvent,
 } from "@mariozechner/pi-coding-agent";
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import { isContextOverflow, type AssistantMessage } from "@mariozechner/pi-ai";
 import { Type } from "@sinclair/typebox";
 import { Text, truncateToWidth, type Component, type TUI } from "@mariozechner/pi-tui";
 import { Effect, Fiber } from "effect";
@@ -262,19 +262,14 @@ function fingerprintGoalError(errorMessage: string): string {
 	return errorMessage.replace(/\s+/g, " ").trim().toLowerCase().slice(0, 500);
 }
 
-function isContextLengthGoalError(errorMessage: string): boolean {
-	return /context.?length.?exceeded|input exceeds.*context|exceeds.*context window|maximum context length|too many tokens/i.test(
+function isRetryableGoalError(errorMessage: string): boolean {
+	return /overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|network.?error|connection.?error|connection.?refused|connection.?lost|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|http2 request did not get a response|timed? out|timeout|terminated|retry delay/i.test(
 		errorMessage,
 	);
 }
 
-function isRetryableGoalError(errorMessage: string): boolean {
-	if (isContextLengthGoalError(errorMessage)) {
-		return false;
-	}
-	return /overloaded|provider.?returned.?error|rate.?limit|too many requests|429|500|502|503|504|service.?unavailable|server.?error|internal.?error|network.?error|connection.?error|connection.?refused|connection.?lost|other side closed|fetch failed|upstream.?connect|reset before headers|socket hang up|ended without|http2 request did not get a response|timed? out|timeout|terminated|retry delay/i.test(
-		errorMessage,
-	);
+function isRateLimitGoalError(errorMessage: string): boolean {
+	return /rate.?limit|too many requests|\b429\b/i.test(errorMessage);
 }
 
 function goalErrorRetryDelayMs(consecutiveErrors: number): number {
@@ -648,15 +643,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			clearGoalErrorRetry(sessionId);
 			return;
 		}
-		if (isContextLengthGoalError(errorMessage)) {
-			await pauseGoalFromError(
-				ctx,
-				errorMessage,
-				"Paused goal because the provider rejected the request for exceeding the context window.",
-			);
+		const retryable = isRetryableGoalError(errorMessage);
+		if (isContextOverflow(message) && !isRateLimitGoalError(errorMessage)) {
+			clearGoalErrorRetry(sessionId);
 			return;
 		}
-		if (!isRetryableGoalError(errorMessage)) {
+		if (!retryable) {
 			await pauseGoalFromError(
 				ctx,
 				errorMessage,

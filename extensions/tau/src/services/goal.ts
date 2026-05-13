@@ -163,6 +163,15 @@ function hasAssistantToolCall(event: AgentEndEvent): boolean {
 	return false;
 }
 
+function hasAssistantError(event: AgentEndEvent): boolean {
+	for (const message of event.messages) {
+		if (message.role === "assistant" && message.stopReason === "error") {
+			return true;
+		}
+	}
+	return false;
+}
+
 function elapsedSeconds(runtime: GoalRuntime, nowMs: number): number {
 	if (runtime.activeTurnStartedAtMs === null) {
 		return 0;
@@ -417,7 +426,7 @@ export const GoalLive = Layer.effect(
 		const accountAgentEnd: GoalService["accountAgentEnd"] = (sessionId, event, nowMs) =>
 			accountUsage(sessionId, 0, nowMs, {
 				finishActiveAccounting: true,
-				continuationHadToolCall: hasAssistantToolCall(event),
+				continuationHadToolCall: hasAssistantError(event) ? null : hasAssistantToolCall(event),
 			});
 
 		const markContinuationDispatched: GoalService["markContinuationDispatched"] = (sessionId) =>

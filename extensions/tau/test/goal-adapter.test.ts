@@ -506,15 +506,44 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
-	it("pauses instead of retrying context length errors", async () => {
+	it("leaves the goal active for pi-owned context overflow compaction", async () => {
+		for (const errorMessage of [
+			"invalid_request_error: context_length_exceeded",
+			"provider returned error: invalid_request_error: context_length_exceeded",
+			"Invalid request: Your request exceeded model token limit: 262144 (requested: 429515)",
+		]) {
+			const harness = makeGoalAdapterHarness();
+			harnesses.push(harness);
+			const agentEnd: AgentEndEvent = {
+				type: "agent_end",
+				messages: [makeErrorAssistantMessage(errorMessage)],
+			};
+
+			await runGoalCommand(harness, "ship the feature");
+			harness.sentMessages.length = 0;
+			const notificationCount = harness.notifications.length;
+			await fireEvent(harness, "agent_end", agentEnd);
+
+			const snapshot = await harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					return yield* goal.get("session-1");
+				}),
+			);
+
+			expect(snapshot?.status).toBe("active");
+			expect(snapshot?.continuationSuppressed).toBe(false);
+			expect(harness.sentMessages).toHaveLength(0);
+			expect(harness.notifications).toHaveLength(notificationCount);
+		}
+	});
+
+	it("pauses non-recoverable assistant request errors", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const agentEnd: AgentEndEvent = {
 			type: "agent_end",
-			messages: [
-				makeAssistantToolCallMessage(),
-				makeErrorAssistantMessage("invalid_request_error: context_length_exceeded"),
-			],
+			messages: [makeErrorAssistantMessage("invalid_request_error: malformed tool schema")],
 		};
 
 		await runGoalCommand(harness, "ship the feature");
@@ -530,7 +559,25 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.status).toBe("paused");
 		expect(harness.sentMessages).toHaveLength(0);
-		expect(harness.notifications.at(-1)?.message).toContain("context_length_exceeded");
+		expect(harness.notifications.at(-1)?.message).toContain("malformed tool schema");
+	});
+
+	it("keeps bounded retries for retryable token rate-limit errors", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [makeErrorAssistantMessage("rate limit: token limit exceeded")],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
 	});
 
 	it("pauses after three consecutive retryable assistant errors", async () => {
