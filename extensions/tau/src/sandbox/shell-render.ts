@@ -12,6 +12,7 @@ export type ShellToolDetails = ShellRunResult & {
 };
 
 const COMPACT_OUTPUT_LINES = 8;
+const COMPACT_OUTPUT_LINE_CHARS = 200;
 const EXPANDED_OUTPUT_LINES = 200;
 const MAX_COMMAND_CHARS = 120;
 const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, "g");
@@ -137,7 +138,8 @@ function renderOutput(
 	if (omitted > 0) {
 		rendered += `${theme.fg("muted", `  … ${omitted} earlier lines (Ctrl+O expands)`)}\n`;
 	}
-	rendered += lines.map((line) => theme.fg("toolOutput", `  ${line}`)).join("\n");
+	const outputLines = expanded ? lines : lines.map((line) => truncate(line, COMPACT_OUTPUT_LINE_CHARS));
+	rendered += outputLines.map((line) => theme.fg("toolOutput", `  ${line}`)).join("\n");
 	return rendered;
 }
 

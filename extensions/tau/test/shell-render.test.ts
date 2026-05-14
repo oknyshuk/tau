@@ -96,6 +96,30 @@ describe("shell renderer", () => {
 		expect(rendered).not.toContain("(no output)");
 	});
 
+	it("renders compact and expanded poll results for Ctrl+O", () => {
+		const output = `prefix ${"x".repeat(500)} suffix`;
+		const result = {
+			content: [{ type: "text", text: output }],
+			details: {
+				kind: "write_stdin",
+				output,
+				exitCode: 0,
+				writtenChars: 0,
+				writtenText: "",
+			},
+		};
+
+		const compact = renderResult(result, { expanded: false, isPartial: false });
+		const expanded = renderResult(result, { expanded: true, isPartial: false });
+
+		expect(compact).toContain("✓ poll · no input");
+		expect(compact).toContain("exit: 0");
+		expect(compact).toContain("prefix");
+		expect(compact).toContain("…");
+		expect(compact).not.toContain("suffix");
+		expect(expanded).toContain("suffix");
+	});
+
 	it("hides echoed TTY input in compact write_stdin results", () => {
 		const rendered = renderResult({
 			content: [{ type: "text", text: "echo hi\r\nhi\r\n$ " }],
