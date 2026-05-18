@@ -10,14 +10,10 @@ import { Footer, FooterLive } from "./services/footer.js";
 import { Persistence, PersistenceLive } from "./services/persistence.js";
 import { ExecutionState, ExecutionStateLive } from "./services/execution-state.js";
 import { ExecutionRuntime, ExecutionRuntimeLive } from "./services/execution-runtime.js";
-import { CuratedMemory, CuratedMemoryLive } from "./services/curated-memory.js";
 import { Ralph, RalphLive } from "./services/ralph.js";
 import { Goal, GoalLive } from "./services/goal.js";
-import { SkillManager, SkillManagerLive } from "./services/skill-manager.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import initExa from "./exa/index.js";
-import initMemory from "./memory/index.js";
-import initSkillManage from "./skill-manage/index.js";
 import initTerminalPrompt from "./terminal-prompt/index.js";
 import initWorkedFor from "./worked-for/index.js";
 import { initStatus } from "./status/index.js";
@@ -40,20 +36,10 @@ import { installSqliteExperimentalWarningFilter } from "./shared/sqlite-warning.
 import { RalphRepoLive } from "./ralph/repo.js";
 import { LoopRepoLive } from "./loops/repo.js";
 import { LoopEngine, LoopEngineLive } from "./services/loop-engine.js";
-import initDream from "./dream/init.js";
-import { DreamLockLive } from "./dream/lock.js";
-import { DreamSchedulerLive } from "./dream/scheduler.js";
-import { DreamSubagentLive } from "./dream/subagent.js";
-import { DreamTaskRegistryLive } from "./dream/task-registry.js";
-import { loadDreamConfig } from "./dream/config-loader.js";
 import {
 	AutoresearchLoopRunner,
 	AutoresearchLoopRunnerLive,
 } from "./services/autoresearch-loop-runner.js";
-import type { DreamLock } from "./dream/lock.js";
-import type { DreamScheduler } from "./dream/scheduler.js";
-import type { DreamTaskRegistry } from "./dream/task-registry.js";
-import type { DreamSubagent } from "./dream/subagent.js";
 
 const PersistenceLayer = PersistenceLive;
 const ShellLayer = ShellLive;
@@ -69,11 +55,6 @@ const FooterLayer = FooterLive.pipe(
 );
 const ExecutionStateLayer = ExecutionStateLive.pipe(Layer.provide(PersistenceLayer));
 const ExecutionRuntimeLayer = ExecutionRuntimeLive.pipe(Layer.provide(ExecutionStateLayer));
-const CuratedMemoryLayer = CuratedMemoryLive;
-const DreamSchedulerLayer = DreamSchedulerLive({ loadConfig: loadDreamConfig }).pipe(
-	Layer.provide(DreamLockLive),
-);
-const SkillManagerLayer = SkillManagerLive;
 const AgentConfigLive = Layer.succeed(
 	AgentConfig,
 	AgentConfig.of({
@@ -129,13 +110,7 @@ const createMainLayer = (agentRuntimeBridge: AgentRuntimeBridgeService) => {
 		ExecutionRuntimeLayer,
 		SandboxLayer,
 		FooterLayer,
-		CuratedMemoryLayer,
-		DreamLockLive,
-		DreamSchedulerLayer,
-		DreamTaskRegistryLive,
-		DreamSubagentLive,
 		AutoresearchLoopRunnerLive,
-		SkillManagerLayer,
 		AgentLayer,
 		RalphLayer,
 		GoalLive,
@@ -149,17 +124,11 @@ type TauRuntime = ManagedRuntime.ManagedRuntime<
 	| Shell
 	| Sandbox
 	| Footer
-	| CuratedMemory
 	| AgentControl
-	| SkillManager
 	| Ralph
 	| Goal
 	| LoopEngine
-	| AutoresearchLoopRunner
-	| DreamLock
-	| DreamScheduler
-	| DreamTaskRegistry
-	| DreamSubagent,
+	| AutoresearchLoopRunner,
 	never
 >;
 
@@ -205,17 +174,6 @@ export const startTau = (pi: ExtensionAPI) => {
 	const layer = createMainLayer(agentRuntimeBridge).pipe(Layer.provide(PiAPILive(pi)));
 	const currentRuntime = ManagedRuntime.make(layer);
 	runtime = currentRuntime;
-	const runCuratedMemory = <A, E>(effect: Effect.Effect<A, E, CuratedMemory>) =>
-		currentRuntime.runPromise(effect);
-	const runDream = <A, E>(
-		effect: Effect.Effect<
-			A,
-			E,
-			CuratedMemory | DreamLock | DreamScheduler | DreamTaskRegistry | DreamSubagent
-		>,
-	) => currentRuntime.runPromise(effect);
-	const runSkillManager = <A, E>(effect: Effect.Effect<A, E, SkillManager>) =>
-		currentRuntime.runPromise(effect);
 	const runRalph = <A, E>(effect: Effect.Effect<A, E, Ralph | ExecutionRuntime>) =>
 		currentRuntime.runPromise(effect);
 	const goalRuntime = {
@@ -237,7 +195,6 @@ export const startTau = (pi: ExtensionAPI) => {
 		const executionRuntime = yield* ExecutionRuntime;
 		const sandbox = yield* Sandbox;
 		const footer = yield* Footer;
-		const curatedMemory = yield* CuratedMemory;
 		const persistedAccess = {
 			getSnapshot: persistence.getSnapshot,
 			update: persistence.update,
@@ -248,7 +205,6 @@ export const startTau = (pi: ExtensionAPI) => {
 		yield* executionRuntime.setup;
 		yield* sandbox.setup;
 		yield* footer.setup;
-		yield* curatedMemory.setup;
 		yield* Effect.sync(() => {
 			initBacklog(pi);
 			initExa(pi);
@@ -259,9 +215,6 @@ export const startTau = (pi: ExtensionAPI) => {
 			initEditor(pi, {
 				getSnapshot: persistence.getSnapshot,
 			});
-			initMemory(pi, runCuratedMemory);
-			initDream(pi, runDream);
-			initSkillManage(pi, runSkillManager);
 			initRequestUserInput(pi);
 			initRalph(pi, runRalph);
 			initAutoresearch(pi, runAutoresearch);

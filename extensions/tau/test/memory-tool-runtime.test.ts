@@ -622,7 +622,7 @@ describe("memory tool runtime", () => {
 		}
 	});
 
-	it("does not stall when full tau context recomputation runs after memory succeeds", async () => {
+	it("does not register the memory tool in the full tau runtime", async () => {
 		const { pi, tools, fire } = makeRunTauStub();
 		const fiber = runTau(pi);
 		const cwd = path.join(tempHome, "workspace-full-runtime");
@@ -630,17 +630,6 @@ describe("memory tool runtime", () => {
 		const ctx = makeContext(cwd);
 
 		try {
-			for (
-				let attempts = 0;
-				attempts < 50 && !tools.some((tool) => tool.name === "memory");
-				attempts++
-			) {
-				await new Promise((resolve) => setTimeout(resolve, 20));
-			}
-
-			const memoryTool = tools.find((tool) => tool.name === "memory");
-			expect(memoryTool).toBeDefined();
-
 			await fire("session_start", { type: "session_start" }, ctx);
 			await fire(
 				"before_agent_start",
@@ -653,50 +642,7 @@ describe("memory tool runtime", () => {
 				ctx,
 			);
 
-			const result = await Promise.race([
-				memoryTool!.execute(
-					"call-2",
-					{
-						action: "add",
-						target: "global",
-						summary: hook("tau-memory-full-runtime-repro"),
-						content: "tau-memory-full-runtime-repro",
-					},
-					undefined,
-					undefined,
-					ctx,
-				),
-				new Promise<never>((_, reject) =>
-					setTimeout(
-						() => reject(new Error("full runtime memory execute timed out")),
-						1500,
-					),
-				),
-			]);
-
-			await Promise.race([
-				fire(
-					"tool_result",
-					{
-						type: "tool_result",
-						toolName: "memory",
-						toolCallId: "call-2",
-						input: {
-							action: "add",
-							target: "global",
-							summary: hook("tau-memory-full-runtime-repro"),
-							content: "tau-memory-full-runtime-repro",
-						},
-						content: result.content,
-						details: result.details,
-						isError: false,
-					} satisfies ToolResultEvent,
-					ctx,
-				),
-				new Promise<never>((_, reject) =>
-					setTimeout(() => reject(new Error("full runtime tool_result timed out")), 1500),
-				),
-			]);
+			expect(tools.some((tool) => tool.name === "memory")).toBe(false);
 
 			await expect(
 				Promise.race([

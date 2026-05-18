@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
-import type { RunAgentControlPromise } from "../src/agent/runtime.js";
 import { createWorkerCustomTools } from "../src/agent/worker.js";
 
 const agentToolDefinition: ToolDefinition = {
@@ -21,17 +20,12 @@ const agentToolDefinition: ToolDefinition = {
 
 describe("createWorkerCustomTools", () => {
 	it("includes the shared worker-only tool definitions", () => {
-		const runEffect: RunAgentControlPromise = async () => {
-			throw new Error("unused in test");
-		};
-
-		const tools = createWorkerCustomTools(agentToolDefinition, runEffect);
+		const tools = createWorkerCustomTools(agentToolDefinition);
 
 		expect(tools.map((tool) => tool.name)).toEqual([
 			"agent",
 			"apply_patch",
 			"backlog",
-			"memory",
 			"web_search_exa",
 			"crawling_exa",
 			"get_code_context_exa",
@@ -39,11 +33,7 @@ describe("createWorkerCustomTools", () => {
 	});
 
 	it("wires the backlog tool into the worker allowlist with a working execute", () => {
-		const runEffect: RunAgentControlPromise = async () => {
-			throw new Error("unused in test");
-		};
-
-		const tools = createWorkerCustomTools(agentToolDefinition, runEffect);
+		const tools = createWorkerCustomTools(agentToolDefinition);
 		const backlog = tools.find((t) => t.name === "backlog");
 		expect(backlog).toBeDefined();
 		expect(typeof backlog?.execute).toBe("function");

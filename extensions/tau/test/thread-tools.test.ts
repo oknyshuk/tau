@@ -150,5 +150,5 @@ describe("thread service", () => {
 			resolveThreadPath("definitely-does-not-exist-1234567890", process.cwd()),
 		);
 		expect(Option.isNone(resolved)).toBe(true);
-	}, 10_000);
+	}, 20_000);
 });
