@@ -86,13 +86,11 @@ function extractAssistantText(message: AssistantMessage): string {
 }
 
 function isAssistantMessage(msg: unknown): msg is AssistantMessage {
+	if (typeof msg !== "object" || msg === null) return false;
+	const candidate = msg as Record<string, unknown>;
 	return (
-		typeof msg === "object" &&
-		msg !== null &&
-		"role" in msg &&
-		(msg as { role: unknown }).role === "assistant" &&
-		"content" in msg &&
-		Array.isArray((msg as { content: unknown }).content)
+		candidate["role"] === "assistant" &&
+		Array.isArray(candidate["content"])
 	);
 }
 
@@ -115,26 +113,19 @@ function summarizeUnknown(value: unknown, maxChars: number): string {
 	}
 }
 
+function hasTextPartShape(part: unknown): part is { readonly type: "text"; readonly text: string } {
+	if (typeof part !== "object" || part === null) return false;
+	const candidate = part as Record<string, unknown>;
+	return candidate["type"] === "text" && typeof candidate["text"] === "string";
+}
+
 function summarizeToolResult(result: unknown): string | undefined {
-	if (typeof result !== "object" || result === null || !("content" in result)) {
-		return undefined;
-	}
+	if (typeof result !== "object" || result === null) return undefined;
+	const candidate = result as Record<string, unknown>;
+	if (!Array.isArray(candidate["content"])) return undefined;
 
-	const content = (result as { readonly content?: unknown }).content;
-	if (!Array.isArray(content)) {
-		return undefined;
-	}
-
-	const textParts = content
-		.filter(
-			(part): part is { readonly type: "text"; readonly text: string } =>
-				typeof part === "object" &&
-				part !== null &&
-				"type" in part &&
-				(part as { readonly type?: unknown }).type === "text" &&
-				"text" in part &&
-				typeof (part as { readonly text?: unknown }).text === "string",
-		)
+	const textParts = candidate["content"]
+		.filter(hasTextPartShape)
 		.map((part) => part.text)
 		.join("\n")
 		.trim();
@@ -373,7 +364,7 @@ function runImpl(
 					model: resolvedModel,
 					thinkingLevel: mapThinking(request.model.thinking),
 					tools: ["read", "grep", "find", "ls"],
-					customTools: customTools as ToolDefinition[],
+					customTools: [...customTools],
 					modelRegistry: context.modelRegistry,
 					sessionManager: SessionManager.inMemory(request.cwd),
 					settingsManager,
@@ -425,7 +416,7 @@ function runImpl(
 
 			void Effect.runPromise(
 				onEvent({ _tag: "Note", text: summary }).pipe(
-					Effect.catch(() => Effect.void),
+					Effect.catch((error) => Effect.logWarning("Dream event reporting failed", error)),
 				),
 			);
 		});
@@ -456,7 +447,11 @@ function runImpl(
 				}
 
 				if ("_tag" in raceResult && raceResult._tag === "turn_limit_exceeded") {
-					return Effect.promise(() => promptPromise.catch(() => undefined)).pipe(
+					return Effect.promise(() =>
+						promptPromise.catch((error) => {
+							console.warn("Dream prompt promise failed after turn limit exceeded:", error);
+						}),
+					).pipe(
 						Effect.as(raceResult),
 					);
 				}

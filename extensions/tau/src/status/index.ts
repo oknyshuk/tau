@@ -3,7 +3,7 @@ import { Theme } from "@earendil-works/pi-coding-agent";
 import { Text, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
-import { Data, Effect, Layer, Result, Schema } from "effect";
+import { Data, Effect, Layer, Option, Result, Schema } from "effect";
 
 import type { TauPersistedState } from "../shared/state.js";
 
@@ -19,11 +19,11 @@ class StatusBoundaryError extends Data.TaggedError("StatusBoundaryError")<{
 	readonly cause?: unknown;
 }> {}
 
-function parseJsonOrNull(text: string): unknown | null {
+function parseJson(text: string): Option.Option<unknown> {
 	try {
-		return JSON.parse(text) as unknown;
+		return Option.some(JSON.parse(text) as unknown);
 	} catch {
-		return null;
+		return Option.none();
 	}
 }
 
@@ -132,8 +132,8 @@ const OptionalNumber = Schema.optional(Schema.Number);
 const OptionalBoolean = Schema.optional(Schema.Boolean);
 
 const GoogleProjectTokenSchema = Schema.Struct({
-	token: OptionalString,
-	projectId: OptionalString,
+	token: Schema.String,
+	projectId: Schema.String,
 });
 
 const RateLimitWindowSnapshotSchema = Schema.Struct({
@@ -542,18 +542,10 @@ class StatusCard implements Component {
 // Schema decode helpers
 // ---------------------------------------------------------------------------
 
-const isGoogleProjectToken = Schema.is(
-	Schema.Struct({ token: Schema.String, projectId: Schema.String }),
-);
-
-function parseGoogleProjectToken(apiKey: string): { token: string; projectId: string } | null {
-	const parsedJson = parseJsonOrNull(apiKey);
-	if (parsedJson === null) return null;
-	const decoded = Schema.decodeUnknownOption(GoogleProjectTokenSchema)(parsedJson);
-	if (decoded._tag === "None") return null;
-	const val = decoded.value;
-	if (isGoogleProjectToken(val)) return val;
-	return null;
+function parseGoogleProjectToken(apiKey: string): Option.Option<{ token: string; projectId: string }> {
+	const maybeJson = parseJson(apiKey);
+	if (Option.isNone(maybeJson)) return Option.none();
+	return Schema.decodeUnknownOption(GoogleProjectTokenSchema)(maybeJson.value);
 }
 
 // ---------------------------------------------------------------------------
@@ -706,20 +698,25 @@ function extractCsrfToken(cmdLine: string): string | null {
 	return m?.[1] ?? null;
 }
 
+function hasProcessIdAndCommandLine(item: unknown): item is { ProcessId: number; CommandLine: string } {
+	if (typeof item !== "object" || item === null) return false;
+	const candidate = item as Record<string, unknown>;
+	return (
+		typeof candidate["ProcessId"] === "number" &&
+		Number.isFinite(candidate["ProcessId"]) &&
+		typeof candidate["CommandLine"] === "string"
+	);
+}
+
 function parseWindowsProcessJson(json: unknown): { pid: number; cmdLine: string } | null {
 	const items = Array.isArray(json) ? json : [json];
 	for (const item of items) {
-		if (!item || typeof item !== "object") continue;
-		const record = item as { ProcessId?: number; CommandLine?: string };
-		const cmdLine = record.CommandLine ?? "";
-		if (!cmdLine) continue;
+		if (!hasProcessIdAndCommandLine(item)) continue;
+		const cmdLine = item.CommandLine;
 		const lower = cmdLine.toLowerCase();
 		if (!lower.includes("antigravity")) continue;
 		if (!cmdLine.includes("--csrf_token")) continue;
-		const pid = record.ProcessId;
-		if (typeof pid === "number" && Number.isFinite(pid)) {
-			return { pid, cmdLine };
-		}
+		return { pid: item.ProcessId, cmdLine };
 	}
 	return null;
 }
@@ -748,20 +745,24 @@ function parseListeningPorts(stdout: string): number[] {
 	const trimmed = stdout.trim();
 	if (!trimmed) return [];
 
-	try {
-		const json = JSON.parse(trimmed) as unknown;
-		if (Array.isArray(json)) {
-			const ports = json
-				.map((v) => (typeof v === "number" ? v : undefined))
-				.filter((v): v is number => typeof v === "number" && Number.isFinite(v))
-				.map((v) => Math.trunc(v));
-			return Array.from(new Set(ports)).sort((a, b) => a - b);
+	// Only attempt JSON parsing when the output looks like JSON.
+	// This avoids catching legitimate parse errors as control flow.
+	const looksLikeJson = trimmed.startsWith("[") || trimmed.startsWith("{") || /^-?\d+(\.\d+)?$/.test(trimmed);
+	if (looksLikeJson) {
+		const maybeJson = parseJson(trimmed);
+		if (Option.isSome(maybeJson)) {
+			const json = maybeJson.value;
+			if (Array.isArray(json)) {
+				const ports = json
+					.map((v) => (typeof v === "number" ? v : undefined))
+					.filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+					.map((v) => Math.trunc(v));
+				return Array.from(new Set(ports)).sort((a, b) => a - b);
+			}
+			if (typeof json === "number" && Number.isFinite(json)) {
+				return [Math.trunc(json)];
+			}
 		}
-		if (typeof json === "number" && Number.isFinite(json)) {
-			return [Math.trunc(json)];
-		}
-	} catch {
-		// ignore
 	}
 
 	const ports: number[] = [];
@@ -869,9 +870,9 @@ function fetchAntigravityStatus(
 		let pid: number | undefined;
 		let cmdLine: string | undefined;
 
-		const parsedJson = parseJsonOrNull(stdout.trim());
-		if (parsedJson !== null) {
-			const parsed = parseWindowsProcessJson(parsedJson);
+		const maybeJson = parseJson(stdout.trim());
+		if (Option.isSome(maybeJson)) {
+			const parsed = parseWindowsProcessJson(maybeJson.value);
 			if (parsed) {
 				pid = parsed.pid;
 				cmdLine = parsed.cmdLine;
@@ -947,13 +948,20 @@ type SectionContext = {
 	readonly nextState: StatusState;
 };
 
+const OpenAiCredSchema = Schema.Struct({
+	type: Schema.String,
+	access: Schema.optional(Schema.String),
+	accountId: Schema.optional(Schema.String),
+	email: Schema.optional(Schema.String),
+});
+
 function buildOpenAiSection(
 	sctx: SectionContext,
 ): Effect.Effect<StatusSectionData, StatusBoundaryError> {
 	return Effect.gen(function* () {
-		const cred = sctx.modelRegistry.authStorage.get("openai-codex") as
-			| { type: string; access?: string; accountId?: string; email?: string }
-			| undefined;
+		const rawCred = sctx.modelRegistry.authStorage.get("openai-codex");
+		const credOpt = Schema.decodeUnknownOption(OpenAiCredSchema)(rawCred);
+		const cred = Option.isSome(credOpt) ? credOpt.value : undefined;
 		const token = yield* Effect.promise(() =>
 			sctx.modelRegistry.getApiKeyForProvider("openai-codex"),
 		);
@@ -984,6 +992,11 @@ function buildOpenAiSection(
 	});
 }
 
+const GeminiCredSchema = Schema.Struct({
+	type: Schema.String,
+	email: Schema.optional(Schema.String),
+});
+
 function buildGeminiSection(
 	sctx: SectionContext,
 ): Effect.Effect<StatusSectionData, StatusBoundaryError> {
@@ -999,17 +1012,17 @@ function buildGeminiSection(
 			);
 		}
 
-		const cred = sctx.modelRegistry.authStorage.get(provider) as
-			| { type: string; email?: string }
-			| undefined;
+		const rawCred = sctx.modelRegistry.authStorage.get(provider);
+		const credOpt = Schema.decodeUnknownOption(GeminiCredSchema)(rawCred);
+		const cred = Option.isSome(credOpt) ? credOpt.value : undefined;
 		const statusLine = `[${cred?.email ? cred.email : "Not logged in"}]`;
 
 		if (!apiKey) {
 			return { title: "Gemini CLI", notConfigured: true, rows: [], statusLine };
 		}
 
-		const parsed = parseGoogleProjectToken(apiKey);
-		if (!parsed) {
+		const parsedOpt = parseGoogleProjectToken(apiKey);
+		if (Option.isNone(parsedOpt)) {
 			return {
 				title: "Gemini CLI",
 				error: "Missing Google projectId",
@@ -1017,6 +1030,7 @@ function buildGeminiSection(
 				statusLine,
 			};
 		}
+		const parsed = parsedOpt.value;
 
 		const quota = yield* fetchGeminiQuota(parsed.token, parsed.projectId);
 		const buckets = quota.buckets ?? [];
@@ -1198,12 +1212,16 @@ export function initStatus(pi: ExtensionAPI, persistence: StatusPersistence): vo
 	pi.registerMessageRenderer<StatusMessageDetails>(
 		STATUS_MESSAGE_TYPE,
 		(message, _options, theme) => {
-			const details = message.details as StatusMessageDetails | undefined;
-			if (!details) {
-				const text = typeof message.content === "string" ? message.content : "";
-				return new Text(text, 0, 0);
+			if (
+				message.details !== null &&
+				typeof message.details === "object" &&
+				"sections" in message.details &&
+				Array.isArray((message.details as Record<string, unknown>)["sections"])
+			) {
+				return new StatusCard(message.details as StatusMessageDetails, theme);
 			}
-			return new StatusCard(details, theme);
+			const text = typeof message.content === "string" ? message.content : "";
+			return new Text(text, 0, 0);
 		},
 	);
 

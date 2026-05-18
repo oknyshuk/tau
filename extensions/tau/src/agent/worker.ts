@@ -276,7 +276,9 @@ export class AgentWorker implements Agent {
 					) {
 						if (signal?.aborted) throw new Error("Aborted");
 						agent.structuredOutput = params;
-						agent.session.abort().catch(() => undefined);
+						agent.session.abort().catch((error) => {
+							console.warn("Agent session abort failed:", error);
+						});
 						return {
 							content: [{ type: "text" as const, text: "Result received." }],
 							details: { ok: true },

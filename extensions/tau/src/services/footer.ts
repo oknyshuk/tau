@@ -269,7 +269,7 @@ export const FooterLive = Layer.effect(
 		});
 
 		const refreshFooterHygieneSafe = refreshFooterHygieneOnce.pipe(
-			Effect.catch(() => Effect.void),
+			Effect.catch((error) => Effect.logWarning("Footer hygiene refresh failed", error)),
 		);
 		const refreshFooterHygieneLoop = refreshFooterHygieneSafe.pipe(
 			Effect.repeat(Schedule.spaced("5 seconds")),

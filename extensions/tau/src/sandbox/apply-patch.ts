@@ -1028,7 +1028,9 @@ async function applyResolvedPatch(
 		} catch (error) {
 			// Best-effort cleanup of temp files on failure.
 			for (const { temp } of temps) {
-				await rm(temp).catch(() => {});
+				await rm(temp).catch((cleanupError) => {
+					console.warn("apply-patch temp cleanup failed:", cleanupError);
+				});
 			}
 			throw error;
 		}

@@ -1156,7 +1156,14 @@ export default function initRalph(
 						bindReplacementContext(replacementCtx, targetSessionFile);
 					},
 				}),
-			).pipe(Effect.catch(() => Effect.succeed({ cancelled: true as const })));
+			).pipe(
+				Effect.catch((error) =>
+					Effect.gen(function* () {
+						yield* Effect.logWarning("Ralph switchSession failed", error);
+						return { cancelled: true as const };
+					}),
+				),
+			);
 			if (!result.cancelled) {
 				currentSessionFile = currentSessionFile ?? targetSessionFile;
 			}
@@ -1181,7 +1188,14 @@ export default function initRalph(
 						bindReplacementContext(replacementCtx, createdSessionFile);
 					},
 				}),
-			).pipe(Effect.catch(() => Effect.succeed({ cancelled: true as const })));
+			).pipe(
+				Effect.catch((error) =>
+					Effect.gen(function* () {
+						yield* Effect.logWarning("Ralph newSession failed", error);
+						return { cancelled: true as const };
+					}),
+				),
+			);
 			if (!result.cancelled) {
 				currentSessionFile = currentSessionFile ?? createdSessionFile;
 			}
@@ -1306,7 +1320,9 @@ export default function initRalph(
 					hasReplacementSender(sessionContext) &&
 					sessionFileFromContextIfLive(sessionContext) === targetSessionFile
 				) {
-					void sessionContext.sendUserMessage(prompt).catch(() => undefined);
+					void sessionContext.sendUserMessage(prompt).catch((error) => {
+						console.warn("Ralph sendUserMessage failed:", error);
+					});
 					return { dispatched: true as const };
 				}
 

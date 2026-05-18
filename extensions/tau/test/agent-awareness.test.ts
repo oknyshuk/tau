@@ -51,7 +51,7 @@ describe("agent-awareness", () => {
 			},
 		];
 
-		const out = injectAgentContextIntoMessages(messages as any, "AGENT_CONTEXT: new");
+		const out = injectAgentContextIntoMessages(messages, "AGENT_CONTEXT: new");
 		expect(out).toEqual(messages);
 	});
 

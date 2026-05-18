@@ -907,7 +907,9 @@ export default function initAutoresearch(
 
 	const cancelAutoresearchLoop = (cwd: string, taskId: string): void => {
 		void withAutoresearchLoopRunner((runner) => runner.cancelLoop(`${cwd}:${taskId}`)).catch(
-			() => undefined,
+			(error) => {
+				console.warn("Autoresearch loop cancel failed:", error);
+			},
 		);
 	};
 
