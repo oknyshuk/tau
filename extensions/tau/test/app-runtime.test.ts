@@ -180,15 +180,20 @@ describe("runTau runtime", () => {
 		}
 	});
 
-	it("registers the dream command during startup", async () => {
+	it("does not register memory curation surfaces during startup", async () => {
 		const pi = makePiStub() as ExtensionAPI & {
+			readonly __registeredTools: string[];
 			readonly __registeredCommands: string[];
 		};
 		const fiber = runTau(pi);
 
 		try {
 			await new Promise((resolve) => setTimeout(resolve, 200));
-			expect(pi.__registeredCommands).toContain("dream");
+			expect(pi.__registeredTools).not.toContain("memory");
+			expect(pi.__registeredTools).not.toContain("dream_finish");
+			expect(pi.__registeredTools).not.toContain("skill_manage");
+			expect(pi.__registeredCommands).not.toContain("dream");
+			expect(pi.__registeredCommands).not.toContain("memories");
 		} finally {
 			await Effect.runPromise(Fiber.interrupt(fiber));
 		}
@@ -219,7 +224,7 @@ describe("runTau runtime", () => {
 		await startup;
 
 		expect(pi.__registeredCommands).not.toContain("mode");
-		expect(pi.__registeredCommands).toContain("memories");
+		expect(pi.__registeredCommands).not.toContain("memories");
 
 		const sessionStartHandlers = pi.__eventHandlers.get("session_start") ?? [];
 		expect(sessionStartHandlers.length).toBeGreaterThan(0);
@@ -305,8 +310,8 @@ describe("runTau runtime", () => {
 		// fires session_shutdown) will fail with "ManagedRuntime disposed".
 		//
 		// tau's app.ts must not register a session_shutdown handler that
-		// disposes the shared runtime. Per-module handlers (ralph, autoresearch,
-		// dream) are fine — they run under the same runtime and never dispose it.
+		// disposes the shared runtime. Per-module handlers (ralph, autoresearch)
+		// are fine — they run under the same runtime and never dispose it.
 		const pi = makePiStub() as ExtensionAPI & {
 			readonly __eventHandlers: Map<string, Array<(payload: unknown, ctx?: unknown) => unknown>>;
 		};

@@ -4,8 +4,6 @@ import type { AgentDefinition } from "../types.js";
 import { createApplyPatchToolDefinition } from "../../sandbox/apply-patch.js";
 import { createBacklogToolDefinition } from "../../backlog/tool.js";
 import { createExaToolDefinitions } from "../../exa/index.js";
-import { createMemoryToolDefinition } from "../../memory/index.js";
-import type { RunAgentControlPromise } from "../runtime.js";
 
 export const WORKER_DELEGATION_PROMPT = `## Worker Agent Instructions
 
@@ -23,13 +21,11 @@ You are a worker agent spawned by an orchestrator. Follow these rules:
 
 export function createWorkerCustomTools(
 	agentTool: ToolDefinition,
-	runEffect: RunAgentControlPromise,
 ): ToolDefinition[] {
 	return [
 		agentTool,
 		createApplyPatchToolDefinition(),
 		createBacklogToolDefinition(),
-		createMemoryToolDefinition(runEffect),
 		...createExaToolDefinitions(),
 	];
 }

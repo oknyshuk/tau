@@ -240,10 +240,7 @@ export class AgentWorker implements Agent {
 					: "Manage non-blocking agent tasks. Actions: spawn, send, wait, close, list.",
 			);
 
-			const customTools = createWorkerCustomTools(
-				agentTool as ToolDefinition,
-				opts.runPromise,
-			);
+			const customTools = createWorkerCustomTools(agentTool as ToolDefinition);
 
 			// submit_result tool placeholder - needs agent reference, set after construction
 			let agent: AgentWorker;
