@@ -212,6 +212,7 @@ describe("AgentWorker structured-output wiring", () => {
 					throw new Error("unused");
 				},
 				runFork: runForkForTests,
+				subagentDefaults: { model: undefined, thinking: undefined },
 			}),
 		);
 
@@ -245,6 +246,7 @@ describe("AgentWorker structured-output wiring", () => {
 						throw new Error("unused");
 					},
 					runFork: runForkForTests,
+				subagentDefaults: { model: undefined, thinking: undefined },
 				}),
 			),
 		).rejects.toThrow('Agent model "unknown-provider/nope" is not available');
@@ -270,6 +272,7 @@ describe("AgentWorker structured-output wiring", () => {
 					throw new Error("unused");
 				},
 				runFork: runForkForTests,
+				subagentDefaults: { model: undefined, thinking: undefined },
 			}),
 		);
 
@@ -311,6 +314,7 @@ describe("AgentWorker structured-output wiring", () => {
 					throw new Error("unused");
 				},
 				runFork: runForkForTests,
+				subagentDefaults: { model: undefined, thinking: undefined },
 			}),
 		);
 
@@ -359,6 +363,7 @@ describe("AgentWorker structured-output wiring", () => {
 					throw new Error("unused");
 				},
 				runFork: runForkForTests,
+				subagentDefaults: { model: undefined, thinking: undefined },
 			}),
 		);
 
@@ -392,6 +397,7 @@ describe("AgentWorker structured-output wiring", () => {
 					throw new Error("unused");
 				},
 				runFork: runForkForTests,
+				subagentDefaults: { model: undefined, thinking: undefined },
 			}),
 		);
 
@@ -434,6 +440,7 @@ describe("AgentWorker structured-output wiring", () => {
 					throw new Error("unused");
 				},
 				runFork: runForkForTests,
+				subagentDefaults: { model: undefined, thinking: undefined },
 			}),
 		);
 

@@ -2,6 +2,9 @@
 name: rush
 description: |
   Rush agent. Fast implementation agent for focused changes with minimal deliberation.
+models:
+  - model: inherit
+    thinking: medium
 tools:
   - read
   - exec_command

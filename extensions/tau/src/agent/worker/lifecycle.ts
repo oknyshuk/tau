@@ -42,6 +42,18 @@ export interface SessionInfra {
 	readonly definition: AgentDefinition;
 	readonly resultSchema: unknown | undefined;
 	readonly executionPolicy: ExecutionPolicy;
+	/**
+	 * Optional override for the parent model used to resolve `model: inherit`
+	 * specs in agent definitions. When set (via `tau.subagentDefaults.model` in
+	 * settings.json), all bundled subagents that inherit pick up this model
+	 * instead of the orchestrator's model.
+	 */
+	readonly subagentInheritModel: Model<Api> | undefined;
+	/**
+	 * Optional override for the thinking level used to resolve `thinking: inherit`
+	 * in agent definitions (paired with `subagentInheritModel`).
+	 */
+	readonly subagentInheritThinking: ThinkingLevel | undefined;
 }
 
 export function syncExecutionProfileToSession(
@@ -71,9 +83,10 @@ export function createSessionForModel(
 	modelRegistry: ModelRegistry,
 ): Effect.Effect<AgentSession, AgentError> {
 	return Effect.gen(function* () {
+		const inheritBaseModel = infra.subagentInheritModel ?? parentModel;
 		const resolvedModel =
 			spec.model === "inherit"
-				? parentModel
+				? inheritBaseModel
 				: resolveModelPattern(spec.model, modelRegistry.getAll());
 
 		if (resolvedModel === undefined) {
@@ -81,7 +94,7 @@ export function createSessionForModel(
 				new AgentError({
 					message:
 						spec.model === "inherit"
-							? "Agent model inherits from parent, but the parent session has no active model"
+							? "Agent model inherits from parent, but neither tau.subagentDefaults.model nor an active parent session model is available"
 							: `Agent model "${spec.model}" is not available`,
 				}),
 			);
@@ -107,7 +120,11 @@ export function createSessionForModel(
 		);
 
 		const thinkingLevel = spec.thinking;
-		if (thinkingLevel && thinkingLevel !== "inherit") {
+		if (thinkingLevel === "inherit") {
+			if (infra.subagentInheritThinking !== undefined) {
+				session.setThinkingLevel(infra.subagentInheritThinking);
+			}
+		} else if (thinkingLevel) {
 			session.setThinkingLevel(thinkingLevel as ThinkingLevel);
 		}
 

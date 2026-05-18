@@ -2,6 +2,9 @@
 name: smart
 description: |
   Smart agent. Balanced coding agent for implementation, debugging, and general engineering tasks.
+models:
+  - model: inherit
+    thinking: high
 tools:
   - read
   - exec_command

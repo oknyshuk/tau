@@ -2,6 +2,9 @@
 name: deep
 description: |
   Deep agent. High-reasoning agent for hard codebase analysis, architecture, and complex debugging.
+models:
+  - model: inherit
+    thinking: xhigh
 tools:
   - read
   - exec_command

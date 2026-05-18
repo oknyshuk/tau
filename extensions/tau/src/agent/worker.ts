@@ -13,6 +13,11 @@ import { Effect, SubscriptionRef, Stream } from "effect";
 import { nanoid } from "nanoid";
 import { type Status } from "./status.js";
 import type { AgentId, AgentDefinition, ModelSpec } from "./types.js";
+import {
+	loadSubagentDefaults,
+	resolveSubagentDefaults,
+	type ResolvedSubagentDefaults,
+} from "./subagent-defaults.js";
 import { type Agent, AgentError } from "./services.js";
 import { computeClampedWorkerSandboxConfig } from "./sandbox-policy.js";
 import type { ResolvedSandboxConfig } from "../sandbox/config.js";
@@ -192,6 +197,14 @@ export class AgentWorker implements Agent {
 		runPromise: RunAgentControlPromise;
 		runFork: RunAgentControlFork;
 		agentSummaries?: ReadonlyArray<{ readonly name: string; readonly description: string }>;
+		/**
+		 * Override subagent defaults loading. When omitted, defaults are
+		 * loaded from `tau.subagentDefaults` in user/project settings and
+		 * resolved against `modelRegistry`. Tests pass an explicit value
+		 * (often `{ model: undefined, thinking: undefined }`) to skip the
+		 * settings read.
+		 */
+		subagentDefaults?: ResolvedSubagentDefaults;
 	}) {
 		return Effect.gen(function* () {
 			const modelRegistry = opts.modelRegistry
@@ -288,6 +301,29 @@ export class AgentWorker implements Agent {
 					: { parent: opts.parentSandboxConfig },
 			);
 
+			const subagentDefaults = opts.subagentDefaults
+				? opts.subagentDefaults
+				: yield* (Effect.gen(function* () {
+						const raw = yield* loadSubagentDefaults(opts.cwd).pipe(
+							Effect.mapError(
+								(cause) =>
+									new AgentError({
+										message: `Failed to load tau.subagentDefaults: ${
+											cause instanceof Error ? cause.message : String(cause)
+										}`,
+									}),
+							),
+						);
+						return yield* resolveSubagentDefaults(raw, modelRegistry).pipe(
+							Effect.mapError(
+								(cause) =>
+									new AgentError({
+										message: cause.message,
+									}),
+							),
+						);
+					}));
+
 			const infra: SessionInfra = {
 				authStorage,
 				modelRegistry,
@@ -301,6 +337,8 @@ export class AgentWorker implements Agent {
 				definition: opts.definition,
 				resultSchema: opts.resultSchema,
 				executionPolicy: opts.executionState.policy,
+				subagentInheritModel: subagentDefaults.model,
+				subagentInheritThinking: subagentDefaults.thinking,
 			};
 
 			// Create initial session with first model
