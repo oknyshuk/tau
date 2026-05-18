@@ -6,7 +6,7 @@ import * as path from "node:path";
 
 import { Effect, Fiber } from "effect";
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { runTau } from "../src/app.js";
 import tau from "../src/index.js";

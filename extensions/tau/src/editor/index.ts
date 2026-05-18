@@ -1,6 +1,6 @@
-import type { ExtensionAPI, KeybindingsManager } from "@mariozechner/pi-coding-agent";
-import { CustomEditor } from "@mariozechner/pi-coding-agent";
-import type { EditorTheme, TUI } from "@mariozechner/pi-tui";
+import type { ExtensionAPI, KeybindingsManager } from "@earendil-works/pi-coding-agent";
+import { CustomEditor } from "@earendil-works/pi-coding-agent";
+import type { EditorTheme, TUI } from "@earendil-works/pi-tui";
 
 import type { TauPersistedState } from "../shared/state.js";
 import { wrapEditorRender } from "../terminal-prompt/index.js";

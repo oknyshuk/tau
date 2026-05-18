@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
 import type { RunAgentControlPromise } from "../src/agent/runtime.js";
@@ -48,6 +48,6 @@ describe("createWorkerCustomTools", () => {
 		expect(backlog).toBeDefined();
 		expect(typeof backlog?.execute).toBe("function");
 		expect(backlog?.parameters).toBeDefined();
-		expect(backlog?.parameters["type"]).toBe("object");
+		expect((backlog?.parameters as { readonly type?: string }).type).toBe("object");
 	});
 });

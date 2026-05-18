@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { Text } from "@mariozechner/pi-tui";
-import type { Theme } from "@mariozechner/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 
 import { createMemoryEntry, type MemoryEntriesSnapshot } from "../src/memory/format.js";
 import { renderMemoriesMessage, renderMemoryCall, renderMemoryResult } from "../src/memory/renderer.js";

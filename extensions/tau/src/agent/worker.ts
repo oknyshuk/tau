@@ -6,8 +6,8 @@ import {
 	DefaultResourceLoader,
 	type ToolDefinition,
 	getAgentDir,
-} from "@mariozechner/pi-coding-agent";
-import type { Model, Api } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-coding-agent";
+import type { Model, Api } from "@earendil-works/pi-ai";
 import { Type } from "@sinclair/typebox";
 import { Effect, SubscriptionRef, Stream } from "effect";
 import { nanoid } from "nanoid";
@@ -196,7 +196,7 @@ export class AgentWorker implements Agent {
 		return Effect.gen(function* () {
 			const modelRegistry = opts.modelRegistry
 				? opts.modelRegistry
-				: new ModelRegistry(AuthStorage.create());
+				: ModelRegistry.create(AuthStorage.create());
 			const authStorage = modelRegistry.authStorage;
 
 			const appendPrompts = buildWorkerAppendPrompts({

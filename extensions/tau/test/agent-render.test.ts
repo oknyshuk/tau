@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { Theme, ToolRenderResultOptions } from "@mariozechner/pi-coding-agent";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 
 import { renderAgentResult } from "../src/agent/render.js";
 

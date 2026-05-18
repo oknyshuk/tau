@@ -1,4 +1,4 @@
-import { Key, matchesKey } from "@mariozechner/pi-tui";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
 
 export function shouldCloseAutoresearchOverlay(data: string): boolean {
 	return (

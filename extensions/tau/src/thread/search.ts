@@ -1,7 +1,7 @@
 import { Effect, Option } from "effect";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { SessionManager, type SessionInfo } from "@mariozechner/pi-coding-agent";
+import { SessionManager, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import type { SessionCatalogEntry, ThreadInfo } from "./types.js";
 import { ThreadAmbiguousError, ThreadCatalogError } from "./errors.js";
 

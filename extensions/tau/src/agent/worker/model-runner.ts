@@ -1,6 +1,6 @@
-import type { StreamFn } from "@mariozechner/pi-agent-core";
-import type { Api, Context, Model, SimpleStreamOptions } from "@mariozechner/pi-ai";
-import { stream, streamSimple } from "@mariozechner/pi-ai";
+import type { StreamFn } from "@earendil-works/pi-agent-core";
+import type { Api, Context, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { stream, streamSimple } from "@earendil-works/pi-ai";
 
 import { isRecord } from "../../shared/json.js";
 

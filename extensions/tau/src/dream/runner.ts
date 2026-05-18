@@ -6,7 +6,7 @@ import { Clock, Effect, Exit, Layer, Option, Schema, Scope, Context } from "effe
 import { nanoid } from "nanoid";
 import { Type, type Static } from "@sinclair/typebox";
 
-import type { ModelRegistry, ToolDefinition } from "@mariozechner/pi-coding-agent";
+import type { ModelRegistry, ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 import {
 	DreamFinishParams as DreamFinishParamsSchema,

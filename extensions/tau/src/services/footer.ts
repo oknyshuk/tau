@@ -5,9 +5,9 @@ import type {
 	ExtensionContext,
 	ReadonlyFooterDataProvider,
 	Theme,
-} from "@mariozechner/pi-coding-agent";
-import type { TUI } from "@mariozechner/pi-tui";
-import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import type { TUI } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import * as path from "node:path";
 
 import { PiAPI } from "../effect/pi.js";
@@ -241,7 +241,6 @@ export const FooterLive = Layer.effect(
 						emitFooterChanged();
 					};
 
-					pi.on("session_switch", updateSessionFooterState);
 					pi.on("session_start", (_event: unknown, ctx: ExtensionContext) => {
 						updateSessionFooterState(null, ctx);
 						ctx.ui.setFooter(
@@ -396,7 +395,6 @@ export const FooterLive = Layer.effect(
 						emitFooterChanged();
 					});
 					pi.on("session_tree", () => emitFooterChanged());
-					pi.on("session_fork", () => emitFooterChanged());
 					pi.on("model_select", () => emitFooterChanged());
 				});
 			}),

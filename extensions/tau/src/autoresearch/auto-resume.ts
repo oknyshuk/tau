@@ -1,4 +1,4 @@
-import type { ContextUsage } from "@mariozechner/pi-coding-agent";
+import type { ContextUsage } from "@earendil-works/pi-coding-agent";
 
 export const DEFAULT_COMPACTION_RESERVE_TOKENS = 16_384;
 

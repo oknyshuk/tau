@@ -8,7 +8,7 @@
  * - "unless-trusted": Auto-approve safe commands, prompt for unsafe ones
  */
 
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ApprovalPolicy } from "./config.js";
 import { spawn } from "node:child_process";
 import { classifySandboxFailure } from "./sandbox-diagnostics.js";

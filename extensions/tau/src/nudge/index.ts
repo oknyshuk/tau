@@ -1,7 +1,7 @@
 import type {
 	ExtensionAPI,
 	ToolResultEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { prependToLastUserMessage } from "../shared/message-injection.js";
 
 type TrackedTool = "memory" | "skill_manage";
@@ -55,7 +55,7 @@ export default function initNudge(pi: ExtensionAPI): void {
 		state = freshState();
 	});
 
-	pi.on("session_switch", async () => {
+	pi.on("session_start", async () => {
 		state = freshState();
 	});
 

@@ -1,8 +1,8 @@
-import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type {
 	ExtensionAPI,
 	ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { Effect, Layer, Context } from "effect";
 
 import { isExecutionThinkingLevel } from "../agent/model-spec.js";

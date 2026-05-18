@@ -6,9 +6,9 @@ import type {
 	SessionEntry,
 	Theme,
 	TurnEndEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { Text, truncateToWidth, type Component, type TUI } from "@mariozechner/pi-tui";
+import { Text, truncateToWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 import { Effect, Fiber } from "effect";
 
 import { Goal, type GoalService } from "../services/goal.js";
@@ -691,8 +691,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	};
 
 	pi.on("session_start", onSessionReady);
-	pi.on("session_switch", onSessionReady);
-	pi.on("session_fork", onSessionReady);
 	pi.on("session_tree", onSessionReady);
 
 	pi.on("before_agent_start", async (event: BeforeAgentStartEvent, ctx) => {

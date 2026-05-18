@@ -12,7 +12,7 @@ import type {
 	ToolResultEvent,
 	BeforeAgentStartEvent,
 	ContextEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { PiAPILive } from "../src/effect/pi.js";
 import { runTau } from "../src/app.js";
@@ -309,6 +309,7 @@ describe("memory tool runtime", () => {
 					type: "before_agent_start",
 					prompt: "save memory",
 					systemPrompt: "base",
+				systemPromptOptions: { cwd: "/tmp" },
 				} satisfies BeforeAgentStartEvent,
 				ctx,
 			);
@@ -549,6 +550,7 @@ describe("memory tool runtime", () => {
 					type: "before_agent_start",
 					prompt: "save memory",
 					systemPrompt: "base",
+				systemPromptOptions: { cwd: "/tmp" },
 				} satisfies BeforeAgentStartEvent,
 				ctx,
 			);
@@ -579,6 +581,7 @@ describe("memory tool runtime", () => {
 					type: "before_agent_start",
 					prompt: "save memory",
 					systemPrompt: "base",
+				systemPromptOptions: { cwd: "/tmp" },
 				} satisfies BeforeAgentStartEvent,
 				ctx,
 			);
@@ -596,6 +599,7 @@ describe("memory tool runtime", () => {
 							type: "before_agent_start",
 							prompt: "save memory",
 							systemPrompt: "base",
+				systemPromptOptions: { cwd: "/tmp" },
 						} satisfies BeforeAgentStartEvent,
 						ctx,
 					),
@@ -646,6 +650,7 @@ describe("memory tool runtime", () => {
 					type: "before_agent_start",
 					prompt: "save this durable fact",
 					systemPrompt: "base",
+				systemPromptOptions: { cwd: "/tmp" },
 				} satisfies BeforeAgentStartEvent,
 				ctx,
 			);

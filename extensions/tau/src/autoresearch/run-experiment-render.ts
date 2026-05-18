@@ -1,6 +1,6 @@
-import { Text } from "@mariozechner/pi-tui";
-import type { Theme, ToolRenderResultOptions } from "@mariozechner/pi-coding-agent";
-import { formatSize } from "@mariozechner/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import { formatSize } from "@earendil-works/pi-coding-agent";
 import { Option } from "effect";
 
 import type { RunDetails, BenchmarkProgress } from "../services/autoresearch.js";

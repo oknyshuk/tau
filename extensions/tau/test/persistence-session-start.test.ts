@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Effect, Layer } from "effect";
 
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { PiAPILive } from "../src/effect/pi.js";
 import { Persistence, PersistenceLive } from "../src/services/persistence.js";

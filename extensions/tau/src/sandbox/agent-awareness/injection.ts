@@ -1,4 +1,4 @@
-import type { TextContent } from "@mariozechner/pi-ai";
+import type { TextContent } from "@earendil-works/pi-ai";
 import {
 	type ContentItem,
 	type MessageLike,

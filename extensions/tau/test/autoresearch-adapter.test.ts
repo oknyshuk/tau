@@ -5,15 +5,15 @@ import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Layer, ManagedRuntime, Stream } from "effect";
-import { Text } from "@mariozechner/pi-tui";
-import type { Theme } from "@mariozechner/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
 	ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import initAutoresearch from "../src/autoresearch/index.js";
 import { LoopRepoLive } from "../src/loops/repo.js";
@@ -395,7 +395,7 @@ describe("autoresearch adapter", () => {
 		context.widgetUpdates.length = 0;
 		context.statusUpdates.length = 0;
 
-		await piHarness.fire("session_switch", { type: "session_switch" }, context.ctx);
+		await piHarness.fire("session_start", { type: "session_start", reason: "new" }, context.ctx);
 
 		expect(context.statusUpdates.at(-1)).toContain(
 			"autoresearch: improve-local-pdp-web-vitals",

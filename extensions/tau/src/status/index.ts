@@ -1,6 +1,6 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Theme } from "@mariozechner/pi-coding-agent";
-import { Text, visibleWidth, type Component } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Theme } from "@earendil-works/pi-coding-agent";
+import { Text, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { HttpClient, HttpClientRequest } from "effect/unstable/http";
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import { Data, Effect, Layer, Result, Schema } from "effect";

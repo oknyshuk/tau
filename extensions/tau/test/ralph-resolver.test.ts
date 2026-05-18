@@ -58,7 +58,7 @@ const piStub = {
 	getActiveTools: () => [] as string[],
 	getAllTools: () => [] as { name: string; description: string }[],
 	setActiveTools: () => undefined,
-} as unknown as import("@mariozechner/pi-coding-agent").ExtensionAPI;
+} as unknown as import("@earendil-works/pi-coding-agent").ExtensionAPI;
 
 const piLayer = Layer.succeed(PiAPI, piStub);
 

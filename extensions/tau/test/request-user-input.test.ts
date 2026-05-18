@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { ExtensionAPI, ExtensionContext, Theme, ToolRenderResultOptions } from "@mariozechner/pi-coding-agent";
-import type { Component, Text, TUI } from "@mariozechner/pi-tui";
+import type { ExtensionAPI, ExtensionContext, Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import type { Component, Text, TUI } from "@earendil-works/pi-tui";
 
 import initRequestUserInput from "../src/request-user-input/index.js";
 

@@ -5,7 +5,7 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import initDream, { _describeDreamError } from "../src/dream/init.js";
 import {
@@ -184,8 +184,6 @@ describe("initDream", () => {
 		expect(handlers.get("session_start")).toHaveLength(1);
 		expect(handlers.get("before_agent_start")).toHaveLength(1);
 		expect(handlers.get("agent_end")).toHaveLength(1);
-		expect(handlers.get("session_fork")).toHaveLength(1);
-		expect(handlers.get("session_switch")).toHaveLength(1);
 		expect(handlers.get("session_shutdown")).toHaveLength(1);
 	});
 

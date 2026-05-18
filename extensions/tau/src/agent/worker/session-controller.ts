@@ -1,4 +1,4 @@
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Effect, Fiber, SubscriptionRef } from "effect";
 
 import type { Status } from "../status.js";

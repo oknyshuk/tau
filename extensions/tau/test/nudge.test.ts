@@ -4,7 +4,7 @@ import type {
 	ToolResultEvent,
 	ContextEvent,
 	BeforeAgentStartEvent,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import initNudge from "../src/nudge/index.js";
 

@@ -1,5 +1,5 @@
 import { Effect, Layer, Option, Context } from "effect";
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type { AgentRegistry } from "../agent/agent-registry.js";
 import type { ExecutionProfile } from "../execution/schema.js";

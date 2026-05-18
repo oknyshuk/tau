@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Theme, ToolRenderResultOptions } from "@mariozechner/pi-coding-agent";
+import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { Option } from "effect";
 
 import { renderRunExperimentResult } from "../src/autoresearch/run-experiment-render.js";

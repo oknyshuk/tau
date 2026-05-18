@@ -1,4 +1,4 @@
-import type { Context, Model } from "@mariozechner/pi-ai";
+import type { Context, Model } from "@earendil-works/pi-ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { streamMock, streamSimpleMock } = vi.hoisted(() => ({
@@ -6,9 +6,9 @@ const { streamMock, streamSimpleMock } = vi.hoisted(() => ({
 	streamSimpleMock: vi.fn(),
 }));
 
-vi.mock("@mariozechner/pi-ai", async () => {
-	const actual = await vi.importActual<typeof import("@mariozechner/pi-ai")>(
-		"@mariozechner/pi-ai",
+vi.mock("@earendil-works/pi-ai", async () => {
+	const actual = await vi.importActual<typeof import("@earendil-works/pi-ai")>(
+		"@earendil-works/pi-ai",
 	);
 
 	return {

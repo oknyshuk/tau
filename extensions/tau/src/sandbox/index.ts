@@ -3,13 +3,13 @@ import { existsSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import type { BashOperations, ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { BashOperations, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	createEditTool,
 	createWriteTool,
 	getSettingsListTheme,
-} from "@mariozechner/pi-coding-agent";
-import { Container, SettingsList, Text, type SettingItem } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { Container, SettingsList, Text, type SettingItem } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { Effect } from "effect";
 
@@ -1501,17 +1501,7 @@ export default function initSandbox(
 		syncMutationToolActivation(ctx.model?.provider);
 	});
 
-	pi.on("session_switch", async (_event, ctx) => {
-		refreshConfig(ctx);
-		syncMutationToolActivation(ctx.model?.provider);
-	});
-
 	pi.on("session_tree", async (_event, ctx) => {
-		refreshConfig(ctx);
-		syncMutationToolActivation(ctx.model?.provider);
-	});
-
-	pi.on("session_fork", async (_event, ctx) => {
 		refreshConfig(ctx);
 		syncMutationToolActivation(ctx.model?.provider);
 	});

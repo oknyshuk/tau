@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { Theme, ToolRenderResultOptions } from "@mariozechner/pi-coding-agent";
-import type { Text } from "@mariozechner/pi-tui";
+import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import type { Text } from "@earendil-works/pi-tui";
 
 import { renderShellCall, renderShellResult } from "../src/sandbox/shell-render.js";
 

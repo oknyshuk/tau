@@ -1,6 +1,6 @@
 import { DateTime, Effect, Fiber, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import type { AgentEvent } from "@mariozechner/pi-agent-core";
+import type { AgentEvent } from "@earendil-works/pi-agent-core";
 
 import {
 	_createTurnLimitGuard as createTurnLimitGuard,
@@ -85,7 +85,7 @@ describe("isAssistantMessage", () => {
 
 describe("createTurnLimitGuard", () => {
 	it("allows exactly maxTurns turn_start events before aborting", async () => {
-		const listeners: Array<(event: AgentEvent) => void> = [];
+		const listeners: Array<(event: AgentEvent, signal: AbortSignal) => void> = [];
 		let aborts = 0;
 		const turnStartEvent = { type: "turn_start" } as unknown as AgentEvent;
 
@@ -106,10 +106,10 @@ describe("createTurnLimitGuard", () => {
 
 		const guardPromise = Effect.runPromise(guard);
 
-		listeners[0]?.(turnStartEvent);
+		listeners[0]?.(turnStartEvent, new AbortController().signal);
 		expect(aborts).toBe(0);
 
-		listeners[0]?.(turnStartEvent);
+		listeners[0]?.(turnStartEvent, new AbortController().signal);
 
 		await expect(guardPromise).resolves.toEqual({
 			_tag: "turn_limit_exceeded",

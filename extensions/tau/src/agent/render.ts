@@ -1,6 +1,6 @@
-import { Text } from "@mariozechner/pi-tui";
-import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { ToolRenderResultOptions, Theme } from "@mariozechner/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
+import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { ToolRenderResultOptions, Theme } from "@earendil-works/pi-coding-agent";
 import { formatDuration } from "./status.js";
 
 // Minimal type for render context - only what we need

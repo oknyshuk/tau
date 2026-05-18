@@ -7,8 +7,8 @@ import {
 	ModelRegistry,
 	DefaultResourceLoader,
 	type ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
-import type { Api, Model, ThinkingLevel } from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-coding-agent";
+import type { Api, Model, ThinkingLevel } from "@earendil-works/pi-ai";
 import { Effect } from "effect";
 
 import type { ApprovalBroker } from "../approval-broker.js";

@@ -1,6 +1,6 @@
 import { Effect, Option } from "effect";
-import { SessionManager, type SessionEntry } from "@mariozechner/pi-coding-agent";
-import type { TextContent } from "@mariozechner/pi-ai";
+import { SessionManager, type SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { TextContent } from "@earendil-works/pi-ai";
 import type { ReadThreadResult } from "./types.js";
 import { ThreadCatalogError } from "./errors.js";
 

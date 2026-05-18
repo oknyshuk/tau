@@ -1,7 +1,7 @@
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { Theme } from "@mariozechner/pi-coding-agent";
-import { visibleWidth, type Component, type TUI } from "@mariozechner/pi-tui";
-import type { Message } from "@mariozechner/pi-ai";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { Theme } from "@earendil-works/pi-coding-agent";
+import { visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
+import type { Message } from "@earendil-works/pi-ai";
 
 import { formatDuration } from "../shared/format-duration.js";
 import type { TauPersistedState } from "../shared/state.js";

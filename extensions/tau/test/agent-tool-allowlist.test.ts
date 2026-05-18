@@ -14,7 +14,7 @@ import {
 	SessionManager,
 	SettingsManager,
 	type ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { applyAgentToolAllowlist } from "../src/agent/tool-allowlist.js";
 import { AgentError } from "../src/agent/services.js";
@@ -139,7 +139,7 @@ describe("agent tool allowlist", () => {
 			const { session } = await createAgentSession({
 				cwd,
 				authStorage: AuthStorage.create(),
-				modelRegistry: new ModelRegistry(AuthStorage.create()),
+				modelRegistry: ModelRegistry.create(AuthStorage.create()),
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
@@ -171,7 +171,7 @@ describe("agent tool allowlist", () => {
 			const { session } = await createAgentSession({
 				cwd,
 				authStorage: AuthStorage.create(),
-				modelRegistry: new ModelRegistry(AuthStorage.create()),
+				modelRegistry: ModelRegistry.create(AuthStorage.create()),
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
@@ -204,7 +204,7 @@ describe("agent tool allowlist", () => {
 			});
 			await resourceLoader.reload();
 
-			const modelRegistry = new ModelRegistry(AuthStorage.create());
+			const modelRegistry = ModelRegistry.create(AuthStorage.create());
 			const model = modelRegistry.find("openai", "gpt-5");
 			expect(model).toBeDefined();
 
@@ -245,7 +245,7 @@ describe("agent tool allowlist", () => {
 			});
 			await resourceLoader.reload();
 
-			const modelRegistry = new ModelRegistry(AuthStorage.create());
+			const modelRegistry = ModelRegistry.create(AuthStorage.create());
 			const model = modelRegistry.find("anthropic", "claude-sonnet-4-5");
 			expect(model).toBeDefined();
 
@@ -286,7 +286,7 @@ describe("agent tool allowlist", () => {
 			});
 			await resourceLoader.reload();
 
-			const modelRegistry = new ModelRegistry(AuthStorage.create());
+			const modelRegistry = ModelRegistry.create(AuthStorage.create());
 			const model = modelRegistry.find("openai-codex", "gpt-5.3-codex");
 			expect(model).toBeDefined();
 
@@ -326,7 +326,7 @@ describe("agent tool allowlist", () => {
 			const { session } = await createAgentSession({
 				cwd,
 				authStorage: AuthStorage.create(),
-				modelRegistry: new ModelRegistry(AuthStorage.create()),
+				modelRegistry: ModelRegistry.create(AuthStorage.create()),
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
@@ -365,7 +365,7 @@ describe("agent tool allowlist", () => {
 			const { session } = await createAgentSession({
 				cwd,
 				authStorage: AuthStorage.create(),
-				modelRegistry: new ModelRegistry(AuthStorage.create()),
+				modelRegistry: ModelRegistry.create(AuthStorage.create()),
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
@@ -402,7 +402,7 @@ describe("agent tool allowlist", () => {
 			const { session } = await createAgentSession({
 				cwd,
 				authStorage: AuthStorage.create(),
-				modelRegistry: new ModelRegistry(AuthStorage.create()),
+				modelRegistry: ModelRegistry.create(AuthStorage.create()),
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
@@ -439,7 +439,7 @@ describe("agent tool allowlist", () => {
 			const { session } = await createAgentSession({
 				cwd,
 				authStorage: AuthStorage.create(),
-				modelRegistry: new ModelRegistry(AuthStorage.create()),
+				modelRegistry: ModelRegistry.create(AuthStorage.create()),
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),

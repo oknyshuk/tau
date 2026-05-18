@@ -30,7 +30,7 @@ import type {
 	MemoryBucketSnapshot,
 } from "../src/memory/format.js";
 import { MemoryFileError } from "../src/memory/errors.js";
-import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { createMemoryEntry } from "../src/memory/format.js";
 import { DateTime } from "effect";
 
@@ -387,7 +387,7 @@ const testRunnerConfig: DreamRunnerLiveConfig = {
 		getApiKey: () => Promise.resolve(null),
 		getApiKeyForProvider: () => Promise.resolve(null),
 		isUsingOAuth: () => false,
-	} as unknown as import("@mariozechner/pi-coding-agent").ModelRegistry,
+	} as unknown as import("@earendil-works/pi-coding-agent").ModelRegistry,
 };
 
 function runnerLayer(

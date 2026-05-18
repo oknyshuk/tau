@@ -14,7 +14,7 @@ import { CuratedMemory, CuratedMemoryLive } from "./services/curated-memory.js";
 import { Ralph, RalphLive } from "./services/ralph.js";
 import { Goal, GoalLive } from "./services/goal.js";
 import { SkillManager, SkillManagerLive } from "./services/skill-manager.js";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import initExa from "./exa/index.js";
 import initMemory from "./memory/index.js";
 import initSkillManage from "./skill-manage/index.js";

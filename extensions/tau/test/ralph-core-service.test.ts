@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentEndEvent } from "@mariozechner/pi-coding-agent";
+import type { AgentEndEvent } from "@earendil-works/pi-coding-agent";
 import { Deferred, Effect, Fiber, Layer, ManagedRuntime, Option } from "effect";
 import { NodeFileSystem } from "@effect/platform-node";
 

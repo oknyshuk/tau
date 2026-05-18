@@ -1,5 +1,5 @@
-import type { AgentSession, AgentSessionEvent } from "@mariozechner/pi-coding-agent";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { Effect, SubscriptionRef } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -210,7 +210,7 @@ describe("AgentWorker overflow compaction handling", () => {
 			],
 		} as AgentSessionEvent);
 		session.emit({
-			type: "auto_compaction_start",
+			type: "compaction_start",
 			reason: "overflow",
 		} satisfies AgentSessionEvent);
 
@@ -234,11 +234,12 @@ describe("AgentWorker overflow compaction handling", () => {
 			],
 		} as AgentSessionEvent);
 		session.emit({
-			type: "auto_compaction_start",
+			type: "compaction_start",
 			reason: "threshold",
 		} satisfies AgentSessionEvent);
 		session.emit({
-			type: "auto_compaction_end",
+			type: "compaction_end",
+			reason: "threshold",
 			result: undefined,
 			aborted: false,
 			willRetry: false,
@@ -266,13 +267,14 @@ describe("AgentWorker overflow compaction handling", () => {
 			setTimeout(() => {
 				activeSession.isCompacting = true;
 				activeSession.emit({
-					type: "auto_compaction_start",
+					type: "compaction_start",
 					reason: "overflow",
 				} satisfies AgentSessionEvent);
 
 				activeSession.isCompacting = false;
 				activeSession.emit({
-					type: "auto_compaction_end",
+					type: "compaction_end",
+					reason: "overflow",
 					result: undefined,
 					aborted: false,
 					willRetry: true,

@@ -7,7 +7,7 @@ import {
 	mergePersistedState,
 	type TauPersistedState,
 } from "../shared/state.js";
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 function sanitizePersistedStateForSession(
 	state: TauPersistedState,
@@ -104,7 +104,6 @@ export const PersistenceLive = Layer.effect(
 
 				yield* Effect.sync(() => {
 					pi.on("session_start", mergePersistedFromContext);
-					pi.on("session_switch", mergePersistedFromContext);
 				});
 			}),
 		});

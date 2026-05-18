@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import type { ApprovalBroker } from "../src/agent/approval-broker.js";
 import { checkBashApproval } from "../src/sandbox/approval.js";

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { Effect, Layer, ManagedRuntime } from "effect";
 
-import type { AgentEndEvent, ExtensionAPI, SessionEntry } from "@mariozechner/pi-coding-agent";
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AgentEndEvent, ExtensionAPI, SessionEntry } from "@earendil-works/pi-coding-agent";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 
 import { PiAPILive } from "../src/effect/pi.js";
 import { GOAL_ENTRY_TYPE, makeGoalSnapshot } from "../src/goal/schema.js";

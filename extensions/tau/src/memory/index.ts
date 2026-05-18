@@ -1,8 +1,8 @@
 import { Effect } from "effect";
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
-import type { AgentToolResult, ExtensionAPI, ToolDefinition } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+import type { AgentToolResult, ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 
 import { CuratedMemory, type MutationResult } from "../services/curated-memory.js";
 import { defineDecodedTool, textToolResult } from "../shared/decoded-tool.js";

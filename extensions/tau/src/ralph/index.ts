@@ -6,8 +6,8 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
-import { getSelectListTheme, getSettingsListTheme } from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
+import { getSelectListTheme, getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import {
 	Text,
@@ -19,7 +19,7 @@ import {
 	truncateToWidth,
 	type SelectItem,
 	type SettingItem,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import { Effect, Option } from "effect";
 
 import type { ExecutionProfile } from "../execution/schema.js";
@@ -2572,44 +2572,6 @@ export default function initRalph(
 					"info",
 				);
 			}
-			await updateUI(ctx.cwd, ctx);
-			await syncRalphHandshakeToolsSafely(ctx);
-		} catch (error) {
-			if (Option.isSome(handlePersistedStateFailure(error, ctx))) {
-				return;
-			}
-			throw error;
-		}
-	});
-
-	pi.on("session_switch", async (_event, ctx) => {
-		try {
-			syncPromptDispatcher(ctx);
-			syncExecutionProfileApplier(ctx);
-			syncCapabilityContractApplier(ctx);
-			await withRalph((ralph) =>
-				ralph.syncCurrentLoopFromSession(ctx.cwd, sessionFileFromContext(ctx)),
-			);
-			await restoreReleasedRalphSessionCapabilities(ctx);
-			await updateUI(ctx.cwd, ctx);
-			await syncRalphHandshakeToolsSafely(ctx);
-		} catch (error) {
-			if (Option.isSome(handlePersistedStateFailure(error, ctx))) {
-				return;
-			}
-			throw error;
-		}
-	});
-
-	pi.on("session_fork", async (_event, ctx) => {
-		try {
-			syncPromptDispatcher(ctx);
-			syncExecutionProfileApplier(ctx);
-			syncCapabilityContractApplier(ctx);
-			await withRalph((ralph) =>
-				ralph.syncCurrentLoopFromSession(ctx.cwd, sessionFileFromContext(ctx)),
-			);
-			await restoreReleasedRalphSessionCapabilities(ctx);
 			await updateUI(ctx.cwd, ctx);
 			await syncRalphHandshakeToolsSafely(ctx);
 		} catch (error) {

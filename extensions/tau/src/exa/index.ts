@@ -4,10 +4,10 @@ import {
 	type ExtensionAPI,
 	type Theme,
 	type ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
-import { Markdown, Text } from "@mariozechner/pi-tui";
+import { Markdown, Text } from "@earendil-works/pi-tui";
 import { defineDecodedTool, textToolResult } from "../shared/decoded-tool.js";
 
 // =============================================================================

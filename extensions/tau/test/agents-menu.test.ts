@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as fs from "node:fs";
@@ -393,7 +393,7 @@ describe("agents menu", () => {
 		}
 	});
 
-	it("fails closed on headless session_switch when registry loading fails", async () => {
+	it("fails closed on headless session_start when registry loading fails", async () => {
 		const { pi, handlers, setActiveToolsCalls } = makePiStub();
 		const refreshedDescriptions: string[] = [];
 
@@ -408,11 +408,11 @@ describe("agents menu", () => {
 		vi.stubEnv("HOME", tempHome);
 
 		try {
-			const sessionSwitch = handlers.get("session_switch")?.[0];
-			expect(sessionSwitch).toBeTypeOf("function");
+			const sessionStart = handlers.get("session_start")?.[0];
+			expect(sessionStart).toBeTypeOf("function");
 
 			await Promise.resolve(
-				sessionSwitch?.({ type: "session_switch" }, { cwd: process.cwd(), hasUI: false }),
+				sessionStart?.({ type: "session_start", reason: "new" }, { cwd: process.cwd(), hasUI: false }),
 			);
 
 			expect(setActiveToolsCalls.at(-1)).toEqual([]);

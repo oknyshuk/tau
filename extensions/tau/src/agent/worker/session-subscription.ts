@@ -1,4 +1,4 @@
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 
 import { isRecord } from "../../shared/json.js";
 import { getAssistantText, getLastAssistantMessage } from "./session-events.js";
@@ -114,8 +114,8 @@ export function subscribeToWorkerSession(
 				publishRunningStatusIfNotFinal();
 				return;
 			}
-			case "auto_compaction_start":
-			case "auto_compaction_end": {
+			case "compaction_start":
+			case "compaction_end": {
 				publishRunningStatusIfNotFinal();
 				return;
 			}

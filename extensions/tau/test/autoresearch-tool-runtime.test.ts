@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NodeFileSystem } from "@effect/platform-node";
 import { Effect, Layer, ManagedRuntime, Stream } from "effect";
 import { Option } from "effect";
-import { Text } from "@mariozechner/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 
 import type {
 	BashOperations,
@@ -14,7 +14,7 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 	ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { LoopRepoLive } from "../src/loops/repo.js";
 import { LoopEngine } from "../src/services/loop-engine.js";

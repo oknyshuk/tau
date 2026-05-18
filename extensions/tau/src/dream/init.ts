@@ -7,7 +7,7 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 	ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 import { loadDreamConfig } from "./config-loader.js";
 import {
@@ -388,10 +388,6 @@ export default function initDream(
 		syncDreamScopedToolAvailability(ctx);
 		await autoSpawnHandler(_event, ctx);
 	});
-	pi.on("session_fork", async (_event, ctx) => {
-		syncDreamScopedToolAvailability(ctx);
-	});
-	pi.on("session_switch", autoSpawnHandler);
 	pi.on("session_shutdown", shutdownAutoSpawnHandler);
 
 	async function tryAutoSpawn(

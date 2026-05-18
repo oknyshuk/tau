@@ -1,5 +1,5 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { Effect } from "effect";
 import { renderAgentCall, renderAgentResult } from "./render.js";
 import { createUiApprovalBroker } from "./approval-broker.js";
@@ -70,8 +70,10 @@ export default function initAgent(
 	runtime: AgentRuntimeBridgeService,
 	description: string,
 ): AgentToolHandle {
-	// Close all agents when session switches (e.g., /new command)
-	pi.on("session_switch", async () => {
+	// Close all agents when switching to a different session (/new, /resume, fork).
+	// Skip startup (no agents yet) and reload (in-process state preserved).
+	pi.on("session_start", async (event) => {
+		if (event.reason === "startup" || event.reason === "reload") return;
 		await runtime.closeAll();
 	});
 

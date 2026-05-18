@@ -1,8 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { Effect, Option } from "effect";
-import type { ExtensionAPI, ToolDefinition } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+import type { ExtensionAPI, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 
 import { defineDecodedTool, textToolResult } from "../shared/decoded-tool.js";
 import { ThreadAmbiguousError, ThreadNotFoundError } from "./errors.js";

@@ -1,4 +1,4 @@
-import type { AgentSession, AgentSessionEvent } from "@mariozechner/pi-coding-agent";
+import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { Deferred, Effect, SubscriptionRef } from "effect";
 import { describe, expect, it, vi } from "vitest";
 

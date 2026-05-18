@@ -1,5 +1,5 @@
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentControl } from "../src/agent/services.js";
@@ -22,9 +22,9 @@ const {
 	resourceLoaderOptions: [] as Array<{ readonly cwd: unknown; readonly agentDir: unknown }>,
 }));
 
-vi.mock("@mariozechner/pi-coding-agent", async () => {
-	const actual = await vi.importActual<typeof import("@mariozechner/pi-coding-agent")>(
-		"@mariozechner/pi-coding-agent",
+vi.mock("@earendil-works/pi-coding-agent", async () => {
+	const actual = await vi.importActual<typeof import("@earendil-works/pi-coding-agent")>(
+		"@earendil-works/pi-coding-agent",
 	);
 
 	class FakeDefaultResourceLoader {

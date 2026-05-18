@@ -1,7 +1,7 @@
 import * as path from "node:path";
 
 import { Clock, Deferred, Effect, Layer, Option, Ref, Context } from "effect";
-import type { AgentEndEvent } from "@mariozechner/pi-coding-agent";
+import type { AgentEndEvent } from "@earendil-works/pi-coding-agent";
 
 import type { ExecutionProfile } from "../execution/schema.js";
 import type { ResolvedSandboxConfig } from "../sandbox/config.js";

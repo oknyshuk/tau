@@ -1,4 +1,4 @@
-import type { AgentSession } from "@mariozechner/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { Effect } from "effect";
 
 import { isRecord } from "../../shared/json.js";
@@ -120,12 +120,12 @@ export function waitForSessionSettlement(
 		};
 
 		const unsubscribe = session.subscribe((event) => {
-			if (event.type === "auto_compaction_start") {
+			if (event.type === "compaction_start") {
 				clearPendingFailureTimer();
 				return;
 			}
 
-			if (event.type === "auto_compaction_end") {
+			if (event.type === "compaction_end") {
 				clearPendingFailureTimer();
 				if (event.errorMessage) {
 					finish({ ok: false, reason: event.errorMessage });

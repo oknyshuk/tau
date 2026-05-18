@@ -1,8 +1,8 @@
 import { access, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import * as path from "node:path";
 
-import type { ExtensionContext, ToolDefinition } from "@mariozechner/pi-coding-agent";
-import { Text } from "@mariozechner/pi-tui";
+import type { ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "@sinclair/typebox";
 import * as Diff from "diff";
 
@@ -17,7 +17,7 @@ import { checkWriteAllowed } from "./fs-policy.js";
 import { APPLY_PATCH_TOOL_NAME } from "./mutation-tools.js";
 import { discoverWorkspaceRoot } from "./workspace-root.js";
 
-const FILE_MUTATION_QUEUE_KEY = Symbol.for("@mariozechner/pi-coding-agent:file-mutation-queues");
+const FILE_MUTATION_QUEUE_KEY = Symbol.for("@earendil-works/pi-coding-agent:file-mutation-queues");
 
 const _global = globalThis as unknown as Record<symbol, Map<string, Promise<void>> | undefined>;
 const fileMutationQueues: Map<string, Promise<void>> =

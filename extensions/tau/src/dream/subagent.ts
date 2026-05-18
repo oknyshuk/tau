@@ -5,7 +5,7 @@ import { Effect, Layer, Context } from "effect";
 
 import {
 	createAgentSession,
-	readOnlyTools,
+	getAgentDir,
 	SessionManager,
 	SettingsManager,
 	DefaultResourceLoader,
@@ -13,11 +13,11 @@ import {
 	type AgentSession,
 	type AgentSessionEvent,
 	type ToolDefinition,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import type {
 	AssistantMessage,
 	ThinkingLevel,
-} from "@mariozechner/pi-ai";
+} from "@earendil-works/pi-ai";
 
 import type { DreamProgressEvent } from "./domain.js";
 import {
@@ -353,6 +353,7 @@ function runImpl(
 		const settingsManager = SettingsManager.inMemory();
 		const resourceLoader = new DefaultResourceLoader({
 			cwd: request.cwd,
+			agentDir: getAgentDir(),
 			settingsManager,
 			appendSystemPromptOverride: () => [systemPrompt],
 		});
@@ -371,7 +372,7 @@ function runImpl(
 					cwd: request.cwd,
 					model: resolvedModel,
 					thinkingLevel: mapThinking(request.model.thinking),
-					tools: readOnlyTools,
+					tools: ["read", "grep", "find", "ls"],
 					customTools: customTools as ToolDefinition[],
 					modelRegistry: context.modelRegistry,
 					sessionManager: SessionManager.inMemory(request.cwd),

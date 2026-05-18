@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Theme } from "@mariozechner/pi-coding-agent";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 
 import { renderWidget } from "../src/autoresearch/dashboard.js";
 import { renderDashboardLines } from "../src/autoresearch/dashboard.js";

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Effect, Layer, ManagedRuntime } from "effect";
 
-import type { AssistantMessage } from "@mariozechner/pi-ai";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type {
 	AgentEndEvent,
 	BeforeAgentStartEvent,
@@ -10,8 +10,8 @@ import type {
 	Theme,
 	ToolResultEvent,
 	TurnEndEvent,
-} from "@mariozechner/pi-coding-agent";
-import { visibleWidth, type Component, type TUI } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 
 import { PiAPILive } from "../src/effect/pi.js";
 import initGoal from "../src/goal/index.js";
@@ -189,6 +189,7 @@ describe("dashboard widget order", () => {
 				type: "before_agent_start",
 				prompt: "go",
 				systemPrompt: "base",
+				systemPromptOptions: { cwd: "/tmp" },
 			} satisfies BeforeAgentStartEvent);
 
 			expect(harness.widgets.keys()).toEqual(["worked-for-separator", "goal"]);
@@ -250,6 +251,7 @@ describe("dashboard widget order", () => {
 				type: "before_agent_start",
 				prompt: "go",
 				systemPrompt: "base",
+				systemPromptOptions: { cwd: "/tmp" },
 			} satisfies BeforeAgentStartEvent);
 
 			for (const width of [0, 1, 2, 3, 89]) {

@@ -1,7 +1,7 @@
 import * as path from "node:path";
 
 import { Clock, Effect, Layer, Option, Ref, Context } from "effect";
-import type { TruncationResult } from "@mariozechner/pi-coding-agent";
+import type { TruncationResult } from "@earendil-works/pi-coding-agent";
 
 import { AutoresearchRepo } from "../autoresearch/repo.js";
 import {

@@ -1,4 +1,4 @@
-import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import {
 	Container,
 	type Focusable,
@@ -7,7 +7,7 @@ import {
 	matchesKey,
 	Spacer,
 	Text,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import { AgentRegistry } from "../agent/agent-registry.js";
 import { validateResolvedAgentConfiguration } from "../agent/startup-validation.js";
 import { buildToolDescription } from "../agent/tool.js";
@@ -434,23 +434,6 @@ export default function initAgentsMenu(
 			await preloadRalphOwnedSessionCache(ctx.cwd, sessionFile);
 			syncAgentToolAvailability(pi, agentTool, registry, ctx.cwd, sessionFile);
 		}
-	});
-	pi.on("session_switch", async (_event, ctx) => {
-		clearRalphOwnedSessionCache();
-		if (!ctx.hasUI) {
-			const registry = await loadRegistrySafe(ctx.cwd);
-			if (registry === null) {
-				failClosedAgentToolAvailability(pi, agentTool);
-				return;
-			}
-			await agentSelections.activate(ctx.cwd, registry.names());
-			return;
-		}
-		await syncForCwd(
-			ctx.cwd,
-			getSessionFileFromContext(ctx),
-			(message) => ctx.ui.notify(message, "error"),
-		);
 	});
 	pi.on("before_agent_start", async (_event, ctx) => {
 		await syncForCwd(

@@ -11,7 +11,7 @@ import {
 	ModelRegistry,
 	SessionManager,
 	SettingsManager,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 
 async function withTempDir<A>(fn: (dir: string) => Promise<A>): Promise<A> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "tau-test-"));
@@ -55,7 +55,7 @@ describe("AGENTS.md availability", () => {
 			const { session } = await createAgentSession({
 				cwd,
 				authStorage: AuthStorage.create(),
-				modelRegistry: new ModelRegistry(AuthStorage.create()),
+				modelRegistry: ModelRegistry.create(AuthStorage.create()),
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),

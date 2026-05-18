@@ -7,16 +7,16 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
-} from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
 import {
 	truncateTail,
 	formatSize,
 	DEFAULT_MAX_BYTES,
 	DEFAULT_MAX_LINES,
-} from "@mariozechner/pi-coding-agent";
-import type { TruncationResult } from "@mariozechner/pi-coding-agent";
+} from "@earendil-works/pi-coding-agent";
+import type { TruncationResult } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { matchesKey, Text } from "@mariozechner/pi-tui";
+import { matchesKey, Text } from "@earendil-works/pi-tui";
 import { Cause, Effect, Option } from "effect";
 
 import { Sandbox } from "../services/sandbox.js";
@@ -34,7 +34,7 @@ import {
 } from "../services/autoresearch.js";
 import type { ExecutionProfile } from "../execution/schema.js";
 import { getSandboxedBashOperations } from "../sandbox/index.js";
-import type { BashOperations } from "@mariozechner/pi-coding-agent";
+import type { BashOperations } from "@earendil-works/pi-coding-agent";
 import {
 	LoopContractValidationError,
 	LoopLifecycleConflictError,
@@ -767,7 +767,7 @@ export default function initAutoresearch(
 
 	const expandedState = new Map<string, boolean>();
 	type OverlayState = {
-		readonly tui: import("@mariozechner/pi-tui").TUI;
+		readonly tui: import("@earendil-works/pi-tui").TUI;
 		readonly done: (value: void) => void;
 		readonly spinnerTimer: ReturnType<typeof setInterval>;
 		spinnerFrame: number;
@@ -2410,38 +2410,6 @@ export default function initAutoresearch(
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		try {
-			await updateAutoresearchUI(ctx.cwd, ctx);
-		} catch (error) {
-			if (
-				error instanceof LoopOwnershipValidationError ||
-				error instanceof LoopAmbiguousOwnershipError ||
-				error instanceof LoopContractValidationError
-			) {
-				clearAutoresearchUI(ctx);
-				return;
-			}
-			throw error;
-		}
-	});
-
-	pi.on("session_switch", async (_event, ctx) => {
-		try {
-			await updateAutoresearchUI(ctx.cwd, ctx);
-		} catch (error) {
-			if (
-				error instanceof LoopOwnershipValidationError ||
-				error instanceof LoopAmbiguousOwnershipError ||
-				error instanceof LoopContractValidationError
-			) {
-				clearAutoresearchUI(ctx);
-				return;
-			}
-			throw error;
-		}
-	});
-
-	pi.on("session_fork", async (_event, ctx) => {
 		try {
 			await updateAutoresearchUI(ctx.cwd, ctx);
 		} catch (error) {

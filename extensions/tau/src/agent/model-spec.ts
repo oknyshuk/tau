@@ -1,4 +1,4 @@
-import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
+import type { ThinkingLevel } from "@earendil-works/pi-agent-core";
 import { Data, Effect, Schema } from "effect";
 
 import type { ModelSpec } from "./types.js";

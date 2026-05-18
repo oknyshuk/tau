@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DateTime, Effect, Layer, Semaphore, Context } from "effect";
 import type { Scope } from "effect";
 import { nanoid } from "nanoid";
@@ -698,7 +698,6 @@ export const CuratedMemoryLive = Layer.effect(
 						}
 					};
 					pi.on("session_start", reload);
-					pi.on("session_switch", reload);
 					pi.on("before_agent_start", async (event) => {
 						const block = frozenPromptBlock;
 						if (!block) {

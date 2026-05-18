@@ -3,7 +3,7 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Effect, Layer, ManagedRuntime } from "effect";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 import { PiAPILive } from "../src/effect/pi.js";
 import {
@@ -277,7 +277,7 @@ describe("CuratedMemory service", () => {
 			const first = expectPromptResult(firstUnknown);
 			expect(first.systemPrompt).not.toBe("base");
 
-			await emit("session_switch", {}, otherWorkspaceRoot);
+			await emit("session_start", { reason: "new" }, otherWorkspaceRoot);
 			const [secondUnknown] = await emit(
 				"before_agent_start",
 				{ systemPrompt: "base" },
