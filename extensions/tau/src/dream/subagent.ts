@@ -447,11 +447,9 @@ function runImpl(
 				}
 
 				if ("_tag" in raceResult && raceResult._tag === "turn_limit_exceeded") {
-					return Effect.promise(() =>
-						promptPromise.catch((error) => {
-							console.warn("Dream prompt promise failed after turn limit exceeded:", error);
-						}),
-					).pipe(
+					return Effect.promise(() => promptPromise).pipe(
+						Effect.tapError((error) => Effect.logWarning("Dream prompt promise failed after turn limit exceeded", error)),
+						Effect.catch(() => Effect.void),
 						Effect.as(raceResult),
 					);
 				}

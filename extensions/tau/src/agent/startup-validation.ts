@@ -32,7 +32,11 @@ export function validateResolvedAgentConfiguration(
 		Effect.gen(function* () {
 			const definition = registry.resolve(name);
 			if (!definition) {
-				return;
+				return yield* Effect.fail(
+					new AgentRegistryConfigError({
+						message: `Internal error: agent "${name}" is registered but has no resolved definition`,
+					}),
+				);
 			}
 
 			if (definition.models.length === 0) {

@@ -96,7 +96,10 @@ export const AutoresearchLoopRunnerLive = Layer.effect(
 				activeLoops.set(loopKey, { _tag: "running", fiber });
 				return;
 			}
-			yield* Fiber.interrupt(fiber).pipe(Effect.ignore);
+			yield* Fiber.interrupt(fiber).pipe(
+				Effect.tapError((error) => Effect.logWarning("Autoresearch loop fiber interrupt failed", error)),
+				Effect.catch(() => Effect.void),
+			);
 		});
 
 		const cancelLoop: AutoresearchLoopRunnerService["cancelLoop"] = Effect.fn(
@@ -111,7 +114,10 @@ export const AutoresearchLoopRunnerLive = Layer.effect(
 				return;
 			}
 
-			yield* Fiber.interrupt(active.fiber).pipe(Effect.ignore);
+			yield* Fiber.interrupt(active.fiber).pipe(
+				Effect.tapError((error) => Effect.logWarning("Autoresearch loop fiber interrupt failed", error)),
+				Effect.catch(() => Effect.void),
+			);
 			activeLoops.delete(loopKey);
 		});
 
@@ -177,7 +183,10 @@ export const AutoresearchLoopRunnerLive = Layer.effect(
 			}
 
 			waitingAgentEnds.delete(sessionFile);
-			yield* Deferred.succeed(deferred, event).pipe(Effect.ignore);
+			yield* Deferred.succeed(deferred, event).pipe(
+				Effect.tapError((error) => Effect.logWarning("Autoresearch agent end deferred succeed failed", error)),
+				Effect.catch(() => Effect.void),
+			);
 		});
 
 		return AutoresearchLoopRunner.of({

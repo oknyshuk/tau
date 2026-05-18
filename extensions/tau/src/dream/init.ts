@@ -414,7 +414,7 @@ export default function initDream(
 			}
 		} catch (error) {
 			void runEffect(Effect.logDebug(`dream auto gate closed: ${describeError(error)}`)).catch((err) => {
-				console.warn("Dream auto gate log failed:", err);
+				Effect.runSync(Effect.logWarning("Dream auto gate log failed", err));
 			});
 		}
 	}
@@ -630,8 +630,8 @@ async function releaseForegroundRun(
 				yield* dreamLock.releaseManual(run.lease);
 			}),
 		);
-	} catch {
-		// Best-effort lock release
+	} catch (error) {
+		Effect.runSync(Effect.logWarning("Dream lock release failed", error));
 	}
 }
 

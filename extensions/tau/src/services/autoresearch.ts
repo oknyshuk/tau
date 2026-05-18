@@ -1293,7 +1293,7 @@ export const AutoresearchLive = Layer.effect(
 								existing = parsed;
 							}
 						} catch (error) {
-							console.warn("Failed to parse run.json, using empty object:", error);
+							yield* Effect.logWarning("Failed to parse run.json, using empty object", error);
 						}
 					}
 					const updated = {

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import { parseAgentDefinition, loadAgentDefinition } from "../src/agent/parser.js";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -290,16 +290,18 @@ Test prompt`,
 
 		it("should load agent from project .pi/agents", async () => {
 			const def = await Effect.runPromise(loadAgentDefinition("test-agent", tempDir));
-			expect(def).not.toBeNull();
-			expect(def?.name).toBe("test-agent");
-			expect(def?.description).toBe("A test agent");
-			expect(def?.models).toHaveLength(1);
-			expect(def?.models[0]).toEqual({ model: "inherit", thinking: "low" });
+			expect(Option.isSome(def)).toBe(true);
+			if (Option.isSome(def)) {
+				expect(def.value.name).toBe("test-agent");
+				expect(def.value.description).toBe("A test agent");
+				expect(def.value.models).toHaveLength(1);
+				expect(def.value.models[0]).toEqual({ model: "inherit", thinking: "low" });
+			}
 		});
 
-		it("should return null if agent not found", async () => {
+		it("should return none if agent not found", async () => {
 			const def = await Effect.runPromise(loadAgentDefinition("non-existent", tempDir));
-			expect(def).toBeNull();
+			expect(Option.isNone(def)).toBe(true);
 		});
 
 		it("should reject invalid agent names", async () => {

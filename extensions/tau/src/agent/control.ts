@@ -68,7 +68,10 @@ export const AgentControlLive = Layer.effect(
 		const manager = yield* AgentManager;
 		const sandbox = yield* Sandbox;
 		const touchIds = (ids: ReadonlyArray<AgentId>) =>
-			Effect.forEach(ids, (id) => manager.touch(id), { discard: true }).pipe(Effect.ignore);
+			Effect.forEach(ids, (id) => manager.touch(id), { discard: true }).pipe(
+				Effect.tapError((error) => Effect.logWarning("Agent touch failed", error)),
+				Effect.catch(() => Effect.void),
+			);
 
 		return AgentControl.of({
 			spawn: (opts: ControlSpawnOptions) =>
@@ -232,9 +235,8 @@ export const AgentControlLive = Layer.effect(
 							timeoutMs: boundedTimeoutMs,
 							waitElapsedMs: Date.now() - startedAt,
 						})),
-						Effect.catch((error) =>
+						Effect.catchTag("TimeoutError", () =>
 							Effect.gen(function* () {
-								yield* Effect.logWarning("Agent status check failed during wait, treating as timeout", error);
 								const status = yield* getStatusMap;
 								return {
 									status,

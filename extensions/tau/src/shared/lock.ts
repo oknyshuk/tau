@@ -486,7 +486,10 @@ export const acquireSharedFileLockScoped = (
 	config: SharedFileLockConfig,
 ): Effect.Effect<SharedFileLockLease, SharedFileLockError, Scope.Scope> =>
 	Effect.acquireRelease(acquireSharedFileLockEffect(lockPath, config), (lease) =>
-		releaseSharedFileLockEffect(lease).pipe(Effect.orElseSucceed(() => undefined)),
+		releaseSharedFileLockEffect(lease).pipe(
+			Effect.tapError((error) => Effect.logWarning("Shared file lock release failed", error)),
+			Effect.orElseSucceed(() => undefined),
+		),
 	);
 
 export async function withSharedFileLock<T>(

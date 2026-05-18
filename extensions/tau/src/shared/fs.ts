@@ -109,16 +109,12 @@ export function safeRealpath(targetPath: string): string {
 	const absolute = path.isAbsolute(targetPath) ? targetPath : path.resolve(targetPath);
 	try {
 		return fs.realpathSync(absolute);
-	} catch (error) {
+	} catch {
 		const parent = path.dirname(absolute);
 		const filename = path.basename(absolute);
 		try {
 			return path.join(fs.realpathSync(parent), filename);
-		} catch (parentError) {
-			console.warn(
-				`safeRealpath: failed to resolve ${absolute} via parent ${parent}:`,
-				parentError,
-			);
+		} catch {
 			return absolute;
 		}
 	}
@@ -143,8 +139,8 @@ export function collectTempRoots(): readonly string[] {
 		tempRoots.add(candidate);
 		try {
 			tempRoots.add(fs.realpathSync(candidate));
-		} catch (error) {
-			console.warn(`collectTempRoots: ignoring inaccessible temp root ${candidate}:`, error);
+		} catch {
+			// ignore inaccessible temp root
 		}
 	};
 

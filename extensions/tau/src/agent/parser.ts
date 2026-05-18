@@ -1,4 +1,4 @@
-import { Data, Effect, Schema } from "effect";
+import { Data, Effect, Option, Schema } from "effect";
 import { parse } from "yaml";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
@@ -197,7 +197,7 @@ function isPathWithinParent(parent: string, candidate: string): boolean {
 export function loadAgentDefinition(
 	name: string,
 	cwd: string,
-): Effect.Effect<AgentDefinition | null, AgentDefinitionError> {
+): Effect.Effect<Option.Option<AgentDefinition>, AgentDefinitionError> {
 	if (!VALID_AGENT_NAME_RE.test(name)) {
 		return Effect.fail(
 			new AgentDefinitionError({
@@ -237,10 +237,10 @@ export function loadAgentDefinition(
 							}),
 					});
 
-					return yield* parseAgentDefinition(contents);
+					return yield* parseAgentDefinition(contents).pipe(Effect.map(Option.some));
 				}
 
-				return null;
+				return Option.none();
 			});
 		}),
 		Effect.mapError((cause) =>

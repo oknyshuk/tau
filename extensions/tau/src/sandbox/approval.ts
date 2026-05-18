@@ -11,6 +11,7 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { ApprovalPolicy } from "./config.js";
 import { spawn } from "node:child_process";
+import { Effect } from "effect";
 import { classifySandboxFailure } from "./sandbox-diagnostics.js";
 import { isSafeCommand } from "./safe-commands.js";
 import type { ApprovalBroker } from "../agent/approval-broker.js";
@@ -83,9 +84,8 @@ async function promptForApproval(
 			return await ctx.ui.confirm(title, message, { timeout: timeoutMs });
 		}
 		return await broker!.confirm(title, message, { timeoutMs: timeoutMs });
-	} catch (err) {
-		// Log error instead of swallowing silently
-		console.error("[Sandbox] Approval prompt failed:", err);
+	} catch (error) {
+		Effect.runSync(Effect.logWarning("Approval prompt failed", error));
 		return false;
 	}
 }

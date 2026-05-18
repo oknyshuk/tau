@@ -141,7 +141,12 @@ export const AgentManagerLive = Layer.effect(
 				const currentAgents = yield* Ref.get(agentsRef);
 				const agent = HashMap.get(currentAgents, closedId);
 				if (Option.isSome(agent)) {
-					yield* agent.value.shutdown().pipe(Effect.ignore);
+					yield* agent.value.shutdown().pipe(
+						Effect.tapError((error) =>
+							Effect.logWarning("Agent shutdown failed during eviction", error),
+						),
+						Effect.catch(() => Effect.void),
+					);
 				}
 				yield* removeAgentState(closedId);
 			}
@@ -330,7 +335,12 @@ export const AgentManagerLive = Layer.effect(
 				Effect.gen(function* () {
 					const agents = yield* Ref.get(agentsRef);
 					for (const agent of HashMap.values(agents)) {
-						yield* agent.shutdown().pipe(Effect.ignore);
+						yield* agent.shutdown().pipe(
+							Effect.tapError((error) =>
+								Effect.logWarning("Agent shutdown failed during shutdownAll", error),
+							),
+							Effect.catch(() => Effect.void),
+						);
 					}
 					yield* Ref.set(agentsRef, HashMap.empty());
 					yield* Ref.set(depthMapRef, HashMap.empty());

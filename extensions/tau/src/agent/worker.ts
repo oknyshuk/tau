@@ -277,7 +277,7 @@ export class AgentWorker implements Agent {
 						if (signal?.aborted) throw new Error("Aborted");
 						agent.structuredOutput = params;
 						agent.session.abort().catch((error) => {
-							console.warn("Agent session abort failed:", error);
+							Effect.runSync(Effect.logWarning("Agent session abort failed", error));
 						});
 						return {
 							content: [{ type: "text" as const, text: "Result received." }],
@@ -399,7 +399,12 @@ export class AgentWorker implements Agent {
 		// eslint-disable-next-line @typescript-eslint/no-this-alias
 		const worker = this;
 		return Effect.gen(function* () {
-			yield* Effect.promise(() => worker.session.abort()).pipe(Effect.ignore);
+			yield* Effect.promise(() => worker.session.abort()).pipe(
+				Effect.tapError((error) =>
+					Effect.logWarning("Agent session abort failed during model switch", error),
+				),
+				Effect.catch(() => Effect.void),
+			);
 			worker.sessionController.releaseSession(worker.session.sessionId);
 
 			const newSession = yield* createSessionForModel(
