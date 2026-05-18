@@ -417,7 +417,9 @@ export default function initDream(
 				}
 			}
 		} catch (error) {
-			void runEffect(Effect.logDebug(`dream auto gate closed: ${describeError(error)}`)).catch(() => undefined);
+			void runEffect(Effect.logDebug(`dream auto gate closed: ${describeError(error)}`)).catch((err) => {
+				console.warn("Dream auto gate log failed:", err);
+			});
 		}
 	}
 

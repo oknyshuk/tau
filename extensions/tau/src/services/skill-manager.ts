@@ -396,7 +396,9 @@ const atomicWrite = Effect.fn("SkillManager.atomicWrite")(function* (
 		),
 		Effect.catch((error: SkillFileError) =>
 			cleanupTempFile(tempPath).pipe(
-				Effect.catch(() => Effect.void),
+				Effect.catch((cleanupError) =>
+					Effect.logWarning("Skill manager temp file cleanup failed", cleanupError),
+				),
 				Effect.andThen(Effect.fail(error)),
 			),
 		),

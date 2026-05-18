@@ -128,7 +128,7 @@ export const atomicWriteFileString = (
 	const cleanupTempFile = fs.remove(tempPath, { force: true }).pipe(
 		// Best-effort cleanup for temp files. The caller already receives the
 		// original write/rename failure; cleanup failure is not actionable here.
-		Effect.catch(() => Effect.void),
+		Effect.catch((error) => Effect.logWarning("Atomic write temp file cleanup failed", error)),
 	);
 
 	return Effect.acquireUseRelease(

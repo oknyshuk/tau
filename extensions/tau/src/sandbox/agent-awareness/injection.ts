@@ -1,8 +1,8 @@
-import type { TextContent } from "@mariozechner/pi-ai";
 import {
 	type ContentItem,
 	type MessageLike,
 	asContentArray,
+	isTextContent,
 	prependToLastUserMessage,
 } from "../../shared/message-injection.js";
 
@@ -26,8 +26,8 @@ export function buildAgentContextNotice(opts: AgentContextOpts): string {
 
 function alreadyHasAgentContext(content: ContentItem[]): boolean {
 	const first = content[0];
-	if (!first || first.type !== "text") return false;
-	return (first as TextContent).text.trimStart().startsWith("AGENT_CONTEXT:");
+	if (!isTextContent(first)) return false;
+	return first.text.trimStart().startsWith("AGENT_CONTEXT:");
 }
 
 export function injectAgentContextIntoMessages<T extends MessageLike>(

@@ -43,6 +43,16 @@ export function parseAsiLines(output: string): ASIData | null {
 	return Object.keys(asi).length > 0 ? (asi as ASIData) : null;
 }
 
+function isValidAsiValue(v: unknown): v is ASIValue {
+	if (v === null) return true;
+	if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return true;
+	if (Array.isArray(v)) return v.every(isValidAsiValue);
+	if (typeof v === "object" && v !== null) {
+		return Object.values(v).every(isValidAsiValue);
+	}
+	return false;
+}
+
 function parseAsiValue(raw: string): ASIValue {
 	const value = raw.trim();
 	if (value === "true") return true;
@@ -54,8 +64,9 @@ function parseAsiValue(raw: string): ASIValue {
 	}
 	if (value.startsWith("{") || value.startsWith("[") || value.startsWith('"')) {
 		try {
-			const parsed = JSON.parse(value) as ASIValue;
-			return parsed;
+			const parsed = JSON.parse(value) as unknown;
+			if (isValidAsiValue(parsed)) return parsed;
+			return value;
 		} catch {
 			return value;
 		}

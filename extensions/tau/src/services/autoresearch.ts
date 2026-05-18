@@ -55,6 +55,7 @@ import {
 } from "../autoresearch/paths.js";
 import type { ExecutionProfile } from "../execution/schema.js";
 import { StorageError } from "../shared/atomic-write.js";
+import { isRecord } from "../shared/json.js";
 
 // ------------------------------------------------------------------------------
 // Execution boundary
@@ -1287,9 +1288,12 @@ export const AutoresearchLive = Layer.effect(
 					let existing: Record<string, unknown> = {};
 					if (Option.isSome(runJsonOption)) {
 						try {
-							existing = JSON.parse(runJsonOption.value) as Record<string, unknown>;
-						} catch {
-							existing = {};
+							const parsed = JSON.parse(runJsonOption.value) as unknown;
+							if (isRecord(parsed)) {
+								existing = parsed;
+							}
+						} catch (error) {
+							console.warn("Failed to parse run.json, using empty object:", error);
 						}
 					}
 					const updated = {

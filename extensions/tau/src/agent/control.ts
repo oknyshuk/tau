@@ -232,15 +232,17 @@ export const AgentControlLive = Layer.effect(
 							timeoutMs: boundedTimeoutMs,
 							waitElapsedMs: Date.now() - startedAt,
 						})),
-						Effect.catch(() =>
-							getStatusMap.pipe(
-								Effect.map((status) => ({
+						Effect.catch((error) =>
+							Effect.gen(function* () {
+								yield* Effect.logWarning("Agent status check failed during wait, treating as timeout", error);
+								const status = yield* getStatusMap;
+								return {
 									status,
 									timedOut: true,
 									timeoutMs: boundedTimeoutMs,
 									waitElapsedMs: Date.now() - startedAt,
-								})),
-							),
+								};
+							}),
 						),
 					);
 				}).pipe(

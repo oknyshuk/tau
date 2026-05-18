@@ -107,7 +107,12 @@ const createMainLayer = (agentRuntimeBridge: AgentRuntimeBridgeService) => {
 					(agent) => agent.status.state === "pending" || agent.status.state === "running",
 				),
 			),
-			Effect.catch(() => Effect.succeed(false)),
+			Effect.catch((error) =>
+				Effect.gen(function* () {
+					yield* Effect.logWarning("hasActiveSubagents failed, assuming false", error);
+					return false;
+				})
+			),
 		);
 
 	const RalphLayer = RalphLive({
