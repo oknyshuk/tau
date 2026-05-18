@@ -855,8 +855,8 @@ export default function initSandbox(
 							);
 							return { exitCode: retryResult.exitCode };
 						}
-					} catch (err) {
-						console.error("[sandbox] Retry approval failed:", err);
+					} catch (error) {
+						Effect.runSync(Effect.logWarning("Retry approval failed", error));
 					}
 				}
 

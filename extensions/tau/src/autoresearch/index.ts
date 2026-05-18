@@ -908,7 +908,7 @@ export default function initAutoresearch(
 	const cancelAutoresearchLoop = (cwd: string, taskId: string): void => {
 		void withAutoresearchLoopRunner((runner) => runner.cancelLoop(`${cwd}:${taskId}`)).catch(
 			(error) => {
-				console.warn("Autoresearch loop cancel failed:", error);
+				Effect.runSync(Effect.logWarning("Autoresearch loop cancel failed", error));
 			},
 		);
 	};

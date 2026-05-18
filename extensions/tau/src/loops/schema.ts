@@ -466,12 +466,3 @@ export function isLoopStateKind(
 	return state.kind === kind;
 }
 
-export function getPinnedExecutionProfile(state: LoopPersistedState): ExecutionProfile | null {
-	if (state.kind === "ralph") {
-		return state.ralph.pinnedExecutionProfile;
-	}
-	if (state.kind === "autoresearch") {
-		return state.autoresearch.pinnedExecutionProfile;
-	}
-	return null;
-}

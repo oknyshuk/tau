@@ -277,7 +277,7 @@ export const LoopEngineLive = Layer.effect(
 				);
 				taskLocks.set(key, tail);
 				await previous.catch((error) => {
-					console.warn("Loop engine previous task failed:", error);
+					Effect.runSync(Effect.logWarning("Loop engine previous task failed", error));
 				});
 				return {
 					key,

@@ -700,7 +700,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					yield* Effect.sleep("1 second");
 					const ctx = tickerCtx;
 					if (ctx !== undefined) {
-						yield* Effect.promise(() => updateGoalUi(ctx)).pipe(Effect.ignore);
+						yield* Effect.promise(() => updateGoalUi(ctx)).pipe(
+							Effect.tapError((error) => Effect.logWarning("Goal UI update failed", error)),
+							Effect.catch(() => Effect.void),
+						);
 					}
 				}
 			}),

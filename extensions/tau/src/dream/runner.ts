@@ -203,7 +203,12 @@ export const DreamRunnerLive = (runtimeConfig: DreamRunnerLiveConfig) =>
 			}
 
 			function progress(taskId: string, event: DreamProgressEvent): Effect.Effect<void> {
-				return reg.report(taskId, event).pipe(Effect.catch(() => Effect.void));
+				return reg.report(taskId, event).pipe(
+					Effect.tapError((error) =>
+						Effect.logWarning("Dream progress report failed", error),
+					),
+					Effect.catch(() => Effect.void),
+				);
 			}
 
 			function failTask(taskId: string, err: DreamRunError): Effect.Effect<never, DreamRunError> {
@@ -229,7 +234,12 @@ export const DreamRunnerLive = (runtimeConfig: DreamRunnerLiveConfig) =>
 						memoryMutations: mutations,
 						noChanges: false,
 					});
-				}).pipe(Effect.catch(() => Effect.void));
+				}).pipe(
+					Effect.tapError((error) =>
+						Effect.logWarning("Dream scheduler advance on failure failed", error),
+					),
+					Effect.catch(() => Effect.void),
+				);
 			}
 
 			// ── runOnce (scoped -- caller wraps in Effect.scoped) ──────
@@ -432,6 +442,9 @@ export const DreamRunnerLive = (runtimeConfig: DreamRunnerLiveConfig) =>
 
 					// Best-effort scheduler update
 					yield* scheduler.markCompleted(request.cwd, runResult).pipe(
+						Effect.tapError((error) =>
+							Effect.logWarning("Dream scheduler markCompleted failed", error),
+						),
 						Effect.catch(() => Effect.void),
 					);
 
@@ -447,7 +460,12 @@ export const DreamRunnerLive = (runtimeConfig: DreamRunnerLiveConfig) =>
 								operation: "runOnceWithProgress",
 								reason: `Unhandled dream failure: ${String(defect)}`,
 							});
-							yield* reg.fail(taskId, err).pipe(Effect.ignore);
+							yield* reg.fail(taskId, err).pipe(
+								Effect.tapError((error) =>
+									Effect.logWarning("Dream task registry fail failed", error),
+								),
+								Effect.catch(() => Effect.void),
+							);
 							return yield* Effect.fail(err);
 						}),
 					),

@@ -109,8 +109,8 @@ const createMainLayer = (agentRuntimeBridge: AgentRuntimeBridgeService) => {
 			),
 			Effect.catch((error) =>
 				Effect.gen(function* () {
-					yield* Effect.logWarning("hasActiveSubagents failed, assuming false", error);
-					return false;
+					yield* Effect.logWarning("hasActiveSubagents failed, assuming true (deferring mutations)", error);
+					return true;
 				})
 			),
 		);

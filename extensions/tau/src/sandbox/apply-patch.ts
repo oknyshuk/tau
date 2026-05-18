@@ -5,6 +5,7 @@ import type { ExtensionContext, ToolDefinition } from "@mariozechner/pi-coding-a
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import * as Diff from "diff";
+import { Effect } from "effect";
 
 import { getWorkerApprovalBroker } from "../agent/approval-broker.js";
 import { errorMessage } from "../shared/error-message.js";
@@ -1029,7 +1030,7 @@ async function applyResolvedPatch(
 			// Best-effort cleanup of temp files on failure.
 			for (const { temp } of temps) {
 				await rm(temp).catch((cleanupError) => {
-					console.warn("apply-patch temp cleanup failed:", cleanupError);
+					Effect.runSync(Effect.logWarning("apply-patch temp cleanup failed", cleanupError));
 				});
 			}
 			throw error;

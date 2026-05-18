@@ -1321,7 +1321,7 @@ export default function initRalph(
 					sessionFileFromContextIfLive(sessionContext) === targetSessionFile
 				) {
 					void sessionContext.sendUserMessage(prompt).catch((error) => {
-						console.warn("Ralph sendUserMessage failed:", error);
+						Effect.runSync(Effect.logWarning("Ralph sendUserMessage failed", error));
 					});
 					return { dispatched: true as const };
 				}
