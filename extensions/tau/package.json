@@ -11,8 +11,10 @@
 		"@effect/platform-node": "4.0.0-beta.54",
 		"effect": "4.0.0-beta.54",
 		"nanoid": "^5.1.7",
-		"node-pty": "^1.1.0",
 		"yaml": "^2.7.0"
+	},
+	"optionalDependencies": {
+		"node-pty": "^1.1.0"
 	},
 	"devDependencies": {
 		"@effect/language-service": "latest",
@@ -22,6 +24,7 @@
 		"@mariozechner/pi-coding-agent": "^0.62.0",
 		"@mariozechner/pi-tui": "^0.62.0",
 		"@sinclair/typebox": "^0.34.47",
+		"@types/bun": "latest",
 		"@types/node": "latest",
 		"knip": "latest",
 		"oxfmt": "latest",

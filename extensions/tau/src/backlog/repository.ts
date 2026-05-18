@@ -1,5 +1,5 @@
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { Database as DatabaseSync } from "bun:sqlite";
 
 import { NodeFileSystem } from "@effect/platform-node";
 import { FileSystem, Effect, Layer, Schema } from "effect";
@@ -470,7 +470,7 @@ const readBeadsIssuesDb = (
 
 		return yield* Effect.acquireUseRelease(
 			Effect.try({
-				try: () => new DatabaseSync(dbPath, { readOnly: true }),
+				try: () => new DatabaseSync(dbPath, { readonly: true }),
 				catch: (error) =>
 					toLegacyImportError(
 						".beads/beads.db",

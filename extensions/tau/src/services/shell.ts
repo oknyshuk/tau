@@ -3,7 +3,24 @@ import { existsSync } from "node:fs";
 import * as process from "node:process";
 
 import { Context, Effect, Layer, Queue, Ref, Schema } from "effect";
-import * as pty from "node-pty";
+import type * as PtyTypes from "node-pty";
+
+// node-pty is an optional runtime dependency: it ships native code and only
+// has prebuilds for darwin/win32. Under bun on linux without node-gyp the
+// import would crash extension load. We resolve it lazily and silently fall
+// back to an interactive pipe when it's unavailable.
+let ptyModuleAttempted = false;
+let ptyModule: typeof PtyTypes | null = null;
+function loadPty(): typeof PtyTypes | null {
+	if (ptyModuleAttempted) return ptyModule;
+	ptyModuleAttempted = true;
+	try {
+		ptyModule = require("node-pty") as typeof PtyTypes;
+	} catch {
+		ptyModule = null;
+	}
+	return ptyModule;
+}
 
 export class ShellExecutionError extends Schema.TaggedErrorClass<ShellExecutionError>()(
 	"ShellExecutionError",
@@ -40,13 +57,15 @@ export type ShellRunResult = {
 type ManagedProcess =
 	| {
 			readonly kind: "pty";
-			readonly process: pty.IPty;
+			readonly process: PtyTypes.IPty;
+			readonly supportsStdin: true;
 			readonly write: (chars: string) => void;
 			readonly kill: () => void;
 	  }
 	| {
 			readonly kind: "pipe";
 			readonly process: ChildProcess;
+			readonly supportsStdin: boolean;
 			readonly write: (chars: string) => void;
 			readonly kill: () => void;
 	  };
@@ -181,7 +200,11 @@ function makeRunResult(
 	};
 }
 
-function makePipeProcess(request: ShellSpawnRequest, session: ShellSession): ManagedProcess {
+function makePipeProcess(
+	request: ShellSpawnRequest,
+	session: ShellSession,
+	interactive = false,
+): ManagedProcess {
 	if (!existsSync(request.cwd)) {
 		throw new Error(`Working directory does not exist: ${request.cwd}`);
 	}
@@ -189,7 +212,7 @@ function makePipeProcess(request: ShellSpawnRequest, session: ShellSession): Man
 		cwd: request.cwd,
 		env: request.env,
 		detached: true,
-		stdio: ["ignore", "pipe", "pipe"],
+		stdio: interactive ? ["pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
 	});
 
 	child.stdout?.on("data", (data: Buffer) => {
@@ -215,7 +238,16 @@ function makePipeProcess(request: ShellSpawnRequest, session: ShellSession): Man
 	return {
 		kind: "pipe",
 		process: child,
-		write: () => undefined,
+		supportsStdin: interactive,
+		write: interactive
+			? (chars) => {
+					// Programs reading via line-buffered `read` expect newlines, but PTY
+					// callers historically send CR. Translate CR/CRLF -> LF to match
+					// ICRNL termios behavior of the original PTY path.
+					const normalized = chars.replace(/\r\n?/g, "\n");
+					child.stdin?.write(normalized);
+			  }
+			: () => undefined,
 		kill: () => {
 			if (child.pid) killProcessTree(child.pid);
 		},
@@ -225,6 +257,13 @@ function makePipeProcess(request: ShellSpawnRequest, session: ShellSession): Man
 function makePtyProcess(request: ShellSpawnRequest, session: ShellSession): ManagedProcess {
 	if (!existsSync(request.cwd)) {
 		throw new Error(`Working directory does not exist: ${request.cwd}`);
+	}
+	const pty = loadPty();
+	if (!pty) {
+		// node-pty unavailable on this runtime/platform (e.g. bun on linux
+		// without a built native module). Fall back to an interactive pipe
+		// so write_stdin still works; raw terminal sequences are lost.
+		return makePipeProcess(request, session, true);
 	}
 	const proc = pty.spawn(request.file, [...request.args], {
 		cwd: request.cwd,
@@ -247,6 +286,7 @@ function makePtyProcess(request: ShellSpawnRequest, session: ShellSession): Mana
 	return {
 		kind: "pty",
 		process: proc,
+		supportsStdin: true,
 		write: (chars) => proc.write(chars),
 		kill: () => proc.kill(),
 	};
@@ -344,7 +384,7 @@ export const ShellLive = Layer.effect(
 				});
 			}
 			if (request.chars.length > 0 && !session.exited) {
-				if (session.managed?.kind !== "pty") {
+				if (!session.managed?.supportsStdin) {
 					return yield* new ShellExecutionError({
 						reason:
 							"stdin is closed for this session; rerun exec_command with tty=true to keep stdin open",
