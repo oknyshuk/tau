@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 
 import { Effect, Layer, Option, Schema } from "effect";
-import { NodeFileSystem } from "@effect/platform-node";
 
 import {
 	BacklogIssueCreatedEventSchema,
@@ -12,12 +11,11 @@ import {
 	BacklogCommandUsageError,
 	BacklogContractValidationError,
 	BacklogIssueNotFoundError,
-	BacklogLegacyImportError,
 	BacklogStorageError,
 } from "./errors.js";
 import { generateIssueIdEffect } from "./id.js";
 import { filterIssues, type IssueQuery } from "./query.js";
-import { BacklogConfigLive, BacklogInfrastructureLive, BacklogLegacyImportLive } from "./repository.js";
+import { BacklogInfrastructureLive } from "./repository.js";
 import { decodeIssue, encodeIssue, type Comment, type Dependency, type Issue, type IssueStatus } from "./schema.js";
 import {
 	type AddCommentInput,
@@ -26,7 +24,6 @@ import {
 	type BacklogCommandQueryError,
 	BacklogCommandService,
 	type BacklogStatusSummary,
-	BacklogLegacyImport,
 	BacklogRepository,
 	type CreateIssueInput,
 	type RemoveDependencyInput,
@@ -456,34 +453,6 @@ const withCommands = <A, E>(
 	effect: Effect.Effect<A, E, BacklogCommandService>,
 ): Effect.Effect<A, E, never> =>
 	effect.pipe(Effect.provide(BacklogCommandServiceForWorkspace(workspaceRoot)));
-
-export const importBeadsIfNeeded = (
-	workspaceRoot: string,
-	): Effect.Effect<ReadonlyArray<Issue>, BacklogLegacyImportError | BacklogStorageError | BacklogContractValidationError, never> =>
-	Effect.gen(function* () {
-		const repository = yield* BacklogRepository;
-		const importer = yield* BacklogLegacyImport;
-		return yield* repository.withWriteLock(importer.importIfNeeded()).pipe(
-			Effect.catchTag("BacklogLockError", (error) =>
-				Effect.fail(
-					new BacklogStorageError({
-						operation: "legacy-import-lock",
-						path: workspaceRoot,
-						reason: "Failed to acquire write lock for legacy import",
-						cause: error,
-					}),
-				),
-			),
-		);
-	}).pipe(
-		Effect.provide(BacklogInfrastructureLive(workspaceRoot)),
-		Effect.provide(
-			BacklogLegacyImportLive.pipe(
-				Layer.provide(BacklogConfigLive(workspaceRoot)),
-				Layer.provide(NodeFileSystem.layer),
-			),
-		),
-	);
 
 export const createIssue = (
 	workspaceRoot: string,

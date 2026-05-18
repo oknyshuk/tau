@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-454eaf9a-f0f5-434f-8781-7842ceedcbea","issue_id":"tau-01mj","recorded_at":"2026-03-31T23:28:56.143Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-03-31T23:28:56.143Z","closed_at":"2026-03-31T23:28:56.143Z","close_reason":"Completed: Added tests for subagent blocking"},"unset_fields":[]}

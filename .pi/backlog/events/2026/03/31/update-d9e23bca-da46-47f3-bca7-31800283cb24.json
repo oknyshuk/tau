@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-d9e23bca-da46-47f3-bca7-31800283cb24","issue_id":"tau-6a57","recorded_at":"2026-03-31T23:28:56.064Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-03-31T23:28:56.064Z","closed_at":"2026-03-31T23:28:56.064Z","close_reason":"Completed: Added tests for fresh session pattern"},"unset_fields":[]}

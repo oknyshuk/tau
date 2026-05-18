@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-f036b125-ebe8-4400-8ab4-c0c9a5a9f013","issue_id":"tau-q3lv","recorded_at":"2026-03-31T22:11:47.966Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-03-31T22:11:47.966Z","closed_at":"2026-03-31T22:11:47.966Z","close_reason":"Changed thick box-drawing lines (━) to thin lines (─)"},"unset_fields":[]}

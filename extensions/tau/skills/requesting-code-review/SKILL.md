@@ -15,7 +15,7 @@ Dispatch a single reviewer agent and keep the conversation going until there are
 
 **Mandatory:**
 - After completing a major feature or backlog task
-- Before merge to main
+- Before handoff for `jj git push -c @`
 - After bug fixes touching critical paths
 
 **Optional but valuable:**
@@ -37,7 +37,7 @@ agent spawn review "Review the implementation for the following backlog items:
 - <backlog-id-2>: <title>
 
 The backlog has full context — use `backlog show <id>` for requirements and acceptance criteria.
-Use `git diff` and workspace access to inspect the actual changes.
+Use `jj diff` (or `jj show`) and workspace access to inspect the actual changes.
 
 Focus on: correctness against requirements, edge cases, error handling, security, test coverage.
 
@@ -53,7 +53,7 @@ OUTPUT FORMAT:
 ```
 agent spawn review "Review the implementation of [brief description of what was done].
 
-Use `git diff` and workspace access to inspect the changes.
+Use `jj diff` (or `jj show`) and workspace access to inspect the changes.
 
 Focus on: correctness, edge cases, error handling, security, test coverage.
 
@@ -74,6 +74,8 @@ Read the findings. Categorize:
 - **P2 (minor):** Improvement opportunity. Style, naming, docs, minor refactors.
 
 If verdict is **APPROVE** with zero P0/P1 findings → done. Close the reviewer.
+
+> **Gerrit-style interdiff workflow.** Review feedback is squashed **into the same change** so the remote sees a clean interdiff between revisions. Make fixes in a fresh fix-up working copy (`jj new`), then `jj squash` them down into the change under review. Do **not** stack new follow-up changes for review fixes — that breaks interdiff and review continuity.
 
 ### Step 3: Validate Each Finding with a RED Test
 

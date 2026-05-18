@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-cc0c36e0-e486-48ec-be1d-9d869d2512d2","issue_id":"tau-iguz","recorded_at":"2026-04-02T16:16:46.337Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-04-02T16:16:46.337Z","closed_at":"2026-04-02T16:16:46.337Z","close_reason":"Implemented in extensions/tau/src/dream/config.ts"},"unset_fields":[]}

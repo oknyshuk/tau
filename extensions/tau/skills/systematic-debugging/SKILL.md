@@ -82,20 +82,23 @@ vitest run test/module.test.ts --reporter=verbose
 ### 3. Check Recent Changes
 
 - What changed that could cause this?
-- Git diff, recent commits
+- jj log, jj evolog, recent changes
 - New dependencies, config changes
 
 **Action:**
 
 ```bash
-# Recent commits
-git log --oneline -10
+# Recent changes (current bookmark/area)
+jj log -r 'ancestors(@, 10)'
 
-# Uncommitted changes
-git diff
+# Working-copy diff
+jj diff
 
-# Changes in specific file
-git log -p --follow src/problematic-file.ts | head -100
+# Evolution of the current change (rewrites/squashes)
+jj evolog
+
+# History of a specific file
+jj log -p src/problematic-file.ts
 ```
 
 ### 4. Gather Evidence in Multi-Component Systems
@@ -313,7 +316,7 @@ If you catch yourself thinking:
 
 Use these pi tools during Phase 1:
 
-- **`bash`** — Run tests, inspect git history, reproduce bugs, and search with `rg` or `find`
+- **`bash`** — Run tests, inspect VCS history (`jj log`, `jj evolog`, `jj diff`), reproduce bugs, and search with `rg` or `find`
 - **`read`** — Read source code with line numbers for precise analysis
 - **`web_search_exa` / `crawling_exa`** — Research error messages or library docs when local evidence is not enough
 

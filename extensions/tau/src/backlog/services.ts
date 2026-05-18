@@ -8,7 +8,6 @@ import type {
 	BacklogDependencyCycleError,
 	BacklogIdGenerationError,
 	BacklogIssueNotFoundError,
-	BacklogLegacyImportError,
 	BacklogLockError,
 	BacklogStorageError,
 } from "./errors.js";
@@ -18,7 +17,6 @@ import type { IssueQuery } from "./query.js";
 /**
  * Backlog v4 architecture contract.
  * - Repository service owns event + cache persistence and write locking.
- * - Legacy import service is an explicit boundary for `.beads` ingestion.
  * - Command service is the only mutation/query facade used by the tool adapter.
  * - Storage layout and command UX parity are hard constraints during migration.
  */
@@ -59,7 +57,7 @@ export class BacklogConfig extends Context.Service<BacklogConfig, BacklogConfigS
 export interface BacklogRepositoryService {
 	readonly readEvents: () => Effect.Effect<
 		ReadonlyArray<BacklogEvent>,
-		BacklogStorageError | BacklogLegacyImportError | BacklogContractValidationError,
+		BacklogStorageError | BacklogContractValidationError,
 		never
 	>;
 	readonly appendEvent: (
@@ -90,19 +88,6 @@ export interface BacklogRepositoryService {
 export class BacklogRepository extends Context.Service<BacklogRepository, BacklogRepositoryService>()(
 	"BacklogRepository",
 ) {}
-
-export interface BacklogLegacyImportService {
-	readonly importIfNeeded: () => Effect.Effect<
-		ReadonlyArray<Issue>,
-		BacklogLegacyImportError | BacklogStorageError | BacklogContractValidationError,
-		never
-	>;
-}
-
-export class BacklogLegacyImport extends Context.Service<
-	BacklogLegacyImport,
-	BacklogLegacyImportService
->()("BacklogLegacyImport") {}
 
 export type CreateIssueInput = {
 	readonly title: string;
@@ -196,7 +181,6 @@ export class BacklogCommandService extends Context.Service<
 
 export type BacklogCommandQueryError =
 	| BacklogStorageError
-	| BacklogLegacyImportError
 	| BacklogCacheError
 	| BacklogContractValidationError
 	| BacklogDependencyCycleError
@@ -205,7 +189,6 @@ export type BacklogCommandQueryError =
 
 export type BacklogCommandMutationError =
 	| BacklogStorageError
-	| BacklogLegacyImportError
 	| BacklogCacheError
 	| BacklogContractValidationError
 	| BacklogIdGenerationError

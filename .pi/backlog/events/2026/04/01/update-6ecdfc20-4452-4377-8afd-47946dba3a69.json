@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-6ecdfc20-4452-4377-8afd-47946dba3a69","issue_id":"tau-yimj","recorded_at":"2026-04-01T18:16:16.120Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-04-01T18:16:16.120Z","closed_at":"2026-04-01T18:16:16.120Z","close_reason":"Regression tests added, reviewed, and gate passed"},"unset_fields":[]}

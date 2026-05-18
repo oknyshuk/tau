@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-262c783a-d4c0-4ed0-8b62-b7cddfb2a4bb","issue_id":"tau-ulvy","recorded_at":"2026-04-02T10:13:24.955Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-04-02T10:13:24.955Z","closed_at":"2026-04-02T10:13:24.955Z","close_reason":"Fixed and verified with regression tests plus gate"},"unset_fields":[]}

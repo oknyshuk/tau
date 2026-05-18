@@ -2,6 +2,8 @@
 
 Tau is a pi extension workspace centered on [`extensions/tau`](extensions/tau). It provides tau runtime features, backlog-backed planning, Exa search tools, memory helpers, and agent workflow wiring.
 
+> **VCS:** this fork is a [jj-vcs](https://github.com/jj-vcs/jj) (Jujutsu) repository, colocated with a `.git/` backing store. Prefer `jj` commands over `git`. The user pushes via `jj git push -c @`; agents never push.
+
 ## Quick start
 
 - Install or refresh the global extension symlink:
@@ -31,16 +33,8 @@ Backlog state is event-sourced for shared repositories.
 
 - Canonical tracked events live under `.pi/backlog/events/**`
 - Derived materialized cache lives under `.pi/backlog/cache/**`
-- `.pi/backlog/cache/**` is local, rebuildable, and git-ignored
+- `.pi/backlog/cache/**` is local, rebuildable, and ignored by both jj and git
 - Current issue state is replayed from canonical events, not edited in place
-
-## Migration from .beads
-
-Tau imports legacy Beads data on first backlog read or write.
-
-- Supported sources: `.beads/issues.jsonl` and `.beads/beads.db`
-- Imported issues keep their existing IDs
-- Imported data is rewritten into canonical backlog events under `.pi/backlog/events/**`
 
 ## Development
 

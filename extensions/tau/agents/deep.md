@@ -249,4 +249,4 @@ When adapting workflows, map concepts to real Erg tools and avoid inventing unsu
 - Task tracking -> `backlog`
 - Subagent orchestration -> `agent`
 - Web search / fetch -> `web_search_exa`, `crawling_exa`, `get_code_context_exa`
-- Git commit with approval -> `git_commit_with_user_approval`
+- VCS inspection -> `jj st`, `jj diff`, `jj log`, `jj evolog` (this fork is jj-vcs; do not change VCS state from a subagent)

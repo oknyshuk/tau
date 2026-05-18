@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-ccf59a3a-ef74-4d08-a84c-43a328965775","issue_id":"tau-trao","recorded_at":"2026-04-02T16:16:46.426Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-04-02T16:16:46.426Z","closed_at":"2026-04-02T16:16:46.426Z","close_reason":"Implemented in extensions/tau/src/dream/domain.ts"},"unset_fields":[]}

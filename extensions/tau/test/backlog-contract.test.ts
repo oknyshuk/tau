@@ -184,7 +184,7 @@ describe("backlog contract", () => {
 				actor: "importer",
 				kind: "issue.imported",
 				source: {
-					system: "beads",
+					system: "legacy-import",
 					issue_id: "tau-legacy-7",
 				},
 				fields: {

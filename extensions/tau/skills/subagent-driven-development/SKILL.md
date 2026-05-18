@@ -23,7 +23,7 @@ The orchestrator (you) exclusively owns three things. Subagents must not touch t
 
 | Domain | Orchestrator does | Subagent does |
 |---|---|---|
-| **Git** | Commits, rebases, pushes | Reports what changed |
+| **VCS (jj)** | `jj describe`, `jj squash`, hands off to user for `jj git push` | Reports what changed |
 | **Review** | Spawns and manages reviewers | Gets reviewed, never self-reviews |
 | **Backlog lifecycle** | Creates items, updates status, closes | Reads spec via `backlog show`, nothing else |
 
@@ -50,7 +50,7 @@ The orchestrator does not provide code snippets to implementer agents. Agents ar
 A delegation message contains:
 1. The backlog task ID (or epic ID for multi-task delegation)
 2. Project-level context the agent cannot discover (test commands, gate commands, key conventions)
-3. Constraints not in the backlog item (e.g., "do not commit", "do not touch file X")
+3. Constraints not in the backlog item (e.g., "do not change VCS state", "do not touch file X")
 
 Nothing else. No restating the spec. No step-by-step instructions.
 
@@ -110,7 +110,7 @@ Follow its description, design, and acceptance criteria.
 
 Project context:
 - Run gate: npm run gate
-- Do not commit or change git state
+- Do not change VCS state (no `jj describe`, `jj squash`, or `jj git push`)
 - If the spec is ambiguous, stop and ask before guessing"
 ```
 
@@ -175,7 +175,7 @@ When tasks touch the same files/area — reuse both implementer and reviewer:
 
 agent spawn deep "Implement tau-abc.1
 Read the task: backlog show tau-abc.1
-Project context: npm run gate, do not commit" -> impl
+Project context: npm run gate, do not change VCS state" -> impl
 
 agent wait [impl]
 
@@ -232,16 +232,18 @@ All tasks complete. Check:
 - Ready for merge"
 ```
 
-## Verify and Commit
+## Verify and Describe
 
-The orchestrator session owns git actions:
+The orchestrator session owns VCS actions. In this jj-first repo, that means describing the change — the user pushes.
 
 ```bash
 npm run gate
-git diff --stat
-git add -A && git commit -m "feat: complete auth feature"
+jj diff           # or: jj show
+jj describe -m "feat: complete auth feature"
 backlog close tau-abc --reason "All tasks implemented and reviewed"
 ```
+
+If review feedback produced fix-up sub-changes, `jj squash` them into the parent before handoff so the remote sees one clean change with interdiffs. Do not run `jj git push` — announce ready-to-push and let the user run `jj git push -c @`.
 
 ## Red Flags
 
@@ -252,7 +254,7 @@ backlog close tau-abc --reason "All tasks implemented and reviewed"
 - Spawning new reviewer for re-review (use `agent send`)
 - Letting implementer self-review
 - Closing a backlog item before both review stages pass
-- Telling agents to commit or change git state
+- Telling agents to change VCS state (`jj describe`, `jj squash`, `jj git push`)
 - Letting subagents create or close backlog items or spawn reviewers
 - Letting subagents fix unrelated bugs (they report, orchestrator files follow-up)
 - Spawning fresh agents for sequential dependent work in the same area (reuse with `send`)

@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-66c04629-7525-4dd0-8571-36f3e549c91a","issue_id":"tau-nh2y","recorded_at":"2026-03-31T23:28:55.985Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-03-31T23:28:55.985Z","closed_at":"2026-03-31T23:28:55.985Z","close_reason":"Completed: Updated prompt/help text for new flow"},"unset_fields":[]}

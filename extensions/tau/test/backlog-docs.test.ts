@@ -15,7 +15,6 @@ describe("backlog docs", () => {
 
 		expect(readme).toContain(".pi/backlog/events/**");
 		expect(readme).toContain(".pi/backlog/cache/**");
-		expect(readme).toContain(".beads/issues.jsonl");
 		expect(readme).toContain("backlog show <id>");
 		expect(readme).not.toContain("extensions/beads");
 	});

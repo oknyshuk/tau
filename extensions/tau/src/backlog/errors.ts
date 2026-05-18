@@ -62,15 +62,6 @@ export class BacklogLockError extends Schema.TaggedErrorClass<BacklogLockError>(
 	},
 ) {}
 
-export class BacklogLegacyImportError extends Schema.TaggedErrorClass<BacklogLegacyImportError>()(
-	"BacklogLegacyImportError",
-	{
-		source: Schema.String,
-		reason: Schema.String,
-		cause: Schema.Defect,
-	},
-) {}
-
 export class BacklogCommandUsageError extends Schema.TaggedErrorClass<BacklogCommandUsageError>()(
 	"BacklogCommandUsageError",
 	{
@@ -88,6 +79,5 @@ export type BacklogError =
 	| BacklogStorageError
 	| BacklogCacheError
 	| BacklogLockError
-	| BacklogLegacyImportError
 	| BacklogCommandUsageError;
 

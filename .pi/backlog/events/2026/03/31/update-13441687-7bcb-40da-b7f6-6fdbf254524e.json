@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-13441687-7bcb-40da-b7f6-6fdbf254524e","issue_id":"tau-g5on","recorded_at":"2026-03-31T23:28:55.814Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-03-31T23:28:55.814Z","closed_at":"2026-03-31T23:28:55.814Z","close_reason":"Completed: Added subagent safety gate helper"},"unset_fields":[]}

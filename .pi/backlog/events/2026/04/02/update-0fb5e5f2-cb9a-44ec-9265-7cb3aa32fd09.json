@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-0fb5e5f2-cb9a-44ec-9265-7cb3aa32fd09","issue_id":"tau-sudd","recorded_at":"2026-04-02T16:16:46.535Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-04-02T16:16:46.535Z","closed_at":"2026-04-02T16:16:46.535Z","close_reason":"Implemented in extensions/tau/src/dream/errors.ts"},"unset_fields":[]}

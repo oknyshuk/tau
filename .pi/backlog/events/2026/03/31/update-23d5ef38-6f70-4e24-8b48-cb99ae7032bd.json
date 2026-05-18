@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-23d5ef38-6f70-4e24-8b48-cb99ae7032bd","issue_id":"tau-mg7x","recorded_at":"2026-03-31T23:28:55.891Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-03-31T23:28:55.891Z","closed_at":"2026-03-31T23:28:55.891Z","close_reason":"Completed: Implemented post-turn finalize path"},"unset_fields":[]}

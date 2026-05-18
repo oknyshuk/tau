@@ -111,7 +111,7 @@ List the next highest-value experiment.
 - Finalizes the pending run.
 - Required fields: `status`, `description`.
 - Optional: `metrics`, `asi`.
-- `keep` commits in the isolated checkout branch; non-keep statuses clean/reset isolated checkout only.
+- `keep` records the trial in the isolated checkout's working change; non-keep statuses clean/reset isolated checkout only.
 
 Example:
 

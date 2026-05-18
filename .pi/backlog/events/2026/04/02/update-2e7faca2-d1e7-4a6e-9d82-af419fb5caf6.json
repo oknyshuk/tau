@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-2e7faca2-d1e7-4a6e-9d82-af419fb5caf6","issue_id":"tau-dsc8","recorded_at":"2026-04-02T16:26:53.138Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-04-02T16:26:53.138Z","closed_at":"2026-04-02T16:26:53.138Z","close_reason":"Implemented in extensions/tau/src/dream/prompt.ts"},"unset_fields":[]}

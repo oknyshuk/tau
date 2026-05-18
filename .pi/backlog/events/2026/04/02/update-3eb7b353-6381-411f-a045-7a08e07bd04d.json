@@ -1,1 +1,0 @@
-{"schema_version":1,"event_id":"update-3eb7b353-6381-411f-a045-7a08e07bd04d","issue_id":"tau-y4mi","recorded_at":"2026-04-02T16:26:52.983Z","actor":"backlog","kind":"issue.updated","set_fields":{"status":"closed","updated_at":"2026-04-02T16:26:52.983Z","closed_at":"2026-04-02T16:26:52.983Z","close_reason":"Implemented in extensions/tau/src/dream/scheduler.ts"},"unset_fields":[]}

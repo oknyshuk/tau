@@ -35,7 +35,7 @@ mkdir -p "$TARGET"
 echo "Installing pi extensions to: $TARGET ($MODE)"
 
 EXTS=(tau)
-LEGACY_EXTS=(beads exa task editor-hub sandbox)
+LEGACY_EXTS=(exa task editor-hub sandbox)
 
 # Clean up legacy extension installs/symlinks from pre-consolidation days.
 for ext in "${LEGACY_EXTS[@]}"; do

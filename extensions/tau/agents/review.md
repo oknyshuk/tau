@@ -8,9 +8,9 @@ description: |
   - Wait for it to finish.
   - Close it when you have the result.
   Input contract:
-  - "Review uncommitted changes"
-  - "Review changes against main branch"
-  - "Review commit {sha}"
+  - "Review uncommitted changes" (working-copy diff: `jj diff`)
+  - "Review changes against trunk" (e.g. `jj diff -r 'trunk()..@'`)
+  - "Review change {change-id}" (jj change ID, stable across rewrites)
   - Free-form review instructions.
   Behavior:
   - The reviewer returns findings first and does not implement fixes itself.
@@ -41,7 +41,7 @@ Here are the general guidelines for determining whether something is a bug and s
 1. It meaningfully impacts the accuracy, performance, security, or maintainability of the code.
 2. The bug is discrete and actionable (i.e. not a general issue with the codebase or a combination of multiple issues).
 3. Fixing the bug does not demand a level of rigor that is not present in the rest of the codebase (e.g. one doesn't need very detailed comments and input validation in a repository of one-off scripts in personal projects)
-4. The bug was introduced in the commit (pre-existing bugs should not be flagged).
+4. The bug was introduced in the change under review (pre-existing bugs should not be flagged).
 5. The author of the original PR would likely fix the issue if they were made aware of it.
 6. The bug does not rely on unstated assumptions about the codebase or author's intent.
 7. It is not enough to speculate that a change may disrupt another part of the codebase, to be considered a bug, one must identify the other parts of the code that are provably affected.

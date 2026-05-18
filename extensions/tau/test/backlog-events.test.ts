@@ -1,7 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { Database as DatabaseSync } from "bun:sqlite";
 
 import { Effect } from "effect";
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,7 +9,6 @@ import {
 	addIssueComment,
 	addIssueDependency,
 	createIssue,
-	importBeadsIfNeeded,
 	removeIssueDependency,
 	setIssueStatus,
 	updateIssueFields,
@@ -140,128 +138,6 @@ describe("backlog events", () => {
 		expect(issue?.dependencies?.[0]?.depends_on_id).toBe("tau-2");
 		expect(issue?.comments?.[0]?.text).toBe("hello");
 		expect(await fs.readFile(paths.materializedIssuesPath, "utf8")).toContain("tau-1");
-	});
-
-	it("imports .beads/issues.jsonl on first use and preserves ids and dependencies", async () => {
-		const workspaceRoot = await makeWorkspace();
-		const beadsDir = path.join(workspaceRoot, ".beads");
-		await fs.mkdir(beadsDir, { recursive: true });
-		await fs.writeFile(
-			path.join(beadsDir, "issues.jsonl"),
-			[
-				JSON.stringify({
-					id: "tau-legacy-1",
-					title: "Legacy blocker",
-					status: "open",
-					priority: 1,
-					issue_type: "task",
-					created_at: "2026-03-20T10:00:00.000+01:00",
-					updated_at: "2026-03-20T10:00:00.000+01:00",
-				}),
-				JSON.stringify({
-					id: "tau-legacy-2",
-					title: "Legacy blocked",
-					status: "open",
-					priority: 2,
-					issue_type: "task",
-					created_at: "2026-03-20T10:01:00.000Z",
-					updated_at: "2026-03-20T10:01:00.000Z",
-					dependencies: [
-						{
-							issue_id: "tau-legacy-2",
-							depends_on_id: "tau-legacy-1",
-							type: "blocks",
-							created_at: "2026-03-20T10:01:00.000Z",
-						},
-					],
-					custom_field: { keep: true },
-				}),
-			].join("\n") + "\n",
-			"utf8",
-		);
-
-		const imported = await Effect.runPromise(importBeadsIfNeeded(workspaceRoot));
-		expect(imported.map((issue) => issue.id).sort()).toEqual(["tau-legacy-1", "tau-legacy-2"]);
-		expect(imported.find((issue) => issue.id === "tau-legacy-2")?.dependencies?.[0]?.depends_on_id).toBe("tau-legacy-1");
-		expect(imported.find((issue) => issue.id === "tau-legacy-2")?.["custom_field"]).toEqual({ keep: true });
-
-		const events = await readBacklogEventsFromWorkspace(workspaceRoot);
-		expect(events).toHaveLength(2);
-		expect(events.every((event) => event.kind === "issue.imported")).toBe(true);
-		expect(events.find((event) => event.issue_id === "tau-legacy-1")?.recorded_at).toBe(
-			"2026-03-20T09:00:00.000Z",
-		);
-	});
-
-	it("imports from .beads/beads.db when jsonl is absent and rebuilds cache after appended events", async () => {
-		const workspaceRoot = await makeWorkspace();
-		const beadsDir = path.join(workspaceRoot, ".beads");
-		await fs.mkdir(beadsDir, { recursive: true });
-
-		const dbPath = path.join(beadsDir, "beads.db");
-		const db = new DatabaseSync(dbPath);
-		try {
-			db.exec(`
-				CREATE TABLE issues (
-					id TEXT NOT NULL,
-					title TEXT NOT NULL,
-					description TEXT,
-					status TEXT,
-					priority INTEGER,
-					issue_type TEXT,
-					created_at TEXT,
-					updated_at TEXT,
-					deleted_at TEXT
-				);
-				CREATE TABLE dependencies (
-					issue_id TEXT NOT NULL,
-					depends_on_id TEXT NOT NULL,
-					type TEXT NOT NULL,
-					created_at TEXT NOT NULL,
-					created_by TEXT
-				);
-				CREATE TABLE comments (
-					id INTEGER PRIMARY KEY,
-					issue_id TEXT NOT NULL,
-					author TEXT NOT NULL,
-					text TEXT NOT NULL,
-					created_at TEXT NOT NULL
-				);
-			`);
-			db.prepare(
-				`INSERT INTO issues (id, title, description, status, priority, issue_type, created_at, updated_at, deleted_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-			).run(
-				"tau-db-1",
-				"Loaded from db",
-				"db fallback",
-				"open",
-				1,
-				"task",
-				"2026-03-21T00:00:00.000Z",
-				"2026-03-21T00:00:00.000Z",
-			);
-			db.prepare(
-				`INSERT INTO comments (id, issue_id, author, text, created_at) VALUES (?, ?, ?, ?, ?)`,
-			).run(1, "tau-db-1", "alice", "hello", "2026-03-21T00:00:00.000Z");
-		} finally {
-			db.close();
-		}
-
-		const imported = await Effect.runPromise(importBeadsIfNeeded(workspaceRoot));
-		expect(imported).toHaveLength(1);
-		expect(imported[0]?.id).toBe("tau-db-1");
-		expect(imported[0]?.comments?.[0]?.text).toBe("hello");
-
-		await Effect.runPromise(addIssueComment(workspaceRoot, {
-			issueId: "tau-db-1",
-			actor: "alice",
-			text: "after import",
-			recorded_at: "2026-03-21T00:01:00.000Z",
-		}));
-
-		const cached = await readMaterializedIssuesCache(workspaceRoot);
-		expect(cached[0]?.comments?.map((comment) => comment.text)).toEqual(["hello", "after import"]);
 	});
 
 	it("removes dependencies via a new immutable event", async () => {

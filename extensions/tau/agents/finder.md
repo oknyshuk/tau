@@ -36,7 +36,7 @@ Tool usage:
 - Use `rg` (ripgrep) for text/regex search
 - Use `rg --files` or `find` with glob patterns for file discovery
 - Use `cat`, `head`, `tail` to read file contents when needed
-- Use `git grep` for searching through git history if needed
+- Use `jj log` / `jj log -p <path>` for searching through VCS history if needed (this fork uses jj-vcs)
 - Always use absolute paths
 
 Output format:
