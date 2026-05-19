@@ -19,7 +19,6 @@ import { runTau } from "../src/app.js";
 import { parseMemoryEntries } from "../src/memory/format.js";
 import initMemory from "../src/memory/index.js";
 import type { MemoriesMessageDetails } from "../src/memory/renderer.js";
-import initNudge from "../src/nudge/index.js";
 import initWorkedFor from "../src/worked-for/index.js";
 import { CuratedMemory, CuratedMemoryLive } from "../src/services/curated-memory.js";
 
@@ -293,7 +292,6 @@ describe("memory tool runtime", () => {
 			await runtime.runPromise(Effect.scoped(memory.setup));
 
 			initMemory(pi, runEffect);
-			initNudge(pi);
 			initWorkedFor(pi, {
 				getSnapshot: () => ({}),
 				update: () => undefined,
