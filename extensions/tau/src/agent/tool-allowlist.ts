@@ -6,6 +6,7 @@ import type { ExecutionPolicy } from "../execution/schema.js";
 import {
 	getLegacyMutationToolSelection,
 	rewriteMutationToolNames,
+	rewriteShellToolNames,
 	shouldUseApplyPatchForProvider,
 } from "../sandbox/mutation-tools.js";
 
@@ -140,9 +141,17 @@ export function applyAgentToolAllowlist(
 				structuredOutputRequired: resultSchema !== undefined,
 			});
 			const baseToolNames = configuredActiveToolNames ?? sessionToolNames;
-			const routedToolNames = rewriteMutationToolNames(baseToolNames, {
+			// Defense-in-depth (tau-9ka): always rewrite the pi-builtin `bash` tool to
+			// tau's sandboxed `exec_command` + `write_stdin` pair, regardless of
+			// whether the agent definition listed `bash` explicitly or inherited it
+			// from pi's default worker tool set. The orchestrator does the same
+			// rewrite via setToolActivationTransform on session_start, but worker
+			// sessions don't fire session_start (no bindExtensions), so without this
+			// step a worker can pick up pi's unsandboxed builtin shell.
+			const shellRoutedToolNames = rewriteShellToolNames(baseToolNames);
+			const routedToolNames = rewriteMutationToolNames(shellRoutedToolNames, {
 				useApplyPatch: shouldUseApplyPatchForProvider(session.model?.provider),
-				legacySelection: getLegacyMutationToolSelection(baseToolNames),
+				legacySelection: getLegacyMutationToolSelection(shellRoutedToolNames),
 			});
 
 			if (configuredActiveToolNames !== undefined || !sameToolNames(routedToolNames, baseToolNames)) {

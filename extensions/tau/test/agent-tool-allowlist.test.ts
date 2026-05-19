@@ -82,6 +82,19 @@ const execCommandToolDefinition: ToolDefinition = {
 	},
 };
 
+const writeStdinToolDefinition: ToolDefinition = {
+	name: "write_stdin",
+	label: "write_stdin",
+	description: "Send input to a running shell session",
+	parameters: Type.Object({ session_id: Type.Number(), chars: Type.String() }),
+	async execute() {
+		return {
+			content: [{ type: "text" as const, text: "ok" }],
+			details: { ok: true },
+		};
+	},
+};
+
 function buildDefinition(tools: readonly string[] | undefined): AgentDefinition {
 	return {
 		name: "test-agent",
@@ -306,6 +319,102 @@ describe("agent tool allowlist", () => {
 			expect(session.getActiveToolNames()).toContain("apply_patch");
 			expect(session.getActiveToolNames()).not.toContain("edit");
 			expect(session.getActiveToolNames()).not.toContain("write");
+		});
+	});
+
+	it("removes pi-builtin bash from worker active tools (defense-in-depth for tau-9ka)", async () => {
+		await withTempDir(async (cwd) => {
+			const settingsManager = SettingsManager.inMemory();
+			const resourceLoader = new DefaultResourceLoader({
+				cwd,
+				agentDir: path.join(cwd, ".agent"),
+				settingsManager,
+				noExtensions: true,
+				noSkills: true,
+				noPromptTemplates: true,
+				noThemes: true,
+			});
+			await resourceLoader.reload();
+
+			const modelRegistry = ModelRegistry.create(AuthStorage.create());
+			const model = modelRegistry.find("anthropic", "claude-sonnet-4-5");
+			expect(model).toBeDefined();
+
+			const { session } = await createAgentSession({
+				cwd,
+				authStorage: AuthStorage.create(),
+				modelRegistry,
+				resourceLoader,
+				settingsManager,
+				sessionManager: SessionManager.inMemory(cwd),
+				// pi's createAgentSession installs builtin `read`, `bash`, `edit`, `write`.
+				// We pass tau's `exec_command` as a custom tool so the rewrite can route
+				// bash -> exec_command + write_stdin (write_stdin would also be a custom
+				// tool in production; the rewrite tolerates absence by injecting just
+				// what's available).
+				customTools: [
+					agentToolDefinition,
+					applyPatchToolDefinition,
+					execCommandToolDefinition,
+					writeStdinToolDefinition,
+				],
+				...(model ? { model } : {}),
+			});
+
+			// Sanity: pi's builtin bash is in the available tools and active by default.
+			expect(session.getAllTools().map((t) => t.name)).toContain("bash");
+			expect(session.getActiveToolNames()).toContain("bash");
+
+			await Effect.runPromise(applyAgentToolAllowlist(session, buildDefinition(undefined), undefined));
+
+			// After the allowlist runs, bash must be gone and the sandboxed pair must replace it.
+			expect(session.getActiveToolNames()).not.toContain("bash");
+			expect(session.getActiveToolNames()).toContain("exec_command");
+			expect(session.getActiveToolNames()).toContain("write_stdin");
+		});
+	});
+
+	it("removes bash even when an agent definition explicitly lists it (defense-in-depth)", async () => {
+		await withTempDir(async (cwd) => {
+			const settingsManager = SettingsManager.inMemory();
+			const resourceLoader = new DefaultResourceLoader({
+				cwd,
+				agentDir: path.join(cwd, ".agent"),
+				settingsManager,
+				noExtensions: true,
+				noSkills: true,
+				noPromptTemplates: true,
+				noThemes: true,
+			});
+			await resourceLoader.reload();
+
+			const modelRegistry = ModelRegistry.create(AuthStorage.create());
+			const model = modelRegistry.find("anthropic", "claude-sonnet-4-5");
+			expect(model).toBeDefined();
+
+			const { session } = await createAgentSession({
+				cwd,
+				authStorage: AuthStorage.create(),
+				modelRegistry,
+				resourceLoader,
+				settingsManager,
+				sessionManager: SessionManager.inMemory(cwd),
+				customTools: [
+					agentToolDefinition,
+					applyPatchToolDefinition,
+					execCommandToolDefinition,
+					writeStdinToolDefinition,
+				],
+				...(model ? { model } : {}),
+			});
+
+			await Effect.runPromise(
+				applyAgentToolAllowlist(session, buildDefinition(["read", "bash"]), undefined),
+			);
+
+			expect(session.getActiveToolNames()).not.toContain("bash");
+			expect(session.getActiveToolNames()).toContain("exec_command");
+			expect(session.getActiveToolNames()).toContain("write_stdin");
 		});
 	});
 
