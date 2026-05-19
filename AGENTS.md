@@ -79,6 +79,13 @@ Write code clean, explicit, without fallbacks:
 - Canonical tracked backlog events live under `.pi/backlog/events/**`.
 - Materialized current-state cache lives under `.pi/backlog/cache/**` and is rebuildable.
 
+## Project memories (shared, tracked)
+
+- `.pi/tau/memories/PROJECT.jsonl` is the shared project-scope tau memory file. It is tracked in jj and travels with the repo, so new clones inherit team-wide tau memory immediately.
+- Save with `target: project` for facts that should follow the codebase (e.g. runtime conventions, project-specific guardrails).
+- Save with `target: user` or `target: global` only for personal/per-machine facts (those write to `~/.pi/agent/tau/memories/{USER,MEMORY}.jsonl` and never enter the repo).
+- The rest of `.pi/**` (backlog cache, per-machine memory, etc.) stays untracked via `.gitignore`.
+
 ## Quick Reference
 
 ```bash

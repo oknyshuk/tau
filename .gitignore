@@ -21,8 +21,15 @@ yarn-error.log*
 # build caches
 *.tsbuildinfo
 
-# pi local artifacts (entirely untracked — backlog & memory stay local)
-.pi/
+# pi local artifacts (entirely untracked — backlog & per-machine memory stay
+# local) ... except .pi/tau/memories/PROJECT.jsonl, which is the shared
+# project-scope tau memory file and travels with the repo.
+.pi/*
+!.pi/tau/
+.pi/tau/*
+!.pi/tau/memories/
+.pi/tau/memories/*
+!.pi/tau/memories/PROJECT.jsonl
 
 # effect-solutions reference
 .reference/
