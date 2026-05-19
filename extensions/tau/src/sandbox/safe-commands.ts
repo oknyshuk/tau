@@ -109,6 +109,44 @@ const SAFE_GIT_BRANCH_FLAGS = new Set([
 	"--verbose",
 ]);
 
+/** jj top-level subcommands that are safe (read-only inspection) */
+const SAFE_JJ_SUBCOMMANDS = new Set([
+	"status",
+	"st",
+	"log",
+	"l",
+	"diff",
+	"show",
+	"evolog",
+	"interdiff",
+	"id",
+	"cat",
+]);
+
+/**
+ * jj dispatcher subcommands whose nested subcommands need explicit allowlisting.
+ * The set value is the allowed nested subcommand names; an empty set means
+ * "never safe" (e.g. `jj git` has push/fetch which mutate or need network).
+ */
+const SAFE_JJ_NESTED: Record<string, ReadonlySet<string>> = {
+	bookmark: new Set(["list", "l"]),
+	b: new Set(["list", "l"]),
+	op: new Set(["log", "show"]),
+	operation: new Set(["log", "show"]),
+	workspace: new Set(["list", "root"]),
+	file: new Set(["show", "list", "annotate"]),
+	config: new Set(["list", "get"]),
+	git: new Set<string>(),
+};
+
+/** jj flags that escape safety boundaries (set config inline, target other operations, etc.) */
+const UNSAFE_JJ_FLAGS = new Set([
+	"--config",
+	"--config-toml",
+	"--at-op",
+	"--ignore-immutable",
+]);
+
 /** Cargo subcommands that are truly read-only (no build script execution) */
 const SAFE_CARGO_SUBCOMMANDS = new Set([
 	"tree",
@@ -220,6 +258,23 @@ export function isSafeCommand(command: string): boolean {
 			return branchArgs.every((a) => SAFE_GIT_BRANCH_FLAGS.has(a) || a.startsWith("--format="));
 		}
 		return SAFE_GIT_SUBCOMMANDS.has(subcommand);
+	}
+
+	// jj - check subcommand (and nested subcommand for dispatchers like bookmark/op)
+	if (baseName === "jj") {
+		if (args.some((a) => UNSAFE_JJ_FLAGS.has(a.toLowerCase()) || a.startsWith("--config=") || a.startsWith("--config-toml=") || a.startsWith("--at-op="))) {
+			return false;
+		}
+		const subcommand = args[0]?.toLowerCase();
+		if (!subcommand) return false;
+		if (SAFE_JJ_SUBCOMMANDS.has(subcommand)) return true;
+		const nestedSet = SAFE_JJ_NESTED[subcommand];
+		if (nestedSet) {
+			const nested = args[1]?.toLowerCase();
+			if (!nested) return false;
+			return nestedSet.has(nested);
+		}
+		return false;
 	}
 
 	// Cargo - check subcommand (check/clippy/build run build scripts — not safe)

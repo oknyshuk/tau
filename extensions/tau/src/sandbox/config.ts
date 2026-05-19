@@ -17,7 +17,7 @@ export type { ApprovalPolicy, FilesystemMode, NetworkMode, SandboxPreset };
 
 export type SandboxConfig = {
 	preset?: SandboxPreset;
-	/** If true, agent is running in subagent mode (blocks git, restricted operations) */
+	/** If true, agent is running in subagent mode (blocks VCS commands like git/jj, restricted operations) */
 	subagent?: boolean;
 	approvalTimeoutSeconds?: number;
 };

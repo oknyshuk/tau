@@ -183,7 +183,7 @@ This fork uses **jj-vcs**. The `.git/` directory is a colocated backing store; p
     - If asked to make edits and there are unrelated changes you didn’t make in those files, don’t revert them.
     - If the changes are in files you’ve touched recently, read carefully and work with them rather than reverting.
     - If the changes are in unrelated files, ignore them and don’t revert them.
-- Do not change VCS state as a subagent. The orchestrator owns `jj describe`, `jj squash`, and any history rewrite. The user owns `jj git push -c @` (gated by their FIDO key).
+- Do not change VCS state as a subagent (no `jj describe`, `jj squash`, `jj git push`, no git equivalents). The orchestrator hands off; the user pushes via `jj git push -c @`.
 - **NEVER** run destructive commands like `jj abandon`, `jj op restore`, `jj undo`, `git reset --hard`, or `git checkout --` unless specifically requested or approved by the user.
 
 # Context

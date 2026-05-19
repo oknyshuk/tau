@@ -636,10 +636,10 @@ export default function initSandbox(
 					});
 				}
 
-				// Subagent mode: git commands are blocked (orchestrator owns git)
-				if (effectiveConfig.subagent && /^git\s/.test(command.trim())) {
+				// Subagent mode: VCS commands (git, jj) are blocked — orchestrator owns VCS
+				if (effectiveConfig.subagent && /^(?:git|jj)\s/.test(command.trim())) {
 					const errorMsg =
-						"[sandbox] Git commands are blocked in subagent mode. The orchestrator handles all git operations.\n";
+						"[sandbox] VCS commands (git, jj) are blocked in subagent mode. The orchestrator handles all VCS operations.\n";
 					onData(Buffer.from(errorMsg));
 					return { exitCode: 1 };
 				}
@@ -1070,10 +1070,10 @@ export default function initSandbox(
 			);
 		}
 
-		if (currentConfig.subagent && /^git\s/.test(command.trim())) {
+		if (currentConfig.subagent && /^(?:git|jj)\s/.test(command.trim())) {
 			return {
 				output:
-					"[sandbox] Git commands are blocked in subagent mode. The orchestrator handles all git operations.\n",
+					"[sandbox] VCS commands (git, jj) are blocked in subagent mode. The orchestrator handles all VCS operations.\n",
 				exitCode: 1,
 			};
 		}
@@ -1543,12 +1543,12 @@ export default function initSandbox(
 			"\n" +
 			"Subagent mode:\n" +
 			"  - When subagent=false: you are the orchestrator (main) agent\n" +
-			"  - As orchestrator, YOU are responsible for all git operations (commit, push, checkout, reset, etc.)\n" +
-			"  - Subagents you spawn cannot perform git operations - you must handle git yourself\n" +
+			"  - As orchestrator, YOU are responsible for all VCS operations (jj describe / git commit, push, checkout, reset, etc.)\n" +
+			"  - Subagents you spawn cannot perform VCS operations - you must handle VCS yourself\n" +
 			"  - You coordinate work by spawning subagents, waiting for their results, and consolidating\n" +
 			"  - When subagent=true: you are a worker agent spawned by an orchestrator\n" +
-			"  - Git commands are BLOCKED in subagent mode - the orchestrator handles all git operations\n" +
-			"  - Do not attempt to run git commit, git push, git checkout, git reset, or similar\n" +
+			"  - VCS commands (git, jj) are BLOCKED in subagent mode - the orchestrator handles all VCS operations\n" +
+			"  - Do not attempt to run jj describe, jj squash, jj git push, jj abandon, git commit, git push, git checkout, git reset, or similar\n" +
 			"\n" +
 			"Sandbox failure handling:\n" +
 			"  - When a sandboxed exec_command fails, the output may contain a SANDBOX_DIAGNOSTIC=<json> line and a [sandbox] ... explanation.\n" +

@@ -17,7 +17,7 @@ Inspect work with `backlog ready` and `backlog show <id>`.
 
 ## parallel agent safety (crucial)
 
-This fork uses **jj-vcs** (Jujutsu) as its canonical VCS. Read the jj-fluency skill before doing any VCS work. Multiple agents may work in the same checkout concurrently.
+This fork uses **jj-vcs** (Jujutsu) as its canonical VCS. Multiple agents may work in the same checkout concurrently.
 
 - **Do not run destructive jj or git commands** outside the extension directory you are actively working on.
   - Never `jj abandon`, `jj op restore`, `jj undo`, `git restore`, `git checkout`, `git reset`, `git clean`, or similar on other extensions’ files.

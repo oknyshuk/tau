@@ -43,6 +43,7 @@ export function findNearestWorkspaceRoot(cwd: string): string {
 		if (
 			pathExists(path.join(current, ".pi", "settings.json")) ||
 			pathExists(path.join(current, ".pi", "loops")) ||
+			pathExists(path.join(current, ".jj")) ||
 			pathExists(path.join(current, ".git"))
 		) {
 			return current;

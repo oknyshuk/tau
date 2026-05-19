@@ -16,6 +16,7 @@ import { BacklogRepository } from "../backlog/services.js";
 import type { Issue } from "../backlog/schema.js";
 import { isRecord } from "../shared/json.js";
 import { findNearestWorkspaceRoot } from "../shared/discovery.js";
+import { detectVcsAtRoot, discoverWorkspaceRoot } from "../sandbox/workspace-root.js";
 import { Sandbox } from "./sandbox.js";
 import { DEFAULT_SANDBOX_CONFIG } from "../sandbox/config.js";
 
@@ -25,15 +26,15 @@ export interface Footer {
 
 export const Footer = Context.Service<Footer>("Footer");
 
-type GitLineDelta = { readonly added: number; readonly removed: number };
+type VcsLineDelta = { readonly added: number; readonly removed: number };
 
 type FooterHygiene = {
-	readonly gitLineDelta: GitLineDelta;
+	readonly vcsLineDelta: VcsLineDelta;
 	readonly inProgressCount: number;
 };
 
 const EMPTY_FOOTER_HYGIENE: FooterHygiene = {
-	gitLineDelta: { added: 0, removed: 0 },
+	vcsLineDelta: { added: 0, removed: 0 },
 	inProgressCount: 0,
 };
 
@@ -49,8 +50,8 @@ export function setFooterHygieneIfChanged(
 ): boolean {
 	const current = MutableRef.get(ref);
 	if (
-		current.gitLineDelta.added === next.gitLineDelta.added &&
-		current.gitLineDelta.removed === next.gitLineDelta.removed &&
+		current.vcsLineDelta.added === next.vcsLineDelta.added &&
+		current.vcsLineDelta.removed === next.vcsLineDelta.removed &&
 		current.inProgressCount === next.inProgressCount
 	) {
 		return false;
@@ -96,7 +97,7 @@ const truncateMiddle = (text: string, width: number): string => {
 	return `${start}...${end}`;
 };
 
-const parseGitNumstat = (output: string): GitLineDelta => {
+export const parseGitNumstat = (output: string): VcsLineDelta => {
 	let added = 0;
 	let removed = 0;
 
@@ -115,7 +116,32 @@ const parseGitNumstat = (output: string): GitLineDelta => {
 	return { added, removed };
 };
 
-const runNumstat = async (pi: ExtensionAPI, cwd: string, args: string[]): Promise<GitLineDelta> => {
+/**
+ * Parse the summary line of `jj diff --stat`. The summary appears as the last
+ * non-empty line of output, e.g.
+ *
+ *   3 files changed, 12 insertions(+), 4 deletions(-)
+ *
+ * Either side may be absent ("4 deletions(-)" or "12 insertions(+)" alone).
+ * Returns zeros when no summary is found.
+ */
+export const parseJjStatSummary = (output: string): VcsLineDelta => {
+	const lines = output.split("\n");
+	for (let i = lines.length - 1; i >= 0; i--) {
+		const line = lines[i]?.trim();
+		if (!line) continue;
+		if (!/files? changed/.test(line)) continue;
+		const added = /(\d+)\s+insertions?\(\+\)/.exec(line);
+		const removed = /(\d+)\s+deletions?\(-\)/.exec(line);
+		return {
+			added: added ? Number(added[1]) : 0,
+			removed: removed ? Number(removed[1]) : 0,
+		};
+	}
+	return { added: 0, removed: 0 };
+};
+
+const runNumstat = async (pi: ExtensionAPI, cwd: string, args: string[]): Promise<VcsLineDelta> => {
 	try {
 		const result = await pi.exec("git", args, {
 			cwd,
@@ -130,7 +156,7 @@ const runNumstat = async (pi: ExtensionAPI, cwd: string, args: string[]): Promis
 	}
 };
 
-const collectGitLineDelta = async (pi: ExtensionAPI, cwd: string): Promise<GitLineDelta> => {
+const collectGitLineDelta = async (pi: ExtensionAPI, cwd: string): Promise<VcsLineDelta> => {
 	const [unstaged, staged] = await Promise.all([
 		runNumstat(pi, cwd, ["diff", "--numstat", "--no-ext-diff"]),
 		runNumstat(pi, cwd, ["diff", "--cached", "--numstat", "--no-ext-diff"]),
@@ -140,6 +166,37 @@ const collectGitLineDelta = async (pi: ExtensionAPI, cwd: string): Promise<GitLi
 		added: unstaged.added + staged.added,
 		removed: unstaged.removed + staged.removed,
 	};
+};
+
+const collectJjLineDelta = async (pi: ExtensionAPI, cwd: string): Promise<VcsLineDelta> => {
+	try {
+		const result = await pi.exec("jj", ["diff", "--stat", "--no-pager"], {
+			cwd,
+			timeout: 15_000,
+		});
+		if (result.code !== 0) {
+			return { added: 0, removed: 0 };
+		}
+		return parseJjStatSummary(result.stdout ?? "");
+	} catch {
+		return { added: 0, removed: 0 };
+	}
+};
+
+// detectVcsAtRoot moved to ../sandbox/workspace-root.js; re-exported for tests.
+export { detectVcsAtRoot };
+
+const collectVcsLineDelta = async (pi: ExtensionAPI, cwd: string): Promise<VcsLineDelta> => {
+	const workspaceRoot = discoverWorkspaceRoot(cwd);
+	const vcs = detectVcsAtRoot(workspaceRoot);
+	switch (vcs) {
+		case "jj":
+			return collectJjLineDelta(pi, workspaceRoot);
+		case "git":
+			return collectGitLineDelta(pi, workspaceRoot);
+		case null:
+			return { added: 0, removed: 0 };
+	}
 };
 
 export const countInProgressIssues = (issues: ReadonlyArray<Issue>): number =>
@@ -193,7 +250,7 @@ export const FooterLive = Layer.effect(
 			if (cwd === undefined) {
 				return;
 			}
-			const gitLineDelta = yield* Effect.promise(() => collectGitLineDelta(pi, cwd));
+			const vcsLineDelta = yield* Effect.promise(() => collectVcsLineDelta(pi, cwd));
 
 			const inProgressCount = yield* Effect.promise(() => readFooterBacklogInProgressCount(cwd));
 			if (currentCwd !== cwd) {
@@ -201,7 +258,7 @@ export const FooterLive = Layer.effect(
 			}
 
 			const changed = setFooterHygieneIfChanged(currentHygieneRef, {
-				gitLineDelta,
+				vcsLineDelta,
 				inProgressCount,
 			});
 			if (!changed) {
@@ -280,8 +337,8 @@ export const FooterLive = Layer.effect(
 											? `${repoName}:${branch}`
 											: repoName;
 
-										const gitLineDeltaText = `Δ+${hygiene.gitLineDelta.added}/-${hygiene.gitLineDelta.removed}`;
-										const gitLineDeltaPart = theme.fg("dim", gitLineDeltaText);
+										const lineDeltaText = `Δ+${hygiene.vcsLineDelta.added}/-${hygiene.vcsLineDelta.removed}`;
+										const lineDeltaPart = theme.fg("dim", lineDeltaText);
 
 										const inProgressText = `ρ${hygiene.inProgressCount}`;
 										const inProgressPart = theme.fg("dim", inProgressText);
@@ -291,7 +348,7 @@ export const FooterLive = Layer.effect(
 											"  " +
 											theme.fg("dim", repoLine) +
 											" " +
-											gitLineDeltaPart +
+											lineDeltaPart +
 											" " +
 											inProgressPart;
 

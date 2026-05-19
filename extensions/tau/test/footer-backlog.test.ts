@@ -25,10 +25,10 @@ async function withTempWorkspace<A>(fn: (workspaceRoot: string) => Promise<A>): 
 }
 
 describe("footer backlog hygiene", () => {
-	it("stores git hygiene in a ref and reports only changed snapshots", () => {
+	it("stores VCS hygiene in a ref and reports only changed snapshots", () => {
 		const ref = makeFooterHygieneRef();
 		const next = {
-			gitLineDelta: { added: 110, removed: 97 },
+			vcsLineDelta: { added: 110, removed: 97 },
 			inProgressCount: 1,
 		};
 
