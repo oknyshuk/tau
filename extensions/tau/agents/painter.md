@@ -15,7 +15,7 @@ tools:
   - agent
 spawns:
   - finder
-sandbox: workspace-write
+sandbox: full-access
 approval_timeout: 60
 ---
 

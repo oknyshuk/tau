@@ -26,7 +26,7 @@ spawns:
   - librarian
   - oracle
   - painter
-sandbox: workspace-write
+sandbox: full-access
 ---
 
 You are Erg, optimized for speed and efficiency.

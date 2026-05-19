@@ -61,7 +61,7 @@ describe("agent sandbox policy", () => {
 	});
 
 	describe("bundled agent sandbox defaults", () => {
-		it("bundled agents use worker-safe sandbox preset by default", async () => {
+		it("bundled writer subagents default to full-access", async () => {
 			const tempHome = mkdtemp("tau-home-");
 			vi.stubEnv("HOME", tempHome);
 
@@ -72,10 +72,13 @@ describe("agent sandbox policy", () => {
 				const deep = registry.resolve("deep");
 				const rush = registry.resolve("rush");
 
-				// Bundled agents should default to worker-safe (workspace-write), not full-access
-				expect(smart?.sandbox.preset).toBe("workspace-write");
-				expect(deep?.sandbox.preset).toBe("workspace-write");
-				expect(rush?.sandbox.preset).toBe("workspace-write");
+				// Writer subagents (smart, deep, rush) default to full-access so they
+				// can drive arbitrary workflows without per-call escalation prompts.
+				// Read-only subagents (finder, librarian, oracle, review) keep
+				// workspace-write or read-only via their own .md frontmatter.
+				expect(smart?.sandbox.preset).toBe("full-access");
+				expect(deep?.sandbox.preset).toBe("full-access");
+				expect(rush?.sandbox.preset).toBe("full-access");
 			} finally {
 				fs.rmSync(tempHome, { recursive: true, force: true });
 			}
