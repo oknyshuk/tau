@@ -119,6 +119,23 @@ function readBacklogArgString(args: unknown, key: "command" | "cwd"): string | u
 	return typeof value === "string" ? value : undefined;
 }
 
+/** Maximum length of a flag value rendered in the tool-call header. */
+const RENDER_CALL_FLAG_VALUE_MAX = 60;
+
+/**
+ * Truncate a flag value for the tool-call header so long fields
+ * (description, design, acceptance-criteria) don't blow out the line.
+ * Adds an ellipsis suffix; the full value is still visible in the result body.
+ */
+export function truncateFlagValueForRenderCall(
+	value: string,
+	max: number = RENDER_CALL_FLAG_VALUE_MAX,
+): string {
+	if (value.length <= max) return value;
+	const keep = Math.max(0, max - 3);
+	return `${value.slice(0, keep)}...`;
+}
+
 const separator =
 	"──────────────────────────────────────────────────────────────────────────────";
 
@@ -1026,7 +1043,8 @@ export function createBacklogToolDefinition(): ToolDefinition {
 			const headerParts = ["backlog", verb, ...formattedPositional];
 			let out = theme.fg("toolTitle", theme.bold(headerParts.join(" ").trim()));
 
-			// Render flags below the header
+			// Render flags below the header. Long values are truncated so the call
+			// header stays compact — the full value is visible in the result body.
 			const flagsToSkip = new Set(["cwd"]);
 			for (const [key, values] of parsed.flags) {
 				if (flagsToSkip.has(key)) continue;
@@ -1040,7 +1058,8 @@ export function createBacklogToolDefinition(): ToolDefinition {
 				const value = values.length > 0 ? values[values.length - 1] : "true";
 				if (value === undefined) continue;
 
-				out += `\n  ${theme.fg("toolTitle", `${displayKey}:`)} ${theme.fg("toolOutput", value)}`;
+				const displayValue = truncateFlagValueForRenderCall(value);
+				out += `\n  ${theme.fg("toolTitle", `${displayKey}:`)} ${theme.fg("toolOutput", displayValue)}`;
 			}
 
 			const cwd = readBacklogArgString(args, "cwd");

@@ -5,6 +5,7 @@ import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-a
 
 import {
 	createBacklogToolDefinition,
+	truncateFlagValueForRenderCall,
 	type BacklogToolDetails,
 } from "../src/backlog/tool.js";
 
@@ -81,15 +82,24 @@ describe("backlog tool renderer", () => {
 		);
 		// Header should only show verb + positional args
 		expect(callRendered).toContain("backlog update tau-kjk");
-		// Flags should appear below as metadata (multiline output)
-		// Values are not truncated but may wrap across multiple lines
-		expect(callRendered).toContain("description: Port the missing trustmate review area from the banana product");
-		expect(callRendered).toContain("page as a Storybook-friendly section: disclosure note, score summary cards,");
-		expect(callRendered).toContain("lightweight filter chrome, and review cards/list composition.");
-		expect(callRendered).toContain("design: Do not attempt to recreate the whole third-party widget runtime.");
-		expect(callRendered).toContain("Instead, build honest presentational React components that capture the visible");
-		expect(callRendered).toContain("acceptance-criteria: The product-page component system includes typed Tailwind");
-		expect(callRendered).toContain("components and stories for the visible trustmate reviews section, including");
+		// Long flag values are truncated to 60 chars + ellipsis to keep the call
+		// header compact. The full value is still visible in the result body.
+		expect(callRendered).toContain("description: ");
+		expect(callRendered).toContain("design: ");
+		expect(callRendered).toContain("acceptance-criteria: ");
+		expect(callRendered).toMatch(
+			/description: Port the missing trustmate review area from the banana \S*\.\.\./,
+		);
+		expect(callRendered).toMatch(
+			/design: Do not attempt to recreate the whole third-party widget \S*\.\.\./,
+		);
+		expect(callRendered).toMatch(
+			/acceptance-criteria: The product-page component system includes typed/,
+		);
+		// Truncated portion (past the cut) must NOT appear in the call header.
+		expect(callRendered).not.toContain("Storybook-friendly section");
+		expect(callRendered).not.toContain("presentational React components");
+		expect(callRendered).not.toContain("summary metrics");
 		expect(callRendered).toContain("cwd: /home/ribelo/projects/retailic/frisco-effect");
 
 		const resultRendered = normalizeRendered(
@@ -112,6 +122,47 @@ describe("backlog tool renderer", () => {
 		expect(resultRendered).toContain("□  tau-kjk       [P1]    [task]      (open)");
 		expect(resultRendered).toContain("Port product-page trustmate");
 		expect(resultRendered).toContain("reviews section and review cards");
+	});
+
+	describe("truncateFlagValueForRenderCall", () => {
+		it("leaves short values unchanged", () => {
+			expect(truncateFlagValueForRenderCall("task")).toBe("task");
+			expect(truncateFlagValueForRenderCall("")).toBe("");
+		});
+
+		it("truncates values longer than the default threshold", () => {
+			const sixtyOneChars = "a".repeat(61);
+			const out = truncateFlagValueForRenderCall(sixtyOneChars);
+			expect(out.length).toBe(60);
+			expect(out.endsWith("...")).toBe(true);
+			expect(out).toBe(`${"a".repeat(57)}...`);
+		});
+
+		it("keeps values exactly at the default threshold unchanged", () => {
+			const sixtyChars = "b".repeat(60);
+			expect(truncateFlagValueForRenderCall(sixtyChars)).toBe(sixtyChars);
+		});
+
+		it("respects an explicit max", () => {
+			expect(truncateFlagValueForRenderCall("abcdefghij", 5)).toBe("ab...");
+		});
+
+		it("handles a max so small that no characters fit before the ellipsis", () => {
+			expect(truncateFlagValueForRenderCall("abcdefghij", 2)).toBe("...");
+		});
+	});
+
+	it("renders short flag values verbatim in the call header (no ellipsis)", () => {
+		const rendered = normalizeRendered(
+			renderCall({
+				command: 'create "Title" --type task --priority 1 --status open',
+			}),
+		);
+		expect(rendered).toContain("backlog create Title");
+		expect(rendered).toContain("type: task");
+		expect(rendered).toContain("priority: 1");
+		expect(rendered).toContain("status: open");
+		expect(rendered).not.toContain("...");
 	});
 
 	it("renders every backlog result kind without throwing", () => {
