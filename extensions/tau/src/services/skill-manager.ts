@@ -1,9 +1,10 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
-import * as os from "node:os";
 import * as path from "node:path";
 import { Effect, Layer, Context } from "effect";
 import * as Diff from "diff";
+
+import { getHomeDir } from "../shared/home.js";
 
 import {
 	SkillAlreadyExists,
@@ -102,11 +103,11 @@ function getSkillsDir(): string {
 	if (override) {
 		return override;
 	}
-	return path.join(os.homedir(), ".pi", "agent", "skills");
+	return path.join(getHomeDir(), ".pi", "agent", "skills");
 }
 
 function getLegacySkillsDir(): string {
-	return path.join(os.homedir(), ".agents", "skills");
+	return path.join(getHomeDir(), ".agents", "skills");
 }
 
 function getTauSkillsDir(): string {

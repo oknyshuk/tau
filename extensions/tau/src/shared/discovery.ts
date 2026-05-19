@@ -1,7 +1,8 @@
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { getHomeDir } from "./home.js";
 
 export const EXTENSION_ROOT = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
@@ -14,17 +15,17 @@ export const EXTENSION_AGENTS_DIR = path.join(EXTENSION_ROOT, "agents");
 export function getUserSettingsPath(): string {
 	const override = process.env["TAU_SANDBOX_USER_SETTINGS_PATH"];
 	if (override) return override;
-	return path.join(os.homedir(), ".pi", "agent", "settings.json");
+	return path.join(getHomeDir(), ".pi", "agent", "settings.json");
 }
 
 export function getUserAgentsDir(): string {
-	return path.join(os.homedir(), ".pi", "agent", "agents");
+	return path.join(getHomeDir(), ".pi", "agent", "agents");
 }
 
 export function getTauMemoryDir(): string {
 	const override = process.env["TAU_MEMORY_DIR"];
 	if (override) return override;
-	return path.join(os.homedir(), ".pi", "agent", "tau", "memories");
+	return path.join(getHomeDir(), ".pi", "agent", "tau", "memories");
 }
 
 function pathExists(candidate: string): boolean {

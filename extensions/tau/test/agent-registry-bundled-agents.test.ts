@@ -12,7 +12,7 @@ describe("agent-registry: bundled execution agents", () => {
 		vi.unstubAllEnvs();
 	});
 
-	it("loads smart, deep, and rush as ordinary bundled agents without plan or model defaults", async () => {
+	it("loads smart, deep, and rush as ordinary bundled agents with inherit-tier defaults", async () => {
 		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "tau-home-"));
 		vi.stubEnv("HOME", tempHome);
 
@@ -25,9 +25,12 @@ describe("agent-registry: bundled execution agents", () => {
 			const plan = registry.resolve("plan");
 			const defaultMode = registry.resolve("default");
 
-			expect(smart?.models).toEqual([]);
-			expect(deep?.models).toEqual([]);
-			expect(rush?.models).toEqual([]);
+			// Bundled smart/deep/rush ship with model: inherit + a thinking tier so
+			// they work without user configuration. The thinking tier is what
+			// distinguishes them.
+			expect(smart?.models).toEqual([{ model: "inherit", thinking: "high" }]);
+			expect(deep?.models).toEqual([{ model: "inherit", thinking: "xhigh" }]);
+			expect(rush?.models).toEqual([{ model: "inherit", thinking: "medium" }]);
 			expect(smart?.description).not.toContain("mode");
 			expect(smart?.systemPrompt).toContain("powerful AI coding agent");
 			expect(deep?.systemPrompt).toContain("maximum reasoning capabilities");

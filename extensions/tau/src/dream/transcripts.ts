@@ -1,5 +1,6 @@
-import * as os from "node:os";
 import * as path from "node:path";
+
+import { getHomeDir } from "../shared/home.js";
 
 export function dreamTranscriptRoot(cwd: string): string {
 	const safePath = `--${cwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`;
@@ -9,15 +10,15 @@ export function dreamTranscriptRoot(cwd: string): string {
 function getPiAgentDir(): string {
 	const envDir = process.env["PI_CODING_AGENT_DIR"];
 	if (envDir === undefined) {
-		return path.join(os.homedir(), ".pi", "agent");
+		return path.join(getHomeDir(), ".pi", "agent");
 	}
 
 	if (envDir === "~") {
-		return os.homedir();
+		return getHomeDir();
 	}
 
 	if (envDir.startsWith("~/")) {
-		return path.join(os.homedir(), envDir.slice(2));
+		return path.join(getHomeDir(), envDir.slice(2));
 	}
 
 	return envDir;

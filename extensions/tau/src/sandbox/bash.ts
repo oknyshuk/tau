@@ -1,5 +1,4 @@
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { execSync } from "node:child_process";
 
@@ -8,6 +7,7 @@ import { platform } from "node:process";
 import type { FilesystemMode, NetworkMode } from "./config.js";
 import { collectTempRoots, safeRealpath } from "../shared/fs.js";
 import { WORKSPACE_PROTECTED_RULES } from "./workspace-path-policy.js";
+import { getHomeDir } from "../shared/home.js";
 
 /**
  * Check if bwrap is available on the system.
@@ -82,7 +82,7 @@ export async function wrapCommandWithSandbox(opts: {
 			success: true,
 			file: invocation.file,
 			args: [...invocation.args],
-			home: os.homedir(),
+			home: getHomeDir(),
 		};
 	}
 
@@ -134,7 +134,7 @@ export async function wrapCommandWithSandbox(opts: {
 
 	// Filesystem permissions
 	// For read-only and workspace-write, we need the home directory readable
-	const home = os.homedir();
+	const home = getHomeDir();
 	const resolvedHome = safeRealpath(home);
 	const resolvedHomeParent = path.dirname(resolvedHome);
 

@@ -3,6 +3,8 @@ import { existsSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
+import { getHomeDir } from "../shared/home.js";
+
 import type { BashOperations, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	createEditTool,
@@ -482,7 +484,7 @@ export default function initSandbox(
 		}
 	}
 
-	const registrationToolCwd = os.homedir();
+	const registrationToolCwd = getHomeDir();
 	const baseEditTool = createEditTool(registrationToolCwd);
 	const baseWriteTool = createWriteTool(registrationToolCwd);
 

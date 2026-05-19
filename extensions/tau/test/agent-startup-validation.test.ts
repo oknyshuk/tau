@@ -62,29 +62,21 @@ describe("agent startup validation", () => {
 		vi.unstubAllEnvs();
 	});
 
-	it("fails startup when configurable bundled agents do not have model settings", async () => {
+	it("allows startup with bundled inherit-tier defaults even when user settings omit smart/deep/rush", async () => {
 		const tempHome = mkdtemp("tau-home-");
 		const tempProject = mkdtemp("tau-project-");
 
 		writeFile(
 			path.join(tempHome, ".pi", "agent", "settings.json"),
-			JSON.stringify(
-				{
-					agents: {
-						deep: { models: [{ model: "inherit", thinking: "inherit" }] },
-						rush: { models: [{ model: "inherit", thinking: "inherit" }] },
-					},
-				},
-				null,
-				2,
-			),
+			JSON.stringify({}, null, 2),
 		);
 
 		vi.stubEnv("HOME", tempHome);
 
-		await expect(runValidation(tempProject)).rejects.toThrow(
-			'Agent "smart" has no models configured. Set agents.smart.models in ~/.pi/agent/settings.json or .pi/settings.json.',
-		);
+		// Bundled smart/deep/rush ship with model: inherit + a thinking tier
+		// (high / xhigh / medium), so user settings no longer need to configure
+		// them for tau to start. This is the post-tau-cux1 baseline.
+		await expect(runValidation(tempProject)).resolves.toBeUndefined();
 
 		fs.rmSync(tempHome, { recursive: true, force: true });
 		fs.rmSync(tempProject, { recursive: true, force: true });
