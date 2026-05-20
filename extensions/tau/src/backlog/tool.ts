@@ -14,6 +14,7 @@ import {
 	setIssueStatus,
 	updateIssueFields,
 } from "./events.js";
+import { exportIssuesToMarkdown, type BacklogExportResult } from "./export.js";
 import { listDependencies, listDependents } from "./graph.js";
 import { filterIssues, type IssueQuery, type SortField, type SortOrder } from "./query.js";
 import type { Comment, Issue } from "./schema.js";
@@ -42,6 +43,7 @@ type BacklogRenderKind =
 	| "comment"
 	| "comments"
 	| "search"
+	| "export"
 	| "help"
 	| "unknown"
 	| "error";
@@ -79,7 +81,7 @@ export type BacklogToolDetails = {
 const BACKLOG_MESSAGE_TYPE = "backlog";
 
 const TOOL_DESCRIPTION =
-	"Backlog planning tool. Provide a CLI-style command without a leading tool name. Examples: `list`, `ready`, `blocked`, `show <id>`, `children <epic-id> --status open`, `create \"Title\" --type task --priority 2`, `update <id> --title \"New title\"`, `close <id> --reason \"Done\"`, `dep list <id> --direction down --status open`, `dep add <id-1> <id-2> --type blocks`, `comment <id> \"note\"`, `status`. Use `--status`, `--type`, `--priority`, and `--text` with issue-list commands. Use `--limit N` with list/ready/blocked/search/children to cap results.";
+	"Backlog planning tool. Provide a CLI-style command without a leading tool name. Examples: `list`, `ready`, `blocked`, `show <id>`, `children <epic-id> --status open`, `create \"Title\" --type task --priority 2`, `update <id> --title \"New title\"`, `close <id> --reason \"Done\"`, `dep list <id> --direction down --status open`, `dep add <id-1> <id-2> --type blocks`, `comment <id> \"note\"`, `export [id] [--status open] [--output .backlog]`, `status`. Use `--status`, `--type`, `--priority`, and `--text` with issue-list commands. Use `--limit N` with list/ready/blocked/search/children to cap results.";
 
 const TOOL_PROMPT_SNIPPET =
 	"Backlog planning system for task tracking and event-sourced issue management";
@@ -295,6 +297,15 @@ function renderStatusBlock(summary: BacklogStatusSummary, theme: Theme): Text {
 	return new Text(out, 0, 0);
 }
 
+function renderExportBlock(result: BacklogExportResult, theme: Theme): Text {
+	let out = theme.fg("dim", separator);
+	out += `\n${theme.fg("success", `Exported ${result.count} issue${result.count === 1 ? "" : "s"}`)}`;
+	for (const file of result.files) {
+		out += `\n${theme.fg("toolOutput", file)}`;
+	}
+	return new Text(out, 0, 0);
+}
+
 function renderHelpBlock(theme: Theme): Text {
 	const lines = [
 		theme.fg("dim", separator),
@@ -314,6 +325,7 @@ function renderHelpBlock(theme: Theme): Text {
 		"backlog dep remove <id> <target> [--type blocks]",
 		'backlog comment <id> "text"',
 		"backlog comments <id>",
+		"backlog export [id] [--status open] [--type task] [--priority 2] [--text query] [--output .backlog]",
 		"backlog status",
 	];
 	return new Text(lines.join("\n"), 0, 0);
@@ -457,6 +469,7 @@ function commandKind(parsed: ParsedCommand): BacklogRenderKind {
 	if (first === "reopen") return "reopen";
 	if (first === "status") return "status";
 	if (first === "search") return "search";
+	if (first === "export") return "export";
 	if (first === "comment") return "comment";
 	if (first === "comments") return "comments";
 	if (first === "dep" && second === "list") return "dep_list";
@@ -696,6 +709,17 @@ export async function runBacklogCommand(command: string, cwd: string): Promise<B
 				);
 				return { command, kind, ok: true, data: commandServiceIssues.slice(0, limit) };
 			}
+			case "export": {
+				const issueId = parsed.positional[1];
+				const output = flagValue(parsed, "output");
+				const issues = issueId
+					? [await runWithBacklogCommandService(workspaceRoot, (service) => service.show(issueId))]
+					: await runWithBacklogCommandService(workspaceRoot, (service) =>
+						service.list(issueFilterQueryFromFlags(parsed)),
+					);
+				const result = exportIssuesToMarkdown(workspaceRoot, issues, output);
+				return { command, kind, ok: true, data: result };
+			}
 			case "show": {
 				const issueId = parsed.positional[1];
 				if (!issueId) {
@@ -934,6 +958,8 @@ function renderBacklog(details: BacklogToolDetails, options: { expanded: boolean
 	switch (details.kind) {
 		case "help":
 			return renderHelpBlock(theme);
+		case "export":
+			return renderExportBlock(details.data as BacklogExportResult, theme);
 		case "status":
 			return renderStatusBlock(details.data as BacklogStatusSummary, theme);
 		case "comment":
@@ -981,6 +1007,7 @@ function createCompletionItems(): ReadonlyArray<AutocompleteItem> {
 		{ value: "dep remove ", label: "dep remove", description: "Remove dependency" },
 		{ value: "comment ", label: "comment", description: "Add comment" },
 		{ value: "comments ", label: "comments", description: "List comments" },
+		{ value: "export ", label: "export", description: "Export issues to markdown" },
 		{ value: "status", label: "status", description: "Show summary" },
 		{ value: "help", label: "help", description: "Show help" },
 	];
@@ -1081,7 +1108,7 @@ export default function initBacklog(pi: ExtensionAPI): void {
 		handler: async (args, ctx: ExtensionContext) => {
 			const trimmed = (args ?? "").trim();
 			if (!trimmed) {
-				ctx.ui.notify("Usage: /backlog list | /backlog show <id> | /backlog <command>", "info");
+				ctx.ui.notify("Usage: /backlog list | /backlog show <id> | /backlog export", "info");
 				return;
 			}
 			const details = await runBacklogCommand(trimmed, ctx.cwd);

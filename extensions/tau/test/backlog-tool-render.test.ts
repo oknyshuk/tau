@@ -67,6 +67,7 @@ describe("backlog tool renderer", () => {
 		);
 		expect(rendered).toContain("backlog search <query> [--limit 20]");
 		expect(rendered).toContain("backlog children <id> [--recursive] [--status open] [--type task] [--limit 50]");
+		expect(rendered).toContain("backlog export [id] [--status open]");
 	});
 
 	it("renders update calls and results with the compact issue summary layout", () => {
@@ -133,6 +134,7 @@ describe("backlog tool renderer", () => {
 			{ command: "comment tau-1", kind: "comment", ok: true, data: [{ id: 1, issue_id: "tau-1", author: "alice", text: "hello", created_at: "2026-03-29T12:00:00.000Z" }] },
 			{ command: "comments tau-1", kind: "comments", ok: true, data: [{ id: 1, issue_id: "tau-1", author: "alice", text: "hello", created_at: "2026-03-29T12:00:00.000Z" }] },
 			{ command: "search issue", kind: "search", ok: true, data: [issue] },
+			{ command: "export tau-1", kind: "export", ok: true, data: { count: 1, files: ["/tmp/workspace/.backlog/tau-1.md"] } },
 			{ command: "help", kind: "help", ok: true, outputText: "help" },
 			{ command: "unknown", kind: "unknown", ok: false, outputText: "Unknown backlog command" },
 			{ command: "error", kind: "error", ok: false, outputText: "Backlog command failed" },
