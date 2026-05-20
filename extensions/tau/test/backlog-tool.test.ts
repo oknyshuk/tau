@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { parse as parseYaml } from "yaml";
 
 import { runBacklogCommand } from "../src/backlog/tool.js";
 
@@ -16,6 +17,14 @@ async function makeWorkspace(): Promise<string> {
 	const dir = await fs.mkdtemp(path.join(os.tmpdir(), "tau-backlog-tool-"));
 	tempDirs.push(dir);
 	return dir;
+}
+
+function readFrontmatter(markdown: string): unknown {
+	const match = /^---\n([\s\S]*?)\n---\n/.exec(markdown);
+	expect(match).not.toBeNull();
+	const yaml = match?.[1];
+	expect(yaml).toBeDefined();
+	return parseYaml(yaml ?? "");
 }
 
 describe("backlog tool", () => {
@@ -42,6 +51,76 @@ describe("backlog tool", () => {
 		expect(status.ok).toBe(true);
 		expect((status.data as { total_issues: number; closed_issues: number }).total_issues).toBe(1);
 		expect((status.data as { total_issues: number; closed_issues: number }).closed_issues).toBe(1);
+	});
+
+	it("exports a specific issue to the default markdown path with YAML frontmatter", async () => {
+		const workspaceRoot = await makeWorkspace();
+
+		await runBacklogCommand(
+			'create "Alpha" --id tau-1 --type task --priority 1 --description "First paragraph" --design "Use files" --acceptance-criteria "Export exists" --notes "one way only"',
+			workspaceRoot,
+		);
+
+		const exported = await runBacklogCommand("export tau-1", workspaceRoot);
+
+		expect(exported.ok).toBe(true);
+		expect(exported.data).toEqual({ count: 1, files: [path.join(workspaceRoot, ".backlog", "tau-1.md")] });
+		const content = await fs.readFile(path.join(workspaceRoot, ".backlog", "tau-1.md"), "utf8");
+		const frontmatter = readFrontmatter(content);
+		expect(frontmatter).toMatchObject({
+			id: "tau-1",
+			title: "Alpha",
+			status: "open",
+			priority: 1,
+			issue_type: "task",
+		});
+		expect(content).toContain("# Alpha");
+		expect(content).toContain("## description\n\nFirst paragraph");
+		expect(content).toContain("## design\n\nUse files");
+		expect(content).toContain("## acceptance criteria\n\nExport exists");
+		expect(content).toContain("## notes\n\none way only");
+	});
+
+	it("exports filtered issues to an output directory and overwrites existing files", async () => {
+		const workspaceRoot = await makeWorkspace();
+		const outputDir = path.join(workspaceRoot, "exports");
+		const stalePath = path.join(outputDir, "tau-1.md");
+
+		await runBacklogCommand('create "Alpha" --id tau-1 --type task --priority 1', workspaceRoot);
+		await runBacklogCommand('create "Beta" --id tau-2 --type bug --priority 2', workspaceRoot);
+		await fs.mkdir(outputDir, { recursive: true });
+		await fs.writeFile(stalePath, "stale", "utf8");
+
+		const exported = await runBacklogCommand("export --type task --output exports", workspaceRoot);
+
+		expect(exported.ok).toBe(true);
+		expect(exported.data).toEqual({ count: 1, files: [stalePath] });
+		expect(await fs.readFile(stalePath, "utf8")).toContain("title: Alpha");
+		await expect(fs.stat(path.join(outputDir, "tau-2.md"))).rejects.toMatchObject({ code: "ENOENT" });
+	});
+
+	it("exports a single issue to an explicit markdown file", async () => {
+		const workspaceRoot = await makeWorkspace();
+
+		await runBacklogCommand('create "Alpha" --id tau-1', workspaceRoot);
+
+		const exported = await runBacklogCommand("export tau-1 --output issue.md", workspaceRoot);
+
+		expect(exported.ok).toBe(true);
+		expect(exported.data).toEqual({ count: 1, files: [path.join(workspaceRoot, "issue.md")] });
+		expect(await fs.readFile(path.join(workspaceRoot, "issue.md"), "utf8")).toContain("id: tau-1");
+	});
+
+	it("rejects a markdown output file for multiple issue exports", async () => {
+		const workspaceRoot = await makeWorkspace();
+
+		await runBacklogCommand('create "Alpha" --id tau-1', workspaceRoot);
+		await runBacklogCommand('create "Beta" --id tau-2', workspaceRoot);
+
+		const exported = await runBacklogCommand("export --output all.md", workspaceRoot);
+
+		expect(exported.ok).toBe(false);
+		expect(exported.outputText).toContain("--output must be a directory");
 	});
 
 	it("supports dependency, comment, ready, and blocked commands", async () => {
