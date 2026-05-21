@@ -12,7 +12,6 @@ const WORKER_AVAILABLE_TOOL_NAMES = [
 	"get_code_context_exa",
 	"grep",
 	"ls",
-	"memory",
 	"read",
 	"web_search_exa",
 	"write_stdin",

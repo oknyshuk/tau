@@ -32,6 +32,9 @@ describe("agent-registry: bundled execution agents", () => {
 			expect(deep?.models).toEqual([{ model: "inherit", thinking: "xhigh" }]);
 			expect(rush?.models).toEqual([{ model: "inherit", thinking: "medium" }]);
 			expect(smart?.description).not.toContain("mode");
+			expect(smart?.tools).not.toContain("memory");
+			expect(deep?.tools).not.toContain("memory");
+			expect(rush?.tools).not.toContain("memory");
 			expect(smart?.systemPrompt).toContain("powerful AI coding agent");
 			expect(deep?.systemPrompt).toContain("maximum reasoning capabilities");
 			expect(rush?.systemPrompt).toContain("optimized for speed");

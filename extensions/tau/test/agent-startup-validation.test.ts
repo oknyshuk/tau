@@ -160,4 +160,25 @@ describe("agent startup validation", () => {
 		fs.rmSync(tempHome, { recursive: true, force: true });
 		fs.rmSync(tempProject, { recursive: true, force: true });
 	});
+
+	it("fails startup when a bundled agent requests disabled memory tool", async () => {
+		const tempHome = mkdtemp("tau-home-");
+		const tempProject = mkdtemp("tau-project-");
+
+		writeRequiredBundledAgentModels(tempHome, {
+			deep: {
+				models: [{ model: "inherit", thinking: "inherit" }],
+				tools: ["read", "memory"],
+			},
+		});
+
+		vi.stubEnv("HOME", tempHome);
+
+		await expect(runValidation(tempProject)).rejects.toThrow(
+			'Invalid tools for agent "deep": memory',
+		);
+
+		fs.rmSync(tempHome, { recursive: true, force: true });
+		fs.rmSync(tempProject, { recursive: true, force: true });
+	});
 });
