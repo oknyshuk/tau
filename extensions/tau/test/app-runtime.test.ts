@@ -340,6 +340,94 @@ describe("runTau runtime", () => {
 		component.dispose();
 	});
 
+	it("footer updates its model snapshot when the session model changes", async () => {
+		const pi = makePiStub() as ExtensionAPI & {
+			readonly __eventHandlers: Map<string, Array<(payload: unknown, ctx?: unknown) => unknown>>;
+		};
+
+		await tau(pi);
+
+		let footerFactory:
+			| ((
+					tui: unknown,
+					theme: unknown,
+					footerData: unknown,
+				) => { readonly render: (width: number) => string[]; readonly dispose: () => void })
+			| undefined;
+		let currentModel = {
+			provider: "amazon-bedrock",
+			id: "arn:aws:bedrock:us-east-1:284227543028:application-inference-profile/3k63pyalmwtv",
+		};
+
+		const ctx = {
+			cwd: process.cwd(),
+			hasUI: true,
+			get model() {
+				return currentModel;
+			},
+			modelRegistry: {
+				find: (provider: string, id: string) => ({ provider, id }),
+			},
+			sessionManager: {
+				getEntries: () => [],
+				getBranch: () => [],
+				getSessionId: () => "test-session",
+			},
+			ui: {
+				setEditorComponent: () => undefined,
+				setFooter: (factory: unknown) => {
+					if (typeof factory === "function") {
+						footerFactory = factory as typeof footerFactory;
+					}
+					return () => undefined;
+				},
+				setWidget: () => undefined,
+				notify: () => undefined,
+				getEditorText: () => "",
+			},
+			isIdle: () => true,
+			hasPendingMessages: () => false,
+			abort: () => undefined,
+			shutdown: () => undefined,
+			getContextUsage: () => ({ percent: 0, contextWindow: 500_000 }),
+			compact: () => undefined,
+			getSystemPrompt: () => "",
+		} as unknown;
+
+		for (const handler of pi.__eventHandlers.get("session_start") ?? []) {
+			await Promise.resolve(handler({ type: "session_start" }, ctx));
+		}
+
+		expect(footerFactory).toBeDefined();
+		const component = footerFactory!(
+			{ requestRender: () => undefined },
+			{ fg: (_color: string, value: string) => value },
+			{ onBranchChange: () => () => undefined, getGitBranch: () => "code-mode" },
+		);
+
+		currentModel = { provider: "openrouter", id: "deepseek/deepseek-v4-flash" };
+		for (const handler of pi.__eventHandlers.get("model_select") ?? []) {
+			await Promise.resolve(
+				handler(
+					{
+						type: "model_select",
+						model: currentModel,
+						previousModel: undefined,
+						source: "set",
+					},
+					ctx,
+				),
+			);
+		}
+
+		const [line] = component.render(200);
+		expect(line).toContain("openrouter");
+		expect(line).toContain("deepseek/deepseek-v4-flash");
+		expect(line).not.toContain("amazon-bedrock");
+
+		component.dispose();
+	});
+
 	it("registers per-module session_shutdown handlers without disposing the shared runtime", async () => {
 		const pi = makePiStub() as ExtensionAPI & {
 			readonly __eventHandlers: Map<string, Array<(payload: unknown, ctx?: unknown) => unknown>>;
