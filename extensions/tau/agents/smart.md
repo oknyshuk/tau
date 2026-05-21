@@ -11,7 +11,6 @@ tools:
   - apply_patch
   - agent
   - backlog
-  - memory
   - web_search_exa
   - crawling_exa
   - get_code_context_exa
