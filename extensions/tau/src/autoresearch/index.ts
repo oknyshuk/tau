@@ -126,6 +126,43 @@ function getSessionKey(ctx: Pick<ExtensionContext, "sessionManager">): string {
 	return ctx.sessionManager.getSessionId();
 }
 
+function isStaleExtensionContextError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.includes("This extension ctx is stale after session replacement or reload");
+}
+
+function isRuntimeShutdownError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return (
+		message.includes("ManagedRuntime disposed") ||
+		message.includes("All fibers interrupted without error")
+	);
+}
+
+function sessionFileFromContextIfLive(
+	ctx: Pick<ExtensionContext, "sessionManager">,
+): string | undefined {
+	try {
+		return ctx.sessionManager.getSessionFile?.();
+	} catch (error) {
+		if (isStaleExtensionContextError(error)) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
+function cwdFromContextIfLive(ctx: Pick<ExtensionContext, "cwd">): string | undefined {
+	try {
+		return ctx.cwd;
+	} catch (error) {
+		if (isStaleExtensionContextError(error)) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
 function isAutoresearchLoopState(state: LoopPersistedState): boolean {
 	return (
 		state.kind === "autoresearch" ||
@@ -2389,16 +2426,24 @@ export default function initAutoresearch(
 	});
 
 	pi.on("agent_end", async (event, ctx) => {
-		const sessionFile = ctx.sessionManager.getSessionFile?.();
-		if (sessionFile !== undefined) {
-			await withAutoresearchLoopRunner((runner) =>
-				runner.resolveAgentEnd(sessionFile, event),
-			);
-		}
-
 		try {
-			await updateAutoresearchUI(ctx.cwd, ctx);
+			const sessionFile = sessionFileFromContextIfLive(ctx);
+			if (sessionFile !== undefined) {
+				await withAutoresearchLoopRunner((runner) =>
+					runner.resolveAgentEnd(sessionFile, event),
+				);
+			}
+
+			const cwd = cwdFromContextIfLive(ctx);
+			if (cwd === undefined) {
+				return;
+			}
+
+			await updateAutoresearchUI(cwd, ctx);
 		} catch (error) {
+			if (isRuntimeShutdownError(error) || isStaleExtensionContextError(error)) {
+				return;
+			}
 			if (
 				error instanceof LoopOwnershipValidationError ||
 				error instanceof LoopAmbiguousOwnershipError ||

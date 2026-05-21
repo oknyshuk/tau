@@ -485,10 +485,14 @@ function handlePersistedStateFailure(
 }
 
 function isManagedRuntimeDisposedError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	if (message.includes("All fibers interrupted without error")) {
+		return true;
+	}
 	if (error instanceof Error) {
 		return error.message.includes("ManagedRuntime disposed");
 	}
-	return String(error).includes("ManagedRuntime disposed");
+	return message.includes("ManagedRuntime disposed");
 }
 
 function isStaleExtensionContextError(error: unknown): boolean {
@@ -559,6 +563,17 @@ function sessionFileFromContextIfLive(
 ): string | undefined {
 	try {
 		return sessionFileFromContext(ctx);
+	} catch (error) {
+		if (isIgnorableSessionContextError(error)) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
+function cwdFromContextIfLive(ctx: Pick<ExtensionContext, "cwd">): string | undefined {
+	try {
+		return ctx.cwd;
 	} catch (error) {
 		if (isIgnorableSessionContextError(error)) {
 			return undefined;
@@ -2545,13 +2560,19 @@ export default function initRalph(
 
 	pi.on("agent_end", async (event: AgentEndEvent, ctx) => {
 		try {
+			const cwd = cwdFromContextIfLive(ctx);
+			const sessionFile = sessionFileFromContextIfLive(ctx);
+			if (cwd === undefined || sessionFile === undefined) {
+				return;
+			}
+
 			const result = await withRalph((ralph) =>
-				ralph.handleAgentEnd(ctx.cwd, sessionFileFromContext(ctx), event),
+				ralph.handleAgentEnd(cwd, sessionFile, event),
 			);
 			if (Option.isSome(result.banner)) {
 				notifySafely(ctx, result.banner.value, "info");
 				try {
-					await updateUI(ctx.cwd, ctx);
+					await updateUI(cwd, ctx);
 				} catch (error) {
 					if (!isManagedRuntimeDisposedError(error)) {
 						throw error;
@@ -2561,6 +2582,9 @@ export default function initRalph(
 			await restoreReleasedRalphSessionCapabilities(ctx);
 			await syncRalphHandshakeToolsSafely(ctx);
 		} catch (error) {
+			if (isIgnorableSessionContextError(error)) {
+				return;
+			}
 			if (Option.isSome(handlePersistedStateFailure(error, ctx))) {
 				return;
 			}

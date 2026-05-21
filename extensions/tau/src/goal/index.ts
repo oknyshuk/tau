@@ -124,6 +124,32 @@ function sessionIdFromContext(ctx: Pick<ExtensionContext, "sessionManager">): st
 	return ctx.sessionManager.getSessionId();
 }
 
+function isStaleExtensionContextError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.includes("This extension ctx is stale after session replacement or reload");
+}
+
+function isRuntimeShutdownError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return (
+		message.includes("ManagedRuntime disposed") ||
+		message.includes("All fibers interrupted without error")
+	);
+}
+
+function sessionIdFromContextIfLive(
+	ctx: Pick<ExtensionContext, "sessionManager">,
+): string | undefined {
+	try {
+		return sessionIdFromContext(ctx);
+	} catch (error) {
+		if (isStaleExtensionContextError(error)) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
 function branchFromContext(
 	ctx: Pick<ExtensionContext, "sessionManager">,
 ): ReadonlyArray<SessionEntry> {
@@ -951,46 +977,56 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	});
 
 	pi.on("agent_end", async (event: AgentEndEvent, ctx) => {
-		const sessionId = sessionIdFromContext(ctx);
-		const result = await withGoal(runtime, (goal) =>
-			goal.accountAgentEnd(sessionId, event, Date.now()),
-		);
-		const latestAssistant = latestAssistantMessage(event);
-		const interrupted = wasInterruptedByPi(ctx) || interruptedSessions.has(sessionId);
-		clearGoalInterruptListener(sessionId);
-		interruptedSessions.delete(sessionId);
-		if (interrupted) {
-			clearGoalErrorRetry(sessionId);
-			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
-			await updateGoalUi(ctx);
-			return;
-		}
-		await updateGoalUi(ctx);
-
-		if (latestAssistant?.stopReason === "error") {
-			await handleGoalAssistantError(ctx, result.snapshot, latestAssistant);
-			return;
-		}
-		clearGoalErrorRetry(sessionId);
-
-		if (result.budgetLimitReached && result.snapshot !== null) {
-			await withGoal(runtime, (goal) => goal.markBudgetLimitPromptSent(sessionId));
-			pi.sendMessage(
-				{
-					customType: GOAL_BUDGET_MESSAGE_TYPE,
-					content: budgetLimitPrompt(result.snapshot),
-					display: false,
-					details: { objective: result.snapshot.objective },
-				},
-				{ triggerTurn: true, deliverAs: "followUp" },
+		try {
+			const sessionId = sessionIdFromContextIfLive(ctx);
+			if (sessionId === undefined) {
+				return;
+			}
+			const result = await withGoal(runtime, (goal) =>
+				goal.accountAgentEnd(sessionId, event, Date.now()),
 			);
-			return;
-		}
+			const latestAssistant = latestAssistantMessage(event);
+			const interrupted = wasInterruptedByPi(ctx) || interruptedSessions.has(sessionId);
+			clearGoalInterruptListener(sessionId);
+			interruptedSessions.delete(sessionId);
+			if (interrupted) {
+				clearGoalErrorRetry(sessionId);
+				await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+				await updateGoalUi(ctx);
+				return;
+			}
+			await updateGoalUi(ctx);
 
-		if (!shouldAutoContinue(result.snapshot, ctx)) {
-			return;
+			if (latestAssistant?.stopReason === "error") {
+				await handleGoalAssistantError(ctx, result.snapshot, latestAssistant);
+				return;
+			}
+			clearGoalErrorRetry(sessionId);
+
+			if (result.budgetLimitReached && result.snapshot !== null) {
+				await withGoal(runtime, (goal) => goal.markBudgetLimitPromptSent(sessionId));
+				pi.sendMessage(
+					{
+						customType: GOAL_BUDGET_MESSAGE_TYPE,
+						content: budgetLimitPrompt(result.snapshot),
+						display: false,
+						details: { objective: result.snapshot.objective },
+					},
+					{ triggerTurn: true, deliverAs: "followUp" },
+				);
+				return;
+			}
+
+			if (!shouldAutoContinue(result.snapshot, ctx)) {
+				return;
+			}
+			await dispatchGoalContinuation(pi, runtime, ctx, result.snapshot);
+		} catch (error) {
+			if (isRuntimeShutdownError(error) || isStaleExtensionContextError(error)) {
+				return;
+			}
+			throw error;
 		}
-		await dispatchGoalContinuation(pi, runtime, ctx, result.snapshot);
 	});
 
 	pi.on("session_shutdown", () => {
