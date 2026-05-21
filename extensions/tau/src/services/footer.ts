@@ -176,6 +176,12 @@ const computeTotalCost = (ctx: ExtensionContext): number => {
 	return totalCost;
 };
 
+const finiteNumberOrUndefined = (value: number | null | undefined): number | undefined =>
+	typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const readContextUsage = (ctx: ExtensionContext) =>
+	typeof ctx.getContextUsage === "function" ? ctx.getContextUsage() : undefined;
+
 export const FooterLive = Layer.effect(
 	Footer,
 	Effect.gen(function* () {
@@ -185,6 +191,11 @@ export const FooterLive = Layer.effect(
 		let currentTotalCost = 0;
 		let currentSandboxConfig = yield* sandbox.getConfig;
 		let currentCwd: string | undefined;
+		let currentProvider: string | null = null;
+		let currentModel = "no-model";
+		let currentThinking = "off";
+		let currentContextPercent: number | undefined;
+		let currentContextWindow: number | undefined;
 
 		const emitFooterChanged = () => pi.events.emit("tau:footer:changed", null);
 
@@ -235,6 +246,12 @@ export const FooterLive = Layer.effect(
 						const cwdChanged = currentCwd !== undefined && currentCwd !== ctx.cwd;
 						currentCwd = ctx.cwd;
 						currentTotalCost = computeTotalCost(ctx);
+						currentProvider = ctx.model?.provider ?? null;
+						currentModel = ctx.model?.id ?? "no-model";
+						currentThinking = pi.getThinkingLevel() ?? "off";
+						const usage = readContextUsage(ctx);
+						currentContextPercent = finiteNumberOrUndefined(usage?.percent);
+						currentContextWindow = finiteNumberOrUndefined(usage?.contextWindow);
 						if (cwdChanged) {
 							setFooterHygieneIfChanged(currentHygieneRef, EMPTY_FOOTER_HYGIENE);
 						}
@@ -275,7 +292,8 @@ export const FooterLive = Layer.effect(
 													: ("warning" as const);
 										const dots = [theme.fg(dotColor, "•")];
 
-										const repoName = path.basename(ctx.cwd);
+										const cwd = currentCwd ?? process.cwd();
+										const repoName = path.basename(cwd);
 										const branch = footerData.getGitBranch();
 										const repoLine = branch
 											? `${repoName}:${branch}`
@@ -296,11 +314,9 @@ export const FooterLive = Layer.effect(
 											" " +
 											inProgressPart;
 
-										const providerLabel = resolveFooterProviderLabel(
-											ctx.model?.provider ?? null,
-										);
-										const model = ctx.model?.id ?? "no-model";
-										const thinkingLabel = pi.getThinkingLevel() ?? "off";
+										const providerLabel = resolveFooterProviderLabel(currentProvider);
+										const model = currentModel;
+										const thinkingLabel = currentThinking;
 										const thinkingStr = ` • ${thinkingLabel}`;
 										const modelAndMetaRaw = `${model}${thinkingStr}`;
 										const middleRaw = providerLabel
@@ -310,13 +326,12 @@ export const FooterLive = Layer.effect(
 
 										const costStr = `$${totalCost.toFixed(3)}`;
 
-										const usage = ctx.getContextUsage();
-										const contextWindow = usage?.contextWindow;
+										const contextWindow = currentContextWindow;
 										const contextStr =
 											typeof contextWindow === "number" &&
 											Number.isFinite(contextWindow) &&
 											contextWindow > 0
-												? `${Math.round(usage?.percent ?? 0)}%/${formatTokenWindow(contextWindow)}`
+												? `${Math.round(currentContextPercent ?? 0)}%/${formatTokenWindow(contextWindow)}`
 												: null;
 
 										const rightParts = [costStr, contextStr].filter(
@@ -393,6 +408,12 @@ export const FooterLive = Layer.effect(
 					pi.on("turn_end", (_event: unknown, ctx: ExtensionContext) => {
 						currentCwd = ctx.cwd;
 						currentTotalCost = computeTotalCost(ctx);
+						currentProvider = ctx.model?.provider ?? null;
+						currentModel = ctx.model?.id ?? "no-model";
+						currentThinking = pi.getThinkingLevel() ?? "off";
+						const usage = readContextUsage(ctx);
+						currentContextPercent = finiteNumberOrUndefined(usage?.percent);
+						currentContextWindow = finiteNumberOrUndefined(usage?.contextWindow);
 						emitFooterChanged();
 					});
 					pi.on("session_tree", () => emitFooterChanged());

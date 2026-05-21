@@ -267,6 +267,79 @@ describe("runTau runtime", () => {
 		expect(editorSetCount).toBeGreaterThan(0);
 	});
 
+	it("footer render uses session snapshots instead of captured extension ctx", async () => {
+		const pi = makePiStub() as ExtensionAPI & {
+			readonly __eventHandlers: Map<string, Array<(payload: unknown, ctx?: unknown) => unknown>>;
+		};
+
+		await tau(pi);
+
+		let footerFactory:
+			| ((
+					tui: unknown,
+					theme: unknown,
+					footerData: unknown,
+				) => { readonly render: (width: number) => string[]; readonly dispose: () => void })
+			| undefined;
+		let stale = false;
+
+		const ctx = {
+			get cwd() {
+				if (stale) throw new Error("stale ctx read: cwd");
+				return process.cwd();
+			},
+			hasUI: true,
+			model: { provider: "moonshot", id: "kimi-for-coding" },
+			modelRegistry: {
+				find: (provider: string, id: string) => ({ provider, id }),
+			},
+			sessionManager: {
+				getEntries: () => [],
+				getBranch: () => [],
+				getSessionId: () => "test-session",
+			},
+			ui: {
+				setEditorComponent: () => undefined,
+				setFooter: (factory: unknown) => {
+					if (typeof factory === "function") {
+						footerFactory = factory as typeof footerFactory;
+					}
+					return () => undefined;
+				},
+				setWidget: () => undefined,
+				notify: () => undefined,
+				getEditorText: () => "",
+			},
+			isIdle: () => true,
+			hasPendingMessages: () => false,
+			abort: () => undefined,
+			shutdown: () => undefined,
+			getContextUsage: () => {
+				if (stale) throw new Error("stale ctx read: usage");
+				return { percent: 12, contextWindow: 200_000 };
+			},
+			compact: () => undefined,
+			getSystemPrompt: () => "",
+		} as unknown;
+
+		const sessionStartHandlers = pi.__eventHandlers.get("session_start") ?? [];
+		for (const handler of sessionStartHandlers) {
+			await Promise.resolve(handler({ type: "session_start" }, ctx));
+		}
+
+		expect(footerFactory).toBeDefined();
+		stale = true;
+
+		const component = footerFactory!(
+			{ requestRender: () => undefined },
+			{ fg: (_color: string, value: string) => value },
+			{ onBranchChange: () => () => undefined, getGitBranch: () => "code-mode" },
+		);
+
+		expect(() => component.render(120)).not.toThrow();
+		component.dispose();
+	});
+
 	it("registers per-module session_shutdown handlers without disposing the shared runtime", async () => {
 		const pi = makePiStub() as ExtensionAPI & {
 			readonly __eventHandlers: Map<string, Array<(payload: unknown, ctx?: unknown) => unknown>>;
@@ -381,5 +454,41 @@ describe("runTau runtime", () => {
 		} finally {
 			fs.rmSync(tempHome, { recursive: true, force: true });
 		}
+	});
+
+	it("disposes the ManagedRuntime on terminal quit shutdown", async () => {
+		const pi = makePiStub() as ExtensionAPI & {
+			readonly __eventHandlers: Map<string, Array<(payload: unknown, ctx?: unknown) => unknown>>;
+		};
+		const fiber = runTau(pi);
+
+		await new Promise((resolve) => setTimeout(resolve, 200));
+
+		const sessionShutdownHandlers = pi.__eventHandlers.get("session_shutdown") ?? [];
+		const ctx = {
+			cwd: process.cwd(),
+			hasUI: false,
+			sessionManager: {
+				getEntries: () => [],
+				getBranch: () => [],
+				getSessionId: () => "test-session",
+				getSessionFile: () => undefined,
+			},
+			ui: {
+				setStatus: () => undefined,
+				setWidget: () => undefined,
+				notify: () => undefined,
+				setFooter: () => () => undefined,
+				getEditorText: () => "",
+			},
+		} as unknown;
+
+		for (const handler of sessionShutdownHandlers) {
+			await Promise.resolve(handler({ type: "session_shutdown", reason: "quit" }, ctx));
+		}
+
+		await expect(
+			Effect.runPromise(Fiber.await(fiber).pipe(Effect.timeout("200 millis"))),
+		).resolves.toBeDefined();
 	});
 });

@@ -34,6 +34,7 @@ import { AgentRegistry } from "./agent/agent-registry.js";
 import { validateResolvedAgentConfiguration } from "./agent/startup-validation.js";
 import { buildToolDescription } from "./agent/tool.js";
 import { installSqliteExperimentalWarningFilter } from "./shared/sqlite-warning.js";
+import { isRecord } from "./shared/json.js";
 import { RalphRepoLive } from "./ralph/repo.js";
 import { LoopRepoLive } from "./loops/repo.js";
 import { LoopEngine, LoopEngineLive } from "./services/loop-engine.js";
@@ -261,8 +262,13 @@ export const startTau = (pi: ExtensionAPI) => {
 			//
 			// Per-session cleanup still happens through each module's own
 			// `session_shutdown` handler (e.g. ralph loop state persistence).
-			// Process-level cleanup relies on Node's normal exit sequence;
-			// SQLite and filesystem resources flush on their own.
+			// Process-level cleanup only runs on the terminal quit shutdown.
+			pi.on("session_shutdown", async (event: unknown) => {
+				if (!isRecord(event) || event["reason"] !== "quit") {
+					return;
+				}
+				await currentRuntime.dispose();
+			});
 		});
 	});
 

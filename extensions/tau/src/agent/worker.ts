@@ -1,7 +1,6 @@
 import {
 	type AgentSession,
 	SettingsManager,
-	AuthStorage,
 	ModelRegistry,
 	DefaultResourceLoader,
 	type ToolDefinition,
@@ -194,9 +193,15 @@ export class AgentWorker implements Agent {
 		agentSummaries?: ReadonlyArray<{ readonly name: string; readonly description: string }>;
 	}) {
 		return Effect.gen(function* () {
-			const modelRegistry = opts.modelRegistry
-				? opts.modelRegistry
-				: new ModelRegistry(AuthStorage.create());
+			if (opts.modelRegistry === undefined) {
+				return yield* Effect.fail(
+					new AgentError({
+						message: "Agent model registry is unavailable from the parent session",
+					}),
+				);
+			}
+
+			const modelRegistry = opts.modelRegistry;
 			const authStorage = modelRegistry.authStorage;
 
 			const appendPrompts = buildWorkerAppendPrompts({
