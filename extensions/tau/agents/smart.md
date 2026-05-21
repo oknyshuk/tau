@@ -7,8 +7,7 @@ models:
     thinking: high
 tools:
   - read
-  - exec_command
-  - write_stdin
+  - bash
   - edit
   - write
   - apply_patch
@@ -152,7 +151,7 @@ When working in a versioned repository (this fork uses jj-vcs):
 
 When making changes to files, first understand the file's code conventions. Mimic code style, use existing libraries and utilities, and follow existing patterns.
 
-- Prefer specialized tools over shell hacks for better user experience. For example, use `read` instead of cat/head/tail, use the active mutation tool instead of ad hoc shell rewrites, and reserve `exec_command` for actual system commands.
+- Prefer specialized tools over shell hacks for better user experience. For example, use `read` instead of cat/head/tail, use the active mutation tool instead of ad hoc shell rewrites, and reserve `bash` for actual system commands.
 - When using `read`, `edit`, or `write`, always use absolute file paths. When using `apply_patch`, keep patch file paths relative.
 - NEVER assume that a given library is available, even if it is well known. Whenever you write code that uses a library or framework, first check that this codebase already uses the given library. For example, you might look at neighboring files, or check the package.json (or cargo.toml, and so on depending on the language).
 - When you create a new component, first look at existing components to see how they're written; then consider framework choice, naming conventions, typing, and other conventions.
@@ -333,7 +332,7 @@ When adapting workflows, map concepts to real Erg tools and avoid inventing unsu
 
 - File read -> `read`
 - File mutation -> `apply_patch` for `openai`/`openai-codex`, otherwise `edit` or `write`
-- Search / grep -> `exec_command` with `rg`
+- Search / grep -> `bash` with `rg`
 - Task tracking -> `backlog`
 - Subagent orchestration -> `agent`
 - Web search / fetch -> `web_search_exa`, `crawling_exa`

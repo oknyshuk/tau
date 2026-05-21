@@ -26,6 +26,8 @@ class FakeAgentSession {
 		return Promise.resolve();
 	}
 
+	dispose(): void {}
+
 	emit(event: AgentSessionEvent): void {
 		for (const listener of this.listeners) {
 			listener(event);
@@ -97,7 +99,7 @@ describe("WorkerSessionController", () => {
 		controller.attach(session.asAgentSession());
 		await Effect.runPromise(controller.replaceBackground(blockingEffect));
 
-		await Effect.runPromise(controller.shutdown(session.asAgentSession()));
+		await Effect.runPromise(controller.shutdown(session.asAgentSession(), { abortSession: true }));
 		await Effect.runPromise(Deferred.await(interrupted));
 
 		expect(session.listeners).toHaveLength(0);
@@ -145,7 +147,7 @@ describe("WorkerSessionController", () => {
 			],
 		} as AgentSessionEvent);
 
-		await Effect.runPromise(controller.shutdown(session.asAgentSession()));
+		await Effect.runPromise(controller.shutdown(session.asAgentSession(), { abortSession: true }));
 		await Effect.runPromise(Deferred.succeed(gate, undefined));
 		await Effect.runPromise(Effect.sleep("10 millis"));
 

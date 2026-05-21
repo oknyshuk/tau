@@ -7,8 +7,7 @@ models:
     thinking: inherit
 tools:
   - read
-  - exec_command
-  - write_stdin
+  - bash
   - backlog
 sandbox: read-only
 approval_timeout: 60

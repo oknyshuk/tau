@@ -94,7 +94,7 @@ Project-specific smart prompt.
 				JSON.stringify({
 					agents: {
 						smart: { model: "anthropic/claude-sonnet-4-5", thinking: "high" },
-						deep: { tools: ["read", "exec_command"], spawns: ["finder"] },
+						deep: { tools: ["read", "bash"], spawns: ["finder"] },
 						rush: { models: [{ model: "openai-codex/gpt-5.4", thinking: "minimal" }] },
 					},
 				}),
@@ -105,7 +105,7 @@ Project-specific smart prompt.
 			expect(registry.resolve("smart")?.models).toEqual([
 				{ model: "anthropic/claude-sonnet-4-5", thinking: "high" },
 			]);
-			expect(registry.resolve("deep")?.tools).toEqual(["read", "exec_command"]);
+			expect(registry.resolve("deep")?.tools).toEqual(["read", "bash"]);
 			expect(registry.resolve("deep")?.spawns).toEqual(["finder"]);
 			expect(registry.resolve("rush")?.models).toEqual([
 				{ model: "openai-codex/gpt-5.4", thinking: "minimal" },

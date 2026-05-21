@@ -75,12 +75,18 @@ export class WorkerSessionController {
 		return activeFiber ? Fiber.interrupt(activeFiber) : Effect.void;
 	}
 
-	shutdown(session: AgentSession): Effect.Effect<void> {
+	shutdown(
+		session: AgentSession,
+		options: { readonly abortSession: boolean },
+	): Effect.Effect<void> {
 		return this.interruptBackground().pipe(
-			Effect.andThen(Effect.promise(() => session.abort())),
+			Effect.andThen(
+				options.abortSession ? Effect.promise(() => session.abort()) : Effect.void,
+			),
 			Effect.andThen(
 				Effect.sync(() => {
 					this.releaseSession(session.sessionId);
+					session.dispose();
 				}),
 			),
 			Effect.andThen(SubscriptionRef.set(this.options.statusRef, buildShutdownStatus())),
