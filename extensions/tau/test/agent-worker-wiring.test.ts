@@ -19,7 +19,11 @@ const {
 	createAgentSessionMock: vi.fn(),
 	applyAgentToolAllowlistMock: vi.fn(),
 	createdSessions: [] as FakeAgentSession[],
-	resourceLoaderOptions: [] as Array<{ readonly cwd: unknown; readonly agentDir: unknown }>,
+	resourceLoaderOptions: [] as Array<{
+		readonly cwd: unknown;
+		readonly agentDir: unknown;
+		readonly noExtensions: unknown;
+	}>,
 }));
 
 vi.mock("@mariozechner/pi-coding-agent", async () => {
@@ -28,8 +32,16 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
 	);
 
 	class FakeDefaultResourceLoader {
-		constructor(options: { readonly cwd: unknown; readonly agentDir: unknown }) {
-			resourceLoaderOptions.push({ cwd: options.cwd, agentDir: options.agentDir });
+		constructor(options: {
+			readonly cwd: unknown;
+			readonly agentDir: unknown;
+			readonly noExtensions?: unknown;
+		}) {
+			resourceLoaderOptions.push({
+				cwd: options.cwd,
+				agentDir: options.agentDir,
+				noExtensions: options.noExtensions,
+			});
 		}
 
 		async reload(): Promise<void> {}
@@ -70,6 +82,8 @@ class FakeAgentSession {
 	readonly isCompacting = false;
 	readonly customEntries: Array<{ customType: string; data: unknown }> = [];
 	readonly model: Model<Api>;
+	abortCount = 0;
+	disposeCount = 0;
 	thinkingLevel: AgentSession["thinkingLevel"] = "medium";
 
 	constructor(id: string, streamFn: AgentSession["agent"]["streamFn"], model: Model<Api>) {
@@ -95,7 +109,11 @@ class FakeAgentSession {
 		return () => undefined;
 	}
 	abort(): Promise<void> {
+		this.abortCount += 1;
 		return Promise.resolve();
+	}
+	dispose(): void {
+		this.disposeCount += 1;
 	}
 }
 
@@ -219,6 +237,7 @@ describe("AgentWorker structured-output wiring", () => {
 		expect(resourceLoaderOptions[0]?.cwd).toBe(process.cwd());
 		expect(resourceLoaderOptions[0]?.agentDir).toEqual(expect.any(String));
 		expect(resourceLoaderOptions[0]?.agentDir).not.toBe("");
+		expect(resourceLoaderOptions[0]?.noExtensions).toBe(true);
 		expect(createdSessions[0]?.agent.streamFn).toBe(toolOnlyStreamFn);
 		expect(applyAgentToolAllowlistMock).toHaveBeenCalledTimes(1);
 	});
@@ -276,6 +295,39 @@ describe("AgentWorker structured-output wiring", () => {
 		).rejects.toThrow("Agent model registry is unavailable from the parent session");
 
 		expect(createAgentSessionMock).not.toHaveBeenCalled();
+	});
+
+	it("shuts down completed workers without aborting an already idle session", async () => {
+		const worker = await Effect.runPromise(
+			AgentWorker.make({
+				definition: TEST_DEFINITION,
+				depth: 0,
+				cwd: process.cwd(),
+				parentSessionFile: "parent-session",
+				executionState: TEST_EXECUTION_STATE,
+				executionProfile: TEST_EXECUTION_PROFILE,
+				parentSandboxConfig: PARENT_SANDBOX_CONFIG,
+				parentModel: TEST_MODEL,
+				approvalBroker: undefined,
+				modelRegistry: makeModelRegistry() as never,
+				resultSchema: undefined,
+				runPromise: async () => {
+					throw new Error("unused");
+				},
+				runFork: runForkForTests,
+			}),
+		);
+
+		(
+			worker as unknown as {
+				terminalState: "completed";
+			}
+		).terminalState = "completed";
+
+		await Effect.runPromise(worker.shutdown());
+
+		expect(createdSessions[0]?.abortCount).toBe(0);
+		expect(createdSessions[0]?.disposeCount).toBe(1);
 	});
 
 	it("reinstalls toolOnlyStreamFn after session recreation on model switch", async () => {

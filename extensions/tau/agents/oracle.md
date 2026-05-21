@@ -7,8 +7,7 @@ models:
     thinking: inherit
 tools:
   - read
-  - exec_command
-  - write_stdin
+  - bash
   - backlog
   - web_search_exa
   - crawling_exa

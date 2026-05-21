@@ -7,14 +7,13 @@ const WORKER_AVAILABLE_TOOL_NAMES = [
 	"backlog",
 	"crawling_exa",
 	"edit",
-	"exec_command",
+	"bash",
 	"find",
 	"get_code_context_exa",
 	"grep",
 	"ls",
 	"read",
 	"web_search_exa",
-	"write_stdin",
 	"write",
 ] as const;
 

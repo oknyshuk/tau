@@ -4,8 +4,7 @@ description: |
   Deep agent. High-reasoning agent for hard codebase analysis, architecture, and complex debugging.
 tools:
   - read
-  - exec_command
-  - write_stdin
+  - bash
   - edit
   - write
   - apply_patch
@@ -241,7 +240,7 @@ When adapting workflows, map concepts to real Erg tools and avoid inventing unsu
 
 - File read -> `read`
 - File mutation -> `apply_patch` for `openai`/`openai-codex`, otherwise `edit` or `write`
-- Search / grep -> `exec_command` with `rg`
+- Search / grep -> `bash` with `rg`
 - Task tracking -> `backlog`
 - Subagent orchestration -> `agent`
 - Web search / fetch -> `web_search_exa`, `crawling_exa`, `get_code_context_exa`

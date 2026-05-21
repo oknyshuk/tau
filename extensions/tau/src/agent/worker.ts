@@ -282,6 +282,7 @@ export class AgentWorker implements Agent {
 				cwd: opts.cwd,
 				agentDir: getAgentDir(),
 				settingsManager,
+				noExtensions: true,
 				appendSystemPromptOverride: (base) => [...base, ...appendPrompts],
 			});
 			yield* Effect.promise(() => resourceLoader.reload());
@@ -511,8 +512,9 @@ export class AgentWorker implements Agent {
 		// eslint-disable-next-line @typescript-eslint/no-this-alias
 		const worker = this;
 		return Effect.gen(function* () {
+			const abortSession = worker.terminalState === undefined;
 			worker.terminalState = "shutdown";
-			yield* worker.sessionController.shutdown(worker.session);
+			yield* worker.sessionController.shutdown(worker.session, { abortSession });
 		});
 	}
 

@@ -267,6 +267,7 @@ export const startTau = (pi: ExtensionAPI) => {
 				if (!isRecord(event) || event["reason"] !== "quit") {
 					return;
 				}
+				await agentRuntimeBridge.closeAll();
 				await currentRuntime.dispose();
 			});
 		});
