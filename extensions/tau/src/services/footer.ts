@@ -418,7 +418,7 @@ export const FooterLive = Layer.effect(
 					});
 					pi.on("session_tree", () => emitFooterChanged());
 					pi.on("session_fork", () => emitFooterChanged());
-					pi.on("model_select", () => emitFooterChanged());
+					pi.on("model_select", updateSessionFooterState);
 				});
 			}),
 		});
