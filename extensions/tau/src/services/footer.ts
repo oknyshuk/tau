@@ -6,6 +6,7 @@ import type {
 	ReadonlyFooterDataProvider,
 	Theme,
 } from "@earendil-works/pi-coding-agent";
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type { TUI } from "@earendil-works/pi-tui";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import * as path from "node:path";
@@ -69,6 +70,26 @@ const FOOTER_PROVIDER_ALIASES: Record<string, string> = {
 const resolveFooterProviderLabel = (provider: string | null): string | null => {
 	if (!provider) return null;
 	return FOOTER_PROVIDER_ALIASES[provider] ?? provider;
+};
+
+/**
+ * Pick a short, human-readable label for the active model.
+ *
+ * Strategy (in order):
+ *   1. `undefined` -> "no-model".
+ *   2. `Model.name` when it differs from `Model.id` -- this catches both
+ *      pi's built-in models (e.g. "Claude Sonnet 4.5") and custom entries
+ *      in `~/.pi/agent/models.json` (e.g. "Claude Opus 4.7" mapped to a
+ *      Bedrock inference-profile ARN).
+ *   3. The tail of `Model.id` after the last `/` or `:` -- handles raw
+ *      ARNs / provider-prefixed ids when `name` was never set.
+ *   4. `Model.id` unchanged as a final fallback.
+ */
+export const resolveFooterModelLabel = (model: Model<Api> | undefined): string => {
+	if (model === undefined) return "no-model";
+	if (model.name && model.name !== model.id) return model.name;
+	const tail = model.id.split(/[\/:]/).pop();
+	return tail && tail.length > 0 ? tail : model.id;
 };
 
 const formatTokenWindow = (tokens: number): string => {
@@ -304,7 +325,7 @@ export const FooterLive = Layer.effect(
 						currentCwd = ctx.cwd;
 						currentTotalCost = computeTotalCost(ctx);
 						currentProvider = ctx.model?.provider ?? null;
-						currentModel = ctx.model?.id ?? "no-model";
+						currentModel = resolveFooterModelLabel(ctx.model);
 						currentThinking = pi.getThinkingLevel() ?? "off";
 						const usage = readContextUsage(ctx);
 						currentContextPercent = finiteNumberOrUndefined(usage?.percent);
@@ -465,7 +486,7 @@ export const FooterLive = Layer.effect(
 						currentCwd = ctx.cwd;
 						currentTotalCost = computeTotalCost(ctx);
 						currentProvider = ctx.model?.provider ?? null;
-						currentModel = ctx.model?.id ?? "no-model";
+						currentModel = resolveFooterModelLabel(ctx.model);
 						currentThinking = pi.getThinkingLevel() ?? "off";
 						const usage = readContextUsage(ctx);
 						currentContextPercent = finiteNumberOrUndefined(usage?.percent);

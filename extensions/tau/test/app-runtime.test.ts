@@ -354,9 +354,10 @@ describe("runTau runtime", () => {
 					footerData: unknown,
 				) => { readonly render: (width: number) => string[]; readonly dispose: () => void })
 			| undefined;
-		let currentModel = {
+		let currentModel: { provider: string; id: string; name?: string } = {
 			provider: "amazon-bedrock",
 			id: "arn:aws:bedrock:us-east-1:284227543028:application-inference-profile/3k63pyalmwtv",
+			name: "Claude Test Bedrock",
 		};
 
 		const ctx = {
@@ -405,7 +406,11 @@ describe("runTau runtime", () => {
 			{ onBranchChange: () => () => undefined, getGitBranch: () => "code-mode" },
 		);
 
-		currentModel = { provider: "openrouter", id: "deepseek/deepseek-v4-flash" };
+		currentModel = {
+			provider: "openrouter",
+			id: "deepseek/deepseek-v4-flash",
+			name: "DeepSeek V4 Flash",
+		};
 		for (const handler of pi.__eventHandlers.get("model_select") ?? []) {
 			await Promise.resolve(
 				handler(
@@ -422,7 +427,7 @@ describe("runTau runtime", () => {
 
 		const [line] = component.render(200);
 		expect(line).toContain("openrouter");
-		expect(line).toContain("deepseek/deepseek-v4-flash");
+		expect(line).toContain("DeepSeek V4 Flash");
 		expect(line).not.toContain("amazon-bedrock");
 
 		component.dispose();
