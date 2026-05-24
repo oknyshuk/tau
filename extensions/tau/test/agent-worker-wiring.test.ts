@@ -5,7 +5,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentControl } from "../src/agent/services.js";
 import type { AgentDefinition } from "../src/agent/types.js";
 import type { RunAgentControlFork } from "../src/agent/runtime.js";
-import type { CuratedMemory } from "../src/services/curated-memory.js";
 import type { ExecutionState } from "../src/services/execution-state.js";
 import type { ResolvedSandboxConfig } from "../src/sandbox/config.js";
 import { TAU_PERSISTED_STATE_TYPE } from "../src/shared/state.js";
@@ -186,7 +185,7 @@ const makeModelRegistry = () => ({
 const runForkForTests: RunAgentControlFork = <
 	A,
 	E,
-	R extends AgentControl | CuratedMemory | ExecutionState,
+	R extends AgentControl | ExecutionState,
 >(
 	effect: Effect.Effect<A, E, R>,
 ) => Effect.runFork(effect as unknown as Effect.Effect<A, E, never>);

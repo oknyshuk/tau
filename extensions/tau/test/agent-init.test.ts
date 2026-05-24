@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import initAgent from "../src/agent/index.js";
 import { AgentControl, type ControlSpawnOptions } from "../src/agent/services.js";
 import { type RunAgentControlFork, type RunAgentControlPromise } from "../src/agent/runtime.js";
-import { CuratedMemory } from "../src/services/curated-memory.js";
+
 import {
 	ExecutionState,
 	type ExecutionState as ExecutionStateService,
@@ -55,20 +55,6 @@ function makeExecutionStateStub(): ExecutionStateService {
 	};
 }
 
-function makeCuratedMemoryStub() {
-	return {
-		getSnapshot: () => Effect.die("unused"),
-		getEntriesSnapshot: () => Effect.die("unused"),
-		reloadFrozenSnapshot: () => Effect.die("unused"),
-		getFrozenPromptBlock: Effect.succeed(""),
-		add: () => Effect.die("unused"),
-		update: () => Effect.die("unused"),
-		remove: () => Effect.die("unused"),
-		read: () => Effect.die("unused"),
-		setup: Effect.void,
-	};
-}
-
 function makePiStub(registeredTools: RegisteredTool[]): ExtensionAPI {
 	const base = {
 		on: () => undefined,
@@ -96,7 +82,7 @@ function makeRuntimeWithSpawnCalls(spawnCalls: ControlSpawnOptions[]): {
 	const runPromise: RunAgentControlPromise = <
 		A,
 		E,
-		R extends AgentControl | CuratedMemory | ExecutionState,
+		R extends AgentControl  | ExecutionState,
 	>(
 		effect: Effect.Effect<A, E, R>,
 	) => {
@@ -120,7 +106,7 @@ function makeRuntimeWithSpawnCalls(spawnCalls: ControlSpawnOptions[]): {
 						}),
 					),
 					Layer.succeed(ExecutionState, makeExecutionStateStub()),
-					Layer.succeed(CuratedMemory, makeCuratedMemoryStub()),
+					
 				),
 			),
 		) as Effect.Effect<A, E, never>;
@@ -130,7 +116,7 @@ function makeRuntimeWithSpawnCalls(spawnCalls: ControlSpawnOptions[]): {
 	const runFork: RunAgentControlFork = <
 		A,
 		E,
-		R extends AgentControl | CuratedMemory | ExecutionState,
+		R extends AgentControl  | ExecutionState,
 	>(
 		effect: Effect.Effect<A, E, R>,
 	) => {
@@ -150,7 +136,7 @@ function makeRuntimeWithSpawnCalls(spawnCalls: ControlSpawnOptions[]): {
 						}),
 					),
 					Layer.succeed(ExecutionState, makeExecutionStateStub()),
-					Layer.succeed(CuratedMemory, makeCuratedMemoryStub()),
+					
 				),
 			),
 		) as Effect.Effect<A, E, never>;

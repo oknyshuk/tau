@@ -320,7 +320,7 @@ function lockMatchForSnapshot(snapshot: LockSnapshot): LockMatch {
 	};
 }
 
-export async function inspectSharedFileLock(
+async function inspectSharedFileLock(
 	lockPath: string,
 	config: SharedFileLockConfig,
 ): Promise<SharedFileLockInfo | null> {
@@ -364,7 +364,7 @@ export async function inspectSharedFileLock(
 	});
 }
 
-export async function acquireSharedFileLock(
+async function acquireSharedFileLock(
 	lockPath: string,
 	config: SharedFileLockConfig,
 ): Promise<SharedFileLockLease> {
@@ -448,7 +448,7 @@ export async function acquireSharedFileLock(
 	});
 }
 
-export async function releaseSharedFileLock(lease: SharedFileLockLease): Promise<void> {
+async function releaseSharedFileLock(lease: SharedFileLockLease): Promise<void> {
 	const matches = await lockFileMatches(lease.path, { type: "token", token: lease.token }, false);
 	if (!matches) {
 		return;
@@ -464,7 +464,7 @@ export async function releaseSharedFileLock(lease: SharedFileLockLease): Promise
 	}
 }
 
-export const acquireSharedFileLockEffect = (
+const acquireSharedFileLockEffect = (
 	lockPath: string,
 	config: SharedFileLockConfig,
 ): Effect.Effect<SharedFileLockLease, SharedFileLockError, never> =>
@@ -473,7 +473,7 @@ export const acquireSharedFileLockEffect = (
 		catch: (error) => toSharedFileLockError(lockPath, "acquire", error),
 	});
 
-export const releaseSharedFileLockEffect = (
+const releaseSharedFileLockEffect = (
 	lease: SharedFileLockLease,
 ): Effect.Effect<void, SharedFileLockError, never> =>
 	Effect.tryPromise({
@@ -491,19 +491,6 @@ export const acquireSharedFileLockScoped = (
 			Effect.orElseSucceed(() => undefined),
 		),
 	);
-
-export async function withSharedFileLock<T>(
-	lockPath: string,
-	config: SharedFileLockConfig,
-	fn: () => Promise<T>,
-): Promise<T> {
-	const lease = await acquireSharedFileLock(lockPath, config);
-	try {
-		return await fn();
-	} finally {
-		await releaseSharedFileLock(lease);
-	}
-}
 
 export function describeSharedFileLockError(error: unknown): string {
 	if (error instanceof SharedFileLockHeld) {

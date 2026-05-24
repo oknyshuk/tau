@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { getHomeDir } from "./home.js";
 
-export const EXTENSION_ROOT = path.resolve(
+const EXTENSION_ROOT = path.resolve(
 	path.dirname(fileURLToPath(import.meta.url)),
 	"..",
 	"..",
@@ -55,10 +55,6 @@ export function findNearestWorkspaceRoot(cwd: string): string {
 		}
 		current = parent;
 	}
-}
-
-export function getProjectTauMemoryDir(cwd: string): string {
-	return path.join(findNearestWorkspaceRoot(cwd), ".pi", "tau", "memories");
 }
 
 export function getProjectSettingsPath(projectPiDir: string): string {

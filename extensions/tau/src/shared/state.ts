@@ -14,10 +14,6 @@ export type TauPersistedState = {
 	status?: { fetchedAt: number; values: Record<string, { percentLeft: number }> } | undefined;
 	execution?: ExecutionPersistedState | undefined;
 	sandbox?: Record<string, unknown> | undefined;
-	agentAwareness?: {
-		instructionsInjected?: boolean | undefined;
-		lastAgentCount?: number | undefined;
-	} | undefined;
 };
 
 function normalizePersistedState(state: TauPersistedState): TauPersistedState {
@@ -63,12 +59,6 @@ const TauPersistedStateSchema = Schema.Struct({
 	),
 	execution: Schema.optional(ExecutionPersistedStateSchema),
 	sandbox: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
-	agentAwareness: Schema.optional(
-		Schema.Struct({
-			instructionsInjected: Schema.optional(Schema.Boolean),
-			lastAgentCount: Schema.optional(FiniteNumber),
-		}),
-	),
 });
 
 const decodePersistedStateSync = Schema.decodeUnknownSync(TauPersistedStateSchema);
