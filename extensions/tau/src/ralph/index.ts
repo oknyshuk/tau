@@ -57,7 +57,6 @@ import {
 	type SandboxConfig,
 	type SandboxPreset,
 } from "../sandbox/config.js";
-import { shouldUseApplyPatchForProvider } from "../sandbox/mutation-tools.js";
 import { discoverWorkspaceRoot } from "../sandbox/workspace-root.js";
 import { resolvePreset, SANDBOX_PRESET_NAMES } from "../shared/policy.js";
 import { clearRalphOwnedSessionCacheEntry } from "../agents-menu/state.js";
@@ -1030,7 +1029,6 @@ export default function initRalph(
 			allTools: pi.getAllTools(),
 			agentRegistry,
 			enabledAgents: [],
-			useApplyPatchForMutationTools: shouldUseApplyPatchForProvider(ctx.model?.provider),
 		});
 	};
 

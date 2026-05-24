@@ -35,15 +35,8 @@ import { wrapCommandWithSandbox, isAsrtAvailable, getAsrtLoadError } from "./bas
 import type { ShellInvocation } from "./bash.js";
 import { detectMissingSandboxDeps, formatMissingDepsMessage } from "./sandbox-prereqs.js";
 import { discoverWorkspaceRoot } from "./workspace-root.js";
-import { createApplyPatchToolDefinition } from "./apply-patch.js";
 import { renderShellCall, renderShellResult, type ShellToolDetails } from "./shell-render.js";
-import {
-	getLegacyMutationToolSelection,
-	rewriteMutationToolNames,
-	rewriteShellToolNames,
-	shouldUseApplyPatchForProvider,
-	type LegacyMutationToolName,
-} from "./mutation-tools.js";
+import { rewriteShellToolNames } from "./mutation-tools.js";
 
 import { isRecord } from "../shared/json.js";
 import type { TauPersistedState } from "../shared/state.js";
@@ -154,9 +147,6 @@ type SessionState = {
 
 	/** Pending SANDBOX_CHANGE notice to inject into the next user message as content[0]. */
 	pendingSandboxNotice?: { hash: string; text: string } | undefined;
-
-	/** Remember the non-apply_patch mutation tool selection for provider switching. */
-	legacyMutationTools?: LegacyMutationToolName[] | undefined;
 };
 
 function readSessionOverride(value: unknown): SandboxConfig | undefined {
@@ -190,9 +180,6 @@ function sessionStateToPersisted(state: SessionState): Record<string, unknown> {
 			hash: state.pendingSandboxNotice.hash,
 			text: state.pendingSandboxNotice.text,
 		};
-	}
-	if (state.legacyMutationTools && state.legacyMutationTools.length > 0) {
-		out["legacyMutationTools"] = [...state.legacyMutationTools];
 	}
 	return out;
 }
@@ -229,17 +216,6 @@ function loadSessionState(persisted: TauPersistedState | undefined): SessionStat
 		const text = pending["text"];
 		if (typeof hash === "string" && typeof text === "string" && !text.includes("allowlist")) {
 			result.pendingSandboxNotice = { hash, text };
-		}
-	}
-
-	const legacyMutationTools = raw["legacyMutationTools"];
-	if (Array.isArray(legacyMutationTools)) {
-		const nextTools = legacyMutationTools.filter(
-			(toolName): toolName is LegacyMutationToolName =>
-				toolName === "edit" || toolName === "write",
-		);
-		if (nextTools.length > 0) {
-			result.legacyMutationTools = nextTools;
 		}
 	}
 
@@ -319,30 +295,9 @@ export default function initSandbox(
 		persistence.update({ sandbox: sessionStateToPersisted(sessionState) });
 	}
 
-	function sameToolNames(left: readonly string[], right: readonly string[]): boolean {
-		if (left.length !== right.length) return false;
-		for (let index = 0; index < left.length; index += 1) {
-			if (left[index] !== right[index]) return false;
-		}
-		return true;
-	}
-
-	function syncMutationToolActivation(provider: string | undefined): void {
-		const activeToolNames = pi.getActiveTools();
-		const legacySelection = getLegacyMutationToolSelection(activeToolNames);
-		if (
-			legacySelection.length > 0 &&
-			!sameToolNames(legacySelection, sessionState.legacyMutationTools ?? [])
-		) {
-			sessionState.legacyMutationTools = legacySelection;
-			persistState();
-		}
-
+	function installShellToolActivationTransform(): void {
 		setToolActivationTransform(pi, SANDBOX_MUTATION_TOOLS_KEY, (toolNames) =>
-			rewriteShellToolNames(rewriteMutationToolNames(toolNames, {
-				useApplyPatch: shouldUseApplyPatchForProvider(provider),
-				legacySelection: sessionState.legacyMutationTools,
-			})),
+			rewriteShellToolNames(toolNames),
 		);
 	}
 
@@ -1455,23 +1410,14 @@ export default function initSandbox(
 		},
 	});
 
-	pi.registerTool(
-		createApplyPatchToolDefinition({
-			resolveSessionSandboxContext: (ctx) => {
-				refreshConfig(ctx);
-				return { workspaceRoot, effectiveConfig };
-			},
-		}),
-	);
-
 	pi.on("session_start", async (_event, ctx) => {
+		installShellToolActivationTransform();
 		// Check for --no-sandbox escape hatch first
 		const noSandbox = pi.getFlag("no-sandbox") as boolean | undefined;
 		if (noSandbox) {
 			sandboxDisabled = true;
 			ctx.ui.notify("Sandbox DISABLED via --no-sandbox flag", "warning");
 			refreshConfig(ctx);
-			syncMutationToolActivation(ctx.model?.provider);
 			return;
 		}
 
@@ -1500,20 +1446,15 @@ export default function initSandbox(
 		}
 
 		refreshConfig(ctx);
-		syncMutationToolActivation(ctx.model?.provider);
 	});
 
 	pi.on("session_tree", async (_event, ctx) => {
 		refreshConfig(ctx);
-		syncMutationToolActivation(ctx.model?.provider);
+		installShellToolActivationTransform();
 	});
 
 	pi.on("session_shutdown", async (_event, ctx) => {
 		await Effect.runPromise(shellRuntime.shutdownOwner(ctx.sessionManager.getSessionId()));
-	});
-
-	pi.on("model_select", async (event) => {
-		syncMutationToolActivation(event.model.provider);
 	});
 
 	// First turn only: inject initial sandbox state into the system prompt.

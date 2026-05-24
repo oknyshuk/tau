@@ -24,7 +24,6 @@ describe("createWorkerCustomTools", () => {
 
 		expect(tools.map((tool) => tool.name)).toEqual([
 			"agent",
-			"apply_patch",
 			"backlog",
 			"web_search_exa",
 			"crawling_exa",

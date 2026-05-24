@@ -42,7 +42,7 @@ Operating principles:
 Tool usage:
 - Use `read` or `cat` to examine existing components and patterns
 - Use `rg` to find similar implementations in the codebase
-- Use the active mutation tool (`apply_patch` for `openai`/`openai-codex`, otherwise `edit` or `write`) for file changes
+- Use the active mutation tool (`edit` or `write`) for file changes
 - Use shell commands for running builds, tests, and dev servers
 - Use the `agent` tool to spawn `finder` if you need to locate relevant files quickly
 

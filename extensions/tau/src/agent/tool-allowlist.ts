@@ -3,12 +3,7 @@ import { Effect } from "effect";
 import { AgentError } from "./services.js";
 import type { AgentDefinition } from "./types.js";
 import type { ExecutionPolicy } from "../execution/schema.js";
-import {
-	getLegacyMutationToolSelection,
-	rewriteMutationToolNames,
-	rewriteShellToolNames,
-	shouldUseApplyPatchForProvider,
-} from "../sandbox/mutation-tools.js";
+import { rewriteShellToolNames } from "../sandbox/mutation-tools.js";
 
 const STRUCTURED_OUTPUT_TOOL_NAME = "submit_result";
 
@@ -148,11 +143,7 @@ export function applyAgentToolAllowlist(
 			// rewrite via setToolActivationTransform on session_start, but worker
 			// sessions don't fire session_start (no bindExtensions), so without this
 			// step a worker can pick up pi's unsandboxed builtin shell.
-			const shellRoutedToolNames = rewriteShellToolNames(baseToolNames);
-			const routedToolNames = rewriteMutationToolNames(shellRoutedToolNames, {
-				useApplyPatch: shouldUseApplyPatchForProvider(session.model?.provider),
-				legacySelection: getLegacyMutationToolSelection(shellRoutedToolNames),
-			});
+			const routedToolNames = rewriteShellToolNames(baseToolNames);
 
 			if (configuredActiveToolNames !== undefined || !sameToolNames(routedToolNames, baseToolNames)) {
 				session.setActiveToolsByName(routedToolNames);

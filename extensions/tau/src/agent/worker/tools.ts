@@ -1,7 +1,6 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 import type { AgentDefinition } from "../types.js";
-import { createApplyPatchToolDefinition } from "../../sandbox/apply-patch.js";
 import { createBacklogToolDefinition } from "../../backlog/tool.js";
 import { createExaToolDefinitions } from "../../exa/index.js";
 
@@ -24,7 +23,6 @@ export function createWorkerCustomTools(
 ): ToolDefinition[] {
 	return [
 		agentTool,
-		createApplyPatchToolDefinition(),
 		createBacklogToolDefinition(),
 		...createExaToolDefinitions(),
 	];

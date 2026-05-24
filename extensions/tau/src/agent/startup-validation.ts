@@ -3,7 +3,6 @@ import { AgentRegistry, AgentRegistryConfigError } from "./agent-registry.js";
 
 const WORKER_AVAILABLE_TOOL_NAMES = [
 	"agent",
-	"apply_patch",
 	"backlog",
 	"crawling_exa",
 	"edit",

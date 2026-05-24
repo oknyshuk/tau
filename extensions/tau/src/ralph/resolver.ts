@@ -26,7 +26,6 @@ type ContractCaptureInput = {
 	readonly allTools: ReadonlyArray<{ readonly name: string; readonly description: string }>;
 	readonly agentRegistry: AgentRegistry;
 	readonly enabledAgents: ReadonlyArray<string>;
-	readonly useApplyPatchForMutationTools?: boolean;
 };
 
 type ContractApplyTarget = "controller" | "child";
@@ -57,7 +56,7 @@ type ContractValidationResult =
  * but included in the available snapshot for display.
  */
 export function captureToolContract(
-	input: Pick<ContractCaptureInput, "activeTools" | "allTools" | "useApplyPatchForMutationTools">,
+	input: Pick<ContractCaptureInput, "activeTools" | "allTools">,
 ): RalphCapabilityContract["tools"] {
 	const availableToolNames = new Set(input.allTools.map((tool) => tool.name));
 	const userActiveNames = input.activeTools

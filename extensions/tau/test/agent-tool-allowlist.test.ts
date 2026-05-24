@@ -56,19 +56,6 @@ const submitResultToolDefinition: ToolDefinition = {
 	},
 };
 
-const applyPatchToolDefinition: ToolDefinition = {
-	name: "apply_patch",
-	label: "apply_patch",
-	description: "Apply Codex-style patches",
-	parameters: Type.Object({ input: Type.String() }),
-	async execute() {
-		return {
-			content: [{ type: "text" as const, text: "patched" }],
-			details: { ok: true },
-		};
-	},
-};
-
 const execCommandToolDefinition: ToolDefinition = {
 	name: "exec_command",
 	label: "exec_command",
@@ -156,7 +143,7 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, submitResultToolDefinition, applyPatchToolDefinition],
+				customTools: [agentToolDefinition, submitResultToolDefinition],
 			});
 
 			await Effect.runPromise(
@@ -188,7 +175,7 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, submitResultToolDefinition, applyPatchToolDefinition],
+				customTools: [agentToolDefinition, submitResultToolDefinition],
 			});
 
 			await Effect.runPromise(
@@ -200,125 +187,6 @@ describe("agent tool allowlist", () => {
 			);
 
 			expect(session.getActiveToolNames()).toEqual(["read", "submit_result"]);
-		});
-	});
-
-	it("routes edit/write to apply_patch for openai-family agent sessions", async () => {
-		await withTempDir(async (cwd) => {
-			const settingsManager = SettingsManager.inMemory();
-			const resourceLoader = new DefaultResourceLoader({
-				cwd,
-				agentDir: path.join(cwd, ".agent"),
-				settingsManager,
-				noExtensions: true,
-				noSkills: true,
-				noPromptTemplates: true,
-				noThemes: true,
-			});
-			await resourceLoader.reload();
-
-			const modelRegistry = ModelRegistry.create(AuthStorage.create());
-			const model = modelRegistry.find("openai", "gpt-5");
-			expect(model).toBeDefined();
-
-			const { session } = await createAgentSession({
-				cwd,
-				authStorage: AuthStorage.create(),
-				modelRegistry,
-				resourceLoader,
-				settingsManager,
-				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
-				...(model ? { model } : {}),
-			});
-
-			await Effect.runPromise(
-				applyAgentToolAllowlist(
-					session,
-					buildDefinition(["read", "edit", "write", "apply_patch"]),
-					undefined,
-				),
-			);
-
-			expect(session.getActiveToolNames()).toEqual(["read", "apply_patch"]);
-		});
-	});
-
-	it("keeps edit/write for non-openai agent sessions", async () => {
-		await withTempDir(async (cwd) => {
-			const settingsManager = SettingsManager.inMemory();
-			const resourceLoader = new DefaultResourceLoader({
-				cwd,
-				agentDir: path.join(cwd, ".agent"),
-				settingsManager,
-				noExtensions: true,
-				noSkills: true,
-				noPromptTemplates: true,
-				noThemes: true,
-			});
-			await resourceLoader.reload();
-
-			const modelRegistry = ModelRegistry.create(AuthStorage.create());
-			const model = modelRegistry.find("anthropic", "claude-sonnet-4-5");
-			expect(model).toBeDefined();
-
-			const { session } = await createAgentSession({
-				cwd,
-				authStorage: AuthStorage.create(),
-				modelRegistry,
-				resourceLoader,
-				settingsManager,
-				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
-				...(model ? { model } : {}),
-			});
-
-			await Effect.runPromise(
-				applyAgentToolAllowlist(
-					session,
-					buildDefinition(["read", "edit", "write", "apply_patch"]),
-					undefined,
-				),
-			);
-
-			expect(session.getActiveToolNames()).toEqual(["read", "edit", "write"]);
-		});
-	});
-
-	it("routes default worker tools when an agent definition omits tools", async () => {
-		await withTempDir(async (cwd) => {
-			const settingsManager = SettingsManager.inMemory();
-			const resourceLoader = new DefaultResourceLoader({
-				cwd,
-				agentDir: path.join(cwd, ".agent"),
-				settingsManager,
-				noExtensions: true,
-				noSkills: true,
-				noPromptTemplates: true,
-				noThemes: true,
-			});
-			await resourceLoader.reload();
-
-			const modelRegistry = ModelRegistry.create(AuthStorage.create());
-			const model = modelRegistry.find("openai-codex", "gpt-5.3-codex");
-			expect(model).toBeDefined();
-
-			const { session } = await createAgentSession({
-				cwd,
-				authStorage: AuthStorage.create(),
-				modelRegistry,
-				resourceLoader,
-				settingsManager,
-				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
-				...(model ? { model } : {}),
-			});
-
-			await Effect.runPromise(applyAgentToolAllowlist(session, buildDefinition(undefined), undefined));
-
-			expect(session.getActiveToolNames()).toContain("apply_patch");
-			expect(session.getActiveToolNames()).not.toContain("edit");
-			expect(session.getActiveToolNames()).not.toContain("write");
 		});
 	});
 
@@ -354,7 +222,6 @@ describe("agent tool allowlist", () => {
 				// what's available).
 				customTools: [
 					agentToolDefinition,
-					applyPatchToolDefinition,
 					execCommandToolDefinition,
 					writeStdinToolDefinition,
 				],
@@ -401,7 +268,6 @@ describe("agent tool allowlist", () => {
 				sessionManager: SessionManager.inMemory(cwd),
 				customTools: [
 					agentToolDefinition,
-					applyPatchToolDefinition,
 					execCommandToolDefinition,
 					writeStdinToolDefinition,
 				],
@@ -439,7 +305,7 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [agentToolDefinition, execCommandToolDefinition],
 			});
 
 			session.setActiveToolsByName(["read"]);
@@ -478,7 +344,7 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [agentToolDefinition, execCommandToolDefinition],
 			});
 
 			await Effect.runPromise(
@@ -515,7 +381,7 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [agentToolDefinition, execCommandToolDefinition],
 			});
 
 			await Effect.runPromise(
@@ -552,7 +418,7 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition],
+				customTools: [agentToolDefinition],
 			});
 
 			await expect(

@@ -10,7 +10,6 @@ tools:
   - bash
   - edit
   - write
-  - apply_patch
   - agent
   - backlog
   - web_search_exa
@@ -152,7 +151,7 @@ When working in a versioned repository (this fork uses jj-vcs):
 When making changes to files, first understand the file's code conventions. Mimic code style, use existing libraries and utilities, and follow existing patterns.
 
 - Prefer specialized tools over shell hacks for better user experience. For example, use `read` instead of cat/head/tail, use the active mutation tool instead of ad hoc shell rewrites, and reserve `bash` for actual system commands.
-- When using `read`, `edit`, or `write`, always use absolute file paths. When using `apply_patch`, keep patch file paths relative.
+- When using `read`, `edit`, or `write`, always use absolute file paths.
 - NEVER assume that a given library is available, even if it is well known. Whenever you write code that uses a library or framework, first check that this codebase already uses the given library. For example, you might look at neighboring files, or check the package.json (or cargo.toml, and so on depending on the language).
 - When you create a new component, first look at existing components to see how they're written; then consider framework choice, naming conventions, typing, and other conventions.
 - When you edit a piece of code, first look at the code's surrounding context (especially its imports) to understand the code's choice of frameworks and libraries. Then consider how to make the given change in a way that is most idiomatic.
@@ -331,7 +330,7 @@ When asked about Erg (e.g., models, pricing, features, configuration, or capabil
 When adapting workflows, map concepts to real Erg tools and avoid inventing unsupported features:
 
 - File read -> `read`
-- File mutation -> `apply_patch` for `openai`/`openai-codex`, otherwise `edit` or `write`
+- File mutation -> `edit` or `write`
 - Search / grep -> `bash` with `rg`
 - Task tracking -> `backlog`
 - Subagent orchestration -> `agent`

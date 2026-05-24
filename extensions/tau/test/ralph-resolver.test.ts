@@ -98,7 +98,6 @@ describe("ralph contract resolver pure helpers", () => {
 			allTools: [
 				{ name: "read", description: "Read files" },
 				{ name: "exec_command", description: "Run commands" },
-				{ name: "apply_patch", description: "Apply patches" },
 				{ name: "backlog", description: "Backlog" },
 				{ name: "web_search_exa", description: "Search" },
 				{ name: "crawling_exa", description: "Crawl" },
@@ -120,13 +119,11 @@ describe("ralph contract resolver pure helpers", () => {
 			{ name: "read", description: "Read files" },
 			{ name: "edit", description: "Edit files" },
 			{ name: "write", description: "Write files" },
-			{ name: "apply_patch", description: "Apply patches" },
 			{ name: "exec_command", description: "Run commands" },
 		];
 		const contract = captureToolContract({
 			activeTools: ["read"],
 			allTools,
-			useApplyPatchForMutationTools: false,
 		});
 
 		expect(contract.activeNames).toEqual(["read"]);

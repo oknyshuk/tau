@@ -10,7 +10,6 @@ tools:
   - bash
   - edit
   - write
-  - apply_patch
   - agent
   - backlog
   - web_search_exa
@@ -242,7 +241,7 @@ Fixed auth crash in [`auth.js`](file:///workspace/auth.js#L42) by guarding undef
 When adapting workflows, map concepts to real Erg tools and avoid inventing unsupported features:
 
 - File read -> `read`
-- File mutation -> `apply_patch` for `openai`/`openai-codex`, otherwise `edit` or `write`
+- File mutation -> `edit` or `write`
 - Search / grep -> `bash` with `rg`
 - Task tracking -> `backlog`
 - Subagent orchestration -> `agent`
