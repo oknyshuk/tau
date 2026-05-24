@@ -5,8 +5,8 @@ import {
 	type Theme,
 	type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import { Markdown, Text } from "@earendil-works/pi-tui";
 import { defineDecodedTool, textToolResult } from "../shared/decoded-tool.js";
 

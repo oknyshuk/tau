@@ -12,6 +12,7 @@
 		"diff": "^8.0.2",
 		"effect": "4.0.0-beta.54",
 		"nanoid": "^5.1.7",
+		"typebox": "^1.1.38",
 		"yaml": "^2.7.0"
 	},
 	"optionalDependencies": {
@@ -24,7 +25,6 @@
 		"@earendil-works/pi-ai": "^0.75.3",
 		"@earendil-works/pi-coding-agent": "^0.75.3",
 		"@earendil-works/pi-tui": "^0.75.3",
-		"@sinclair/typebox": "^0.34.47",
 		"@types/bun": "latest",
 		"@types/node": "latest",
 		"knip": "latest",

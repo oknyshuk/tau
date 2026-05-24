@@ -15,7 +15,7 @@ import {
 	DEFAULT_MAX_LINES,
 } from "@earendil-works/pi-coding-agent";
 import type { TruncationResult } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { matchesKey, Text } from "@earendil-works/pi-tui";
 import { Cause, Effect, Option } from "effect";
 

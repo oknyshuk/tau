@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 
 import { createWorkerCustomTools } from "../src/agent/worker.js";
 

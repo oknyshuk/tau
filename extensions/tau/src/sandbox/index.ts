@@ -12,7 +12,7 @@ import {
 	getSettingsListTheme,
 } from "@earendil-works/pi-coding-agent";
 import { Container, SettingsList, Text, type SettingItem } from "@earendil-works/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { Effect } from "effect";
 
 import {

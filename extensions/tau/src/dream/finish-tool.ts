@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { Type, type Static } from "@sinclair/typebox";
+import { Type, type Static } from "typebox";
 
 import { DreamFinishParams } from "./domain.js";
 

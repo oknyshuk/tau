@@ -7,7 +7,7 @@ import {
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import type { Model, Api } from "@earendil-works/pi-ai";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { Effect, SubscriptionRef, Stream } from "effect";
 import { nanoid } from "nanoid";
 import { type Status } from "./status.js";

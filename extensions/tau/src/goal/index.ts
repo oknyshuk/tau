@@ -8,7 +8,7 @@ import type {
 	TurnEndEvent,
 } from "@earendil-works/pi-coding-agent";
 import { isContextOverflow, type AssistantMessage } from "@earendil-works/pi-ai";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { Text, truncateToWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 import { Effect, Fiber } from "effect";
 

@@ -1,5 +1,5 @@
-import { Type, type Static } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { Type, type Static } from "typebox";
+import { Value } from "typebox/value";
 import { Effect, Stream, Cause } from "effect";
 import type { Model, Api } from "@earendil-works/pi-ai";
 import type { ModelRegistry, ToolDefinition } from "@earendil-works/pi-coding-agent";

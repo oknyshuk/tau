@@ -4,7 +4,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { Effect } from "effect";
 import {
 	AuthStorage,

@@ -6,8 +6,10 @@
       "name": "tau",
       "dependencies": {
         "@effect/platform-node": "4.0.0-beta.54",
+        "diff": "^8.0.2",
         "effect": "4.0.0-beta.54",
         "nanoid": "^5.1.7",
+        "typebox": "^1.1.38",
         "yaml": "^2.7.0",
       },
       "devDependencies": {
@@ -17,7 +19,6 @@
         "@earendil-works/pi-tui": "^0.75.3",
         "@effect/language-service": "latest",
         "@effect/vitest": "4.0.0-beta.54",
-        "@sinclair/typebox": "^0.34.47",
         "@types/bun": "latest",
         "@types/node": "latest",
         "knip": "latest",
@@ -345,8 +346,6 @@
     "@rollup/rollup-linux-x64-gnu": ["@rollup/rollup-linux-x64-gnu@4.55.1", "", { "os": "linux", "cpu": "x64" }, ""],
 
     "@silvia-odwyer/photon-node": ["@silvia-odwyer/photon-node@0.3.4", "", {}, "sha512-bnly4BKB3KDTFxrUIcgCLbaeVVS8lrAkri1pEzskpmxu9MdfGQTy8b8EgcD83ywD3RPMsIulY8xJH5Awa+t9fA=="],
-
-    "@sinclair/typebox": ["@sinclair/typebox@0.34.47", "", {}, "sha512-ZGIBQ+XDvO5JQku9wmwtabcVTHJsgSWAHYtVuM9pBNNR5E88v6Jcj/llpmsjivig5X8A8HHOb4/mbEKPS5EvAw=="],
 
     "@smithy/core": ["@smithy/core@3.24.3", "", { "dependencies": { "@aws-crypto/crc32": "5.2.0", "@smithy/types": "^4.14.2", "tslib": "^2.6.2" } }, "sha512-Ep/7tPamGY8mgESE3LyLKtxJyy6U52WWAqr/3wial47Sj4u3PiIF73AOGI27UyLy9duTkhZbgzodOfLV4TduZg=="],
 
