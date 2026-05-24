@@ -15,7 +15,6 @@ import { LoopContractValidationError, LoopOwnershipValidationError } from "./err
 const NonNegativeIntSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const OptionalStringSchema = Schema.OptionFromNullOr(Schema.String);
 
-export { RalphPendingDecisionSchema };
 type RalphPendingDecision = Schema.Schema.Type<typeof RalphPendingDecisionSchema>;
 
 function toContractValidationError(entity: string, error: unknown): LoopContractValidationError {
@@ -232,11 +231,9 @@ const encodeLoopPersistedStateSchemaSync = Schema.encodeUnknownSync(LoopPersiste
 const encodeLoopPersistedStateSchema = Schema.encodeUnknownEffect(LoopPersistedStateSchema);
 
 const decodePhaseSnapshotSchemaSync = Schema.decodeUnknownSync(AutoresearchPhaseSnapshotSchema);
-const encodePhaseSnapshotSchemaSync = Schema.encodeUnknownSync(AutoresearchPhaseSnapshotSchema);
 const encodePhaseSnapshotSchema = Schema.encodeUnknownEffect(AutoresearchPhaseSnapshotSchema);
 
 const decodeLoopTaskIdSchemaSync = Schema.decodeUnknownSync(LoopTaskIdSchema);
-const decodePhaseIdSchemaSync = Schema.decodeUnknownSync(PhaseIdSchema);
 
 export function decodeLoopTaskIdSync(value: unknown): LoopTaskId {
 	try {
@@ -246,16 +243,7 @@ export function decodeLoopTaskIdSync(value: unknown): LoopTaskId {
 	}
 }
 
-function decodePhaseIdSync(value: unknown): PhaseId {
-	try {
-		return decodePhaseIdSchemaSync(value);
-	} catch (error) {
-		throw toContractValidationError("loops.phase_id", error);
-	}
-}
-
-export const decodeLoopPersistedState = (
-	value: unknown,
+export const decodeLoopPersistedState = (	value: unknown,
 ): Effect.Effect<LoopPersistedState, LoopContractValidationError, never> =>
 	decodeLoopPersistedStateWithMigration(value).pipe(Effect.map((result) => result.state));
 
@@ -279,11 +267,6 @@ export const encodeLoopPersistedState = (
 		Effect.mapError((error) => toContractValidationError("loops.state", error)),
 	);
 
-const decodeLoopPersistedStateJson = (
-	input: string,
-): Effect.Effect<LoopPersistedState, LoopContractValidationError, never> =>
-	parseJsonUnknown(input, "loops.state.json").pipe(Effect.flatMap(decodeLoopPersistedState));
-
 export const decodeLoopPersistedStateJsonWithMigration = (
 	input: string,
 ): Effect.Effect<LoopPersistedStateDecodeResult, LoopContractValidationError, never> =>
@@ -296,43 +279,20 @@ export const encodeLoopPersistedStateJson = (
 ): Effect.Effect<string, LoopContractValidationError, never> =>
 	encodeLoopPersistedState(state).pipe(Effect.map((encoded) => JSON.stringify(encoded, null, 2)));
 
-function decodeLoopPersistedStateSync(value: unknown): LoopPersistedState {
-	try {
-		return decodeLoopPersistedStateSyncWithMigration(value).state;
-	} catch (error) {
-		throw toContractValidationError("loops.state", error);
-	}
-}
-
-function decodeLoopPersistedStateSyncWithMigration(
-	value: unknown,
-): LoopPersistedStateDecodeResult {
-	return {
-		state: decodeLoopPersistedStateSchemaSync(value),
-		migrated: false,
-	};
-}
-
-function encodeLoopPersistedStateSync(state: LoopPersistedState): EncodedLoopPersistedState {
-	try {
-		return encodeLoopPersistedStateSchemaSync(state);
-	} catch (error) {
-		throw toContractValidationError("loops.state", error);
-	}
-}
-
 export function decodeLoopPersistedStateJsonSync(input: string): LoopPersistedState {
-	return decodeLoopPersistedStateSync(parseJsonUnknownSync(input));
-}
-
-function decodeLoopPersistedStateJsonSyncWithMigration(
-	input: string,
-): LoopPersistedStateDecodeResult {
-	return decodeLoopPersistedStateSyncWithMigration(parseJsonUnknownSync(input));
+	try {
+		return decodeLoopPersistedStateSchemaSync(parseJsonUnknownSync(input));
+	} catch (error) {
+		throw toContractValidationError("loops.state", error);
+	}
 }
 
 export function encodeLoopPersistedStateJsonSync(state: LoopPersistedState): string {
-	return JSON.stringify(encodeLoopPersistedStateSync(state), null, 2);
+	try {
+		return JSON.stringify(encodeLoopPersistedStateSchemaSync(state), null, 2);
+	} catch (error) {
+		throw toContractValidationError("loops.state", error);
+	}
 }
 
 export const decodeAutoresearchPhaseSnapshot = (
@@ -364,32 +324,12 @@ export const encodeAutoresearchPhaseSnapshotJson = (
 		Effect.map((encoded) => JSON.stringify(encoded, null, 2)),
 	);
 
-function decodeAutoresearchPhaseSnapshotSync(value: unknown): AutoresearchPhaseSnapshot {
-	try {
-		return decodePhaseSnapshotSchemaSync(value);
-	} catch (error) {
-		throw toContractValidationError("loops.phase_snapshot", error);
-	}
-}
-
-function encodeAutoresearchPhaseSnapshotSync(
-	snapshot: AutoresearchPhaseSnapshot,
-): EncodedAutoresearchPhaseSnapshot {
-	try {
-		return encodePhaseSnapshotSchemaSync(snapshot);
-	} catch (error) {
-		throw toContractValidationError("loops.phase_snapshot", error);
-	}
-}
-
 export function decodeAutoresearchPhaseSnapshotJsonSync(input: string): AutoresearchPhaseSnapshot {
-	return decodeAutoresearchPhaseSnapshotSync(parseJsonUnknownSync(input));
-}
-
-function encodeAutoresearchPhaseSnapshotJsonSync(
-	snapshot: AutoresearchPhaseSnapshot,
-): string {
-	return JSON.stringify(encodeAutoresearchPhaseSnapshotSync(snapshot), null, 2);
+	try {
+		return decodePhaseSnapshotSchemaSync(parseJsonUnknownSync(input));
+	} catch (error) {
+		throw toContractValidationError("loops.phase_snapshot", error);
+	}
 }
 
 export const validateLoopOwnership = (

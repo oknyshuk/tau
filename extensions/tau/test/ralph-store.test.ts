@@ -28,17 +28,18 @@ import {
 	makeExecutionProfile,
 	makeExecutionRuntimeStubLayer,
 	makeSandboxProfile,
-	makeRalphMetrics,
 	makeCapabilityContract,
 } from "./ralph-test-helpers.js";
+import {
+	type Notifications,
+	makeFakeCommandContext,
+} from "./fake-command-context.js";
 
 type EventHandler = (event: unknown, ctx: ExtensionContext) => unknown;
 
 type RegisteredCommand = {
 	readonly handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> | void;
 };
-
-type Notifications = Array<{ readonly message: string; readonly level: string }>;
 
 function withCurrentRalphFields(
 	state: Record<string, unknown>,
@@ -202,87 +203,15 @@ function makeContext(
 		readonly modelProvider?: string;
 	},
 ): ExtensionCommandContext {
-	let sessionFile =
-		options?.sessionFile ?? path.join(cwd, ".pi", "sessions", "controller.session.json");
-	let newSessionCount = 0;
-	const idle = options?.idle ?? true;
-
-	const context = {
+	const harness = makeFakeCommandContext({
 		cwd,
-		hasUI: true,
-		model:
-			options?.modelProvider === undefined
-				? undefined
-				: { provider: options.modelProvider, id: "test-model" },
-		modelRegistry: {
-			find: (provider: string, id: string) => ({ provider, id }),
-			getAll: () => [],
-		},
-		sessionManager: {
-			getEntries: () => [],
-			getBranch: () => [],
-			getSessionId: () => "test-session",
-			getSessionFile: () => sessionFile,
-		},
-		ui: {
-			setStatus: () => undefined,
-			setWidget: () => undefined,
-			setFooter: () => () => undefined,
-			setEditorComponent: () => undefined,
-			custom: async (
-				_factory: (
-					tui: unknown,
-					theme: {
-						readonly fg: (_color: string, text: string) => string;
-						readonly bold: (text: string) => string;
-					},
-					keybindings: unknown,
-					done: (value?: unknown) => void,
-				) => unknown,
-			) => {
-				return undefined;
-			},
-			notify: (message: string, level: string) => {
-				notifications.push({ message, level });
-			},
-			confirm: async () => true,
-			getEditorText: () => "",
-			theme: {
-				fg: (_color: string, text: string) => text,
-				bold: (text: string) => text,
-			},
-		},
-		isIdle: () => idle,
-		abort: () => undefined,
-		hasPendingMessages: () => false,
-		shutdown: () => undefined,
-		getContextUsage: () => undefined,
-		compact: () => undefined,
-		getSystemPrompt: () => "",
-		waitForIdle: async () => undefined,
-		newSession: async () => {
-			const cancelled = newSessionCancelled[newSessionCount] ?? false;
-			newSessionCount += 1;
-			if (!cancelled) {
-				sessionFile = path.join(
-					cwd,
-					".pi",
-					"sessions",
-					`child-${newSessionCount}.session.json`,
-				);
-			}
-			return { cancelled };
-		},
-		fork: async () => ({ cancelled: false }),
-		navigateTree: async () => ({ cancelled: false }),
-		switchSession: async (target: string) => {
-			sessionFile = target;
-			return { cancelled: false };
-		},
-		reload: async () => undefined,
-	} as unknown as ExtensionCommandContext;
-
-	return context;
+		newSessionPlan: newSessionCancelled.map((cancelled) => ({ cancelled })),
+		notificationsSink: notifications,
+		...(options?.idle === undefined ? {} : { idle: options.idle }),
+		...(options?.sessionFile === undefined ? {} : { sessionFile: options.sessionFile }),
+		...(options?.modelProvider === undefined ? {} : { modelProvider: options.modelProvider }),
+	});
+	return harness.ctx;
 }
 
 function makePiStub(): {

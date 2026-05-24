@@ -37,13 +37,17 @@ import {
 	makeRalphMetrics,
 	makeCapabilityContract,
 } from "./ralph-test-helpers.js";
+import {
+	STALE_EXTENSION_CONTEXT_MESSAGE,
+	type FakeCommandContext as ContextHarness,
+	type NewSessionPlan,
+	makeFakeCommandContext,
+} from "./fake-command-context.js";
 type EventHandler = (event: unknown, ctx: ExtensionContext) => unknown;
 
 type RegisteredCommand = {
 	readonly handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> | void;
 };
-
-type Notifications = Array<{ readonly message: string; readonly level: string }>;
 
 type ToolExecutionResult = {
 	readonly content: readonly { readonly type: "text"; readonly text: string }[];
@@ -63,21 +67,6 @@ type RalphRuntimeHarness = {
 	readonly dispose: () => Promise<void>;
 };
 
-type ContextHarness = {
-	readonly ctx: ExtensionCommandContext;
-	readonly notifications: Notifications;
-	readonly newSessionCalls: ReadonlyArray<unknown>;
-	readonly appendedCustomEntries: ReadonlyArray<{
-		readonly customType: string;
-		readonly data: unknown;
-	}>;
-	readonly switchSessionCalls: readonly string[];
-	readonly activeToolCalls: ReadonlyArray<ReadonlyArray<string>>;
-	readonly disposeCommandContext: () => void;
-	readonly setSessionFile: (next: string) => void;
-	readonly getSessionFile: () => string;
-};
-
 type PiHarness = {
 	readonly pi: ExtensionAPI;
 	readonly commands: Map<string, RegisteredCommand>;
@@ -89,77 +78,6 @@ type PiHarness = {
 type PiHarnessOptions = {
 	readonly setActiveTools?: (tools: string[]) => void;
 };
-
-type NewSessionPlan = {
-	readonly cancelled: boolean;
-	readonly sessionFile?: string;
-	readonly updateContextSessionFile?: boolean;
-	readonly staleContextAfterReplacement?: boolean;
-};
-
-type NewSessionOptionsForTest = {
-	readonly parentSession?: string;
-	readonly setup?: (sessionManager: SessionManager) => Promise<void>;
-	readonly withSession?: (ctx: ReplacementSessionContextForTest) => Promise<void>;
-};
-
-type SwitchSessionOptionsForTest = {
-	readonly withSession?: (ctx: ReplacementSessionContextForTest) => Promise<void>;
-};
-
-type ReplacementSessionContextForTest = ExtensionCommandContext & {
-	readonly sendMessage: () => Promise<void>;
-	readonly sendUserMessage: () => Promise<void>;
-};
-
-type SetupSessionManagerForTest = Pick<SessionManager, "getSessionFile" | "appendCustomEntry">;
-
-const STALE_EXTENSION_CONTEXT_MESSAGE =
-	"This extension ctx is stale after session replacement or reload. Do not use a captured pi or command ctx after ctx.newSession(), ctx.fork(), ctx.switchSession(), or ctx.reload(). For newSession, fork, and switchSession, move post-replacement work into withSession and use the ctx passed to withSession. For reload, do not use the old ctx after await ctx.reload().";
-
-function readNewSessionOptionsForTest(options: unknown): NewSessionOptionsForTest {
-	if (typeof options !== "object" || options === null) {
-		return {};
-	}
-	const candidate = options as {
-		readonly parentSession?: unknown;
-		readonly setup?: unknown;
-		readonly withSession?: unknown;
-	};
-	return {
-		...(typeof candidate.parentSession === "string"
-			? { parentSession: candidate.parentSession }
-			: {}),
-		...(typeof candidate.setup === "function"
-			? {
-					setup: candidate.setup as (sessionManager: SessionManager) => Promise<void>,
-				}
-			: {}),
-		...(typeof candidate.withSession === "function"
-			? {
-					withSession: candidate.withSession as (
-						ctx: ReplacementSessionContextForTest,
-					) => Promise<void>,
-				}
-			: {}),
-	};
-}
-
-function readSwitchSessionOptionsForTest(options: unknown): SwitchSessionOptionsForTest {
-	if (typeof options !== "object" || options === null) {
-		return {};
-	}
-	const candidate = options as { readonly withSession?: unknown };
-	return {
-		...(typeof candidate.withSession === "function"
-			? {
-					withSession: candidate.withSession as (
-						ctx: ReplacementSessionContextForTest,
-					) => Promise<void>,
-				}
-			: {}),
-	};
-}
 
 type LoopStatus = "active" | "paused" | "completed";
 
@@ -337,267 +255,13 @@ function makeContext(
 	initialEntries: readonly unknown[] = [],
 	replacementEntries: readonly unknown[] = initialEntries,
 ): ContextHarness {
-	const notifications: Notifications = [];
-	const newSessionCalls: unknown[] = [];
-	const appendedCustomEntries: Array<{ readonly customType: string; readonly data: unknown }> =
-		[];
-	const switchSessionCalls: string[] = [];
-	const activeToolCalls: string[][] = [];
-	let sessionFile = path.join(cwd, ".pi", "sessions", "controller.session.json");
-	let sessionCounter = 0;
-	let disposed = false;
-	let stale = false;
-
-	const throwIfDisposed = (): void => {
-		if (disposed) {
-			throw new Error("ManagedRuntime disposed");
-		}
-	};
-	const throwIfStale = (): void => {
-		if (stale) {
-			throw new Error(STALE_EXTENSION_CONTEXT_MESSAGE);
-		}
-	};
-	const throwIfInactive = (): void => {
-		throwIfStale();
-	};
-
-	const makeReplacementContext = (targetSessionFile: string): ReplacementSessionContextForTest =>
-		({
-			cwd,
-			hasUI: true,
-			model: undefined,
-			modelRegistry: {
-				find: (provider: string, id: string) => ({ provider, id }),
-				getAll: () => [],
-			},
-			sessionManager: {
-				getEntries: () => [...replacementEntries],
-				getBranch: () => [],
-				getSessionId: () => "replacement-session",
-				getSessionFile: () => targetSessionFile,
-			},
-			ui: {
-				setStatus: () => {
-					throwIfDisposed();
-				},
-				setWidget: () => {
-					throwIfDisposed();
-				},
-				setFooter: () => {
-					throwIfDisposed();
-					return () => undefined;
-				},
-				setEditorComponent: () => {
-					throwIfDisposed();
-				},
-				notify: (message: string, level: string) => {
-					throwIfDisposed();
-					notifications.push({ message, level });
-				},
-				confirm: async () => true,
-				getEditorText: () => "",
-				theme: {
-					fg: (_color: string, text: string) => text,
-					bold: (text: string) => text,
-				},
-			},
-			isIdle: () => true,
-			abort: () => undefined,
-			hasPendingMessages: () => false,
-			shutdown: () => undefined,
-			getContextUsage: () => undefined,
-			getActiveTools: () => [...(activeToolCalls.at(-1) ?? [])],
-			setActiveTools: (tools: string[]) => {
-				throwIfDisposed();
-				activeToolCalls.push([...tools]);
-			},
-			getAllTools: () => [],
-			getCommands: () => [],
-			setModel: async () => true,
-			getThinkingLevel: () => "medium",
-			setThinkingLevel: () => undefined,
-			compact: () => undefined,
-			getSystemPrompt: () => "",
-			waitForIdle: async () => undefined,
-			newSession: async (options?: unknown) => {
-				newSessionCalls.push(options);
-				const sessionOptions = readNewSessionOptionsForTest(options);
-				const plan = newSessionPlan[sessionCounter] ?? { cancelled: false };
-				sessionCounter += 1;
-				if (!plan.cancelled) {
-					const nextSessionFile =
-						plan.sessionFile ??
-						path.join(cwd, ".pi", "sessions", `child-${sessionCounter}.session.json`);
-					if (sessionOptions.setup) {
-						const setupSessionManager: SetupSessionManagerForTest = {
-							getSessionFile: () => nextSessionFile,
-							appendCustomEntry: (customType: string, data?: unknown) => {
-								appendedCustomEntries.push({ customType, data });
-								return `custom-${appendedCustomEntries.length}`;
-							},
-						};
-						await sessionOptions.setup(setupSessionManager as SessionManager);
-					}
-					if (sessionOptions.withSession) {
-						await sessionOptions.withSession(makeReplacementContext(nextSessionFile));
-					}
-				}
-				return { cancelled: plan.cancelled };
-			},
-			fork: async () => ({ cancelled: false }),
-			navigateTree: async () => ({ cancelled: false }),
-			switchSession: async (target: string, options?: unknown) => {
-				switchSessionCalls.push(target);
-				const sessionOptions = readSwitchSessionOptionsForTest(options);
-				if (sessionOptions.withSession) {
-					await sessionOptions.withSession(makeReplacementContext(target));
-				}
-				return { cancelled: false };
-			},
-			reload: async () => undefined,
-			sendMessage: async () => undefined,
-			sendUserMessage: async () => undefined,
-		}) as unknown as ReplacementSessionContextForTest;
-
-	const ctx = {
-		get cwd() {
-			throwIfInactive();
-			return cwd;
-		},
-		get hasUI() {
-			throwIfInactive();
-			return true;
-		},
-		get model() {
-			throwIfInactive();
-			return undefined;
-		},
-		get modelRegistry() {
-			throwIfInactive();
-			return {
-				find: (provider: string, id: string) => ({ provider, id }),
-				getAll: () => [],
-			};
-		},
-		get sessionManager() {
-			throwIfInactive();
-			return {
-				getEntries: () => [...initialEntries],
-				getBranch: () => [],
-				getSessionId: () => "test-session",
-				getSessionFile: () => sessionFile,
-			};
-		},
-		get ui() {
-			throwIfInactive();
-			return {
-				setStatus: () => {
-					throwIfInactive();
-				},
-				setWidget: () => {
-					throwIfInactive();
-				},
-				setFooter: () => {
-					throwIfInactive();
-					return () => undefined;
-				},
-				setEditorComponent: () => {
-					throwIfInactive();
-				},
-				notify: (message: string, level: string) => {
-					throwIfInactive();
-					notifications.push({ message, level });
-				},
-				confirm: async () => true,
-				getEditorText: () => "",
-				theme: {
-					fg: (_color: string, text: string) => text,
-					bold: (text: string) => text,
-				},
-			};
-		},
-		isIdle: () => true,
-		abort: () => undefined,
-		hasPendingMessages: () => false,
-		shutdown: () => undefined,
-		getContextUsage: () => undefined,
-		getActiveTools: () => [...(activeToolCalls.at(-1) ?? [])],
-		setActiveTools: (tools: string[]) => {
-			throwIfInactive();
-			activeToolCalls.push([...tools]);
-		},
-		getAllTools: () => [],
-		getCommands: () => [],
-		setModel: async () => true,
-		getThinkingLevel: () => "medium",
-		setThinkingLevel: () => undefined,
-		compact: () => undefined,
-		getSystemPrompt: () => "",
-		waitForIdle: async () => undefined,
-		newSession: async (options?: unknown) => {
-			throwIfInactive();
-			newSessionCalls.push(options);
-			const sessionOptions = readNewSessionOptionsForTest(options);
-			const plan = newSessionPlan[sessionCounter] ?? { cancelled: false };
-			sessionCounter += 1;
-			if (!plan.cancelled) {
-				const targetSessionFile =
-					plan.sessionFile ??
-					path.join(cwd, ".pi", "sessions", `child-${sessionCounter}.session.json`);
-				if (sessionOptions.setup) {
-					const setupSessionManager: SetupSessionManagerForTest = {
-						getSessionFile: () => targetSessionFile,
-						appendCustomEntry: (customType: string, data?: unknown) => {
-							appendedCustomEntries.push({ customType, data });
-							return `custom-${appendedCustomEntries.length}`;
-						},
-					};
-					await sessionOptions.setup(setupSessionManager as SessionManager);
-				}
-				if (sessionOptions.withSession) {
-					await sessionOptions.withSession(makeReplacementContext(targetSessionFile));
-				}
-				if (plan.updateContextSessionFile !== false) {
-					sessionFile = targetSessionFile;
-				}
-				if (plan.staleContextAfterReplacement) {
-					stale = true;
-				}
-			}
-			return { cancelled: plan.cancelled };
-		},
-		fork: async () => ({ cancelled: false }),
-		navigateTree: async () => ({ cancelled: false }),
-		switchSession: async (target: string, options?: unknown) => {
-			throwIfInactive();
-			switchSessionCalls.push(target);
-			const sessionOptions = readSwitchSessionOptionsForTest(options);
-			if (sessionOptions.withSession) {
-				await sessionOptions.withSession(makeReplacementContext(target));
-			}
-			sessionFile = target;
-			stale = true;
-			return { cancelled: false };
-		},
-		reload: async () => undefined,
-	} as unknown as ExtensionCommandContext;
-
-	return {
-		ctx,
-		notifications,
-		newSessionCalls,
-		appendedCustomEntries,
-		switchSessionCalls,
-		activeToolCalls,
-		disposeCommandContext: () => {
-			disposed = true;
-		},
-		setSessionFile: (next) => {
-			sessionFile = next;
-		},
-		getSessionFile: () => sessionFile,
-	};
+	return makeFakeCommandContext({
+		cwd,
+		newSessionPlan,
+		initialEntries,
+		replacementEntries,
+		staleAfterSwitchSession: true,
+	});
 }
 
 function makePiHarness(options: PiHarnessOptions = {}): PiHarness {

@@ -18,7 +18,7 @@ export type DreamFinishToolParams = Static<typeof DreamFinishToolParams>;
 
 const decodeDreamFinishParamsSync = Schema.decodeUnknownSync(DreamFinishParams);
 
-export type DreamFinishParseResult =
+type DreamFinishParseResult =
 	| { readonly ok: true; readonly params: DreamFinishParams }
 	| { readonly ok: false; readonly error: string };
 

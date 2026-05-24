@@ -26,6 +26,11 @@ import {
 	AutoresearchLoopRunnerLive,
 } from "../src/services/autoresearch-loop-runner.js";
 import { makeExecutionRuntimeStubLayer } from "./ralph-test-helpers.js";
+import {
+	type FakeCommandContext,
+	type NewSessionPlan,
+	makeFakeCommandContext,
+} from "./fake-command-context.js";
 
 const getSandboxedBashOperationsMock = vi.fn<
 	(ctx: ExtensionContext, escalate: boolean) => BashOperations | undefined
@@ -44,20 +49,7 @@ type RegisteredCommand = {
 	readonly handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> | void;
 };
 
-type NewSessionPlan = {
-	readonly cancelled: boolean;
-	readonly sessionFile?: string;
-};
-
-type ReplacementSessionOptions = {
-	readonly withSession?: (ctx: ExtensionCommandContext) => Promise<void> | void;
-};
-
-type ContextHarness = {
-	readonly ctx: ExtensionCommandContext;
-	readonly newSessionCalls: ReadonlyArray<unknown>;
-	readonly setSessionFile: (next: string) => void;
-};
+type ContextHarness = FakeCommandContext;
 
 type PiHarness = {
 	readonly pi: ExtensionAPI;
@@ -118,85 +110,12 @@ function makeContext(
 	newSessionPlan: readonly NewSessionPlan[] = [{ cancelled: false }],
 	projectSessionId?: string,
 ): ContextHarness {
-	const newSessionCalls: unknown[] = [];
-	let sessionFile = path.join(cwd, ".pi", "sessions", "controller.session.json");
-	let sessionId = sessionIdFromFile(sessionFile);
-	let newSessionCounter = 0;
-
-	const setSessionFile = (next: string): void => {
-		sessionFile = next;
-		sessionId = sessionIdFromFile(next);
-	};
-
-	const ctx = {
+	return makeFakeCommandContext({
 		cwd,
-		hasUI: true,
-		model: undefined,
-		modelRegistry: {
-			find: (provider: string, id: string) => ({ provider, id }),
-			getAll: () => [],
-		},
-		sessionManager: {
-			getEntries: () => [],
-			getBranch: () => [],
-			getSessionId: () => projectSessionId ?? sessionId,
-			getSessionFile: () => sessionFile,
-		},
-		ui: {
-			setStatus: () => undefined,
-			setWidget: () => undefined,
-			setFooter: () => () => undefined,
-			setEditorComponent: () => undefined,
-			notify: () => undefined,
-			confirm: async () => true,
-			getEditorText: () => "",
-			theme: {
-				fg: (_color: string, text: string) => text,
-				bold: (text: string) => text,
-			},
-		},
-		isIdle: () => true,
-		abort: () => undefined,
-		hasPendingMessages: () => false,
-		shutdown: () => undefined,
-		getContextUsage: () => undefined,
-		compact: () => undefined,
-		getSystemPrompt: () => "",
-		waitForIdle: async () => undefined,
-		newSession: async (options?: unknown) => {
-			newSessionCalls.push(options);
-			const plan = newSessionPlan[newSessionCounter] ?? { cancelled: false };
-			newSessionCounter += 1;
-			if (!plan.cancelled) {
-				const nextSessionFile =
-					plan.sessionFile ??
-					path.join(cwd, ".pi", "sessions", `child-${newSessionCounter}.session.json`);
-				setSessionFile(nextSessionFile);
-				if (
-					typeof options === "object" &&
-					options !== null &&
-					"withSession" in options &&
-					typeof options.withSession === "function"
-				) {
-					await (options as ReplacementSessionOptions).withSession?.(
-						ctx as unknown as ExtensionCommandContext,
-					);
-				}
-			}
-			return { cancelled: plan.cancelled };
-		},
-		switchSession: async (target: string, options?: ReplacementSessionOptions) => {
-			setSessionFile(target);
-			await options?.withSession?.(ctx as unknown as ExtensionCommandContext);
-			return { cancelled: false };
-		},
-	};
-
-	return {
-		ctx: ctx as unknown as ExtensionCommandContext,
-		newSessionCalls,
-		setSessionFile,
-	};
+		newSessionPlan,
+		resolveSessionId:
+			projectSessionId === undefined ? sessionIdFromFile : () => projectSessionId,
+	});
 }
 
 function makePiHarness(): PiHarness {

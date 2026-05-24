@@ -16,7 +16,6 @@ import {
 const NonNegativeIntSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const OptionalStringSchema = Schema.OptionFromNullOr(Schema.String);
 
-export { RalphPendingDecisionSchema };
 export type { RalphPendingDecision, RalphLoopMetrics };
 
 export function sanitizeLoopName(name: string): string {
@@ -98,7 +97,6 @@ type LoopSummary = Schema.Schema.Type<typeof LoopSummarySchema>;
 
 const encodeLoopStateSchema = Schema.encodeUnknownEffect(LoopStateSchema);
 const decodeLoopStateSchemaSync = Schema.decodeUnknownSync(LoopStateSchema);
-const encodeLoopStateSchemaSync = Schema.encodeUnknownSync(LoopStateSchema);
 
 const parseJsonUnknown = (
 	input: string,
@@ -107,14 +105,6 @@ const parseJsonUnknown = (
 		try: () => JSON.parse(input) as unknown,
 		catch: (error) => toContractValidationError("ralph.loop_state.json", error),
 	});
-
-function parseJsonUnknownSync(input: string): unknown {
-	try {
-		return JSON.parse(input) as unknown;
-	} catch (error) {
-		throw toContractValidationError("ralph.loop_state.json", error);
-	}
-}
 
 export function emptyRalphLoopMetrics(): RalphLoopMetrics {
 	return {
@@ -163,20 +153,4 @@ export const encodeLoopStateJson = (
 
 export function decodeLoopStateSync(value: unknown): LoopState {
 	return decodeLoopStateCompatSync(value);
-}
-
-function encodeLoopStateSync(state: LoopState): EncodedLoopState {
-	try {
-		return encodeLoopStateSchemaSync(state);
-	} catch (error) {
-		throw toContractValidationError("ralph.loop_state", error);
-	}
-}
-
-function decodeLoopStateJsonSync(input: string): LoopState {
-	return decodeLoopStateSync(parseJsonUnknownSync(input));
-}
-
-function encodeLoopStateJsonSync(state: LoopState): string {
-	return JSON.stringify(encodeLoopStateSync(state), null, 2);
 }

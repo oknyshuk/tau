@@ -26,6 +26,11 @@ import {
 	AutoresearchLoopRunnerLive,
 } from "../src/services/autoresearch-loop-runner.js";
 import { makeExecutionRuntimeStubLayer } from "./ralph-test-helpers.js";
+import {
+	type FakeCommandContext,
+	type NewSessionPlan,
+	makeFakeCommandContext,
+} from "./fake-command-context.js";
 
 type EventHandler = (event: unknown, ctx: ExtensionContext) => unknown;
 
@@ -40,16 +45,7 @@ type SentUserMessage = {
 	};
 };
 
-type ContextHarness = {
-	readonly ctx: ExtensionCommandContext;
-	readonly notifications: Array<{ readonly message: string; readonly level: string }>;
-	readonly widgetUpdates: unknown[];
-	readonly statusUpdates: Array<string | undefined>;
-	readonly newSessionCalls: ReadonlyArray<unknown>;
-	readonly switchSessionCalls: readonly string[];
-	readonly setSessionFile: (next: string) => void;
-	readonly getSessionFile: () => string;
-};
+type ContextHarness = FakeCommandContext;
 
 type PiHarness = {
 	readonly pi: ExtensionAPI;
@@ -88,10 +84,6 @@ type RuntimeHarness = {
 	readonly dispose: () => Promise<void>;
 };
 
-type NewSessionPlan = {
-	readonly cancelled: boolean;
-	readonly sessionFile?: string;
-};
 
 function makeTempDir(): string {
 	return fs.mkdtempSync(path.join(os.tmpdir(), "tau-autoresearch-adapter-"));
@@ -136,90 +128,11 @@ function makeContext(
 	cwd: string,
 	newSessionPlan: readonly NewSessionPlan[] = [{ cancelled: false }],
 ): ContextHarness {
-	const notifications: Array<{ readonly message: string; readonly level: string }> = [];
-	const widgetUpdates: unknown[] = [];
-	const statusUpdates: Array<string | undefined> = [];
-	const newSessionCalls: unknown[] = [];
-	const switchSessionCalls: string[] = [];
-	let sessionFile = path.join(cwd, ".pi", "sessions", "controller.session.json");
-	let sessionId = sessionIdFromFile(sessionFile);
-	let newSessionCounter = 0;
-
-	const setSessionFile = (next: string): void => {
-		sessionFile = next;
-		sessionId = sessionIdFromFile(next);
-	};
-
-	const ctx = {
+	return makeFakeCommandContext({
 		cwd,
-		hasUI: true,
-		model: undefined,
-		modelRegistry: {
-			find: (provider: string, id: string) => ({ provider, id }),
-			getAll: () => [],
-		},
-		sessionManager: {
-			getEntries: () => [],
-			getBranch: () => [],
-			getSessionId: () => sessionId,
-			getSessionFile: () => sessionFile,
-		},
-		ui: {
-			setStatus: (_key: string, text: string | undefined) => {
-				statusUpdates.push(text);
-			},
-			setWidget: (_key: string, content: unknown) => {
-				widgetUpdates.push(content);
-			},
-			setFooter: () => () => undefined,
-			setEditorComponent: () => undefined,
-			notify: (message: string, level: string) => {
-				notifications.push({ message, level });
-			},
-			confirm: async () => true,
-			getEditorText: () => "",
-			theme: {
-				fg: (_color: string, text: string) => text,
-				bold: (text: string) => text,
-			},
-		},
-		isIdle: () => true,
-		abort: () => undefined,
-		hasPendingMessages: () => false,
-		shutdown: () => undefined,
-		getContextUsage: () => undefined,
-		compact: () => undefined,
-		getSystemPrompt: () => "",
-		waitForIdle: async () => undefined,
-		newSession: async (options?: unknown) => {
-			newSessionCalls.push(options);
-			const plan = newSessionPlan[newSessionCounter] ?? { cancelled: false };
-			newSessionCounter += 1;
-			if (!plan.cancelled) {
-				const nextSessionFile =
-					plan.sessionFile ??
-					path.join(cwd, ".pi", "sessions", `child-${newSessionCounter}.session.json`);
-				setSessionFile(nextSessionFile);
-			}
-			return { cancelled: plan.cancelled };
-		},
-		switchSession: async (target: string) => {
-			switchSessionCalls.push(target);
-			setSessionFile(target);
-			return { cancelled: false };
-		},
-	};
-
-	return {
-		ctx: ctx as unknown as ExtensionCommandContext,
-		notifications,
-		widgetUpdates,
-		statusUpdates,
-		newSessionCalls,
-		switchSessionCalls,
-		setSessionFile,
-		getSessionFile: () => sessionFile,
-	};
+		newSessionPlan,
+		resolveSessionId: sessionIdFromFile,
+	});
 }
 
 function makePiHarness(): PiHarness {

@@ -30,6 +30,11 @@ import {
 	makeRalphMetrics,
 	makeCapabilityContract,
 } from "./ralph-test-helpers.js";
+import {
+	type FakeCommandContext,
+	type NewSessionPlan,
+	makeFakeCommandContext,
+} from "./fake-command-context.js";
 import { capturePreRalphActiveTools } from "../src/ralph/session-capabilities.js";
 
 type EventHandler = (event: unknown, ctx: ExtensionContext) => unknown;
@@ -51,27 +56,7 @@ type SentUserMessage = {
 	};
 };
 
-type Notifications = Array<{ readonly message: string; readonly level: string }>;
-type WidgetUpdates = Array<readonly string[] | undefined>;
-type StatusUpdates = Array<string | undefined>;
-
-type ContextHarness = {
-	readonly ctx: ExtensionCommandContext;
-	readonly notifications: Notifications;
-	readonly widgetUpdates: WidgetUpdates;
-	readonly statusUpdates: StatusUpdates;
-	readonly newSessionCalls: ReadonlyArray<unknown>;
-	readonly switchSessionCalls: readonly string[];
-	readonly setSessionFile: (next: string) => void;
-	readonly getSessionFile: () => string;
-	readonly setActiveTools: (next: ReadonlyArray<string>) => void;
-	readonly getActiveTools: () => ReadonlyArray<string>;
-};
-
-type NewSessionPlan = {
-	readonly cancelled: boolean;
-	readonly sessionFile?: string;
-};
+type ContextHarness = FakeCommandContext;
 
 type RalphRuntimeHarness = {
 	readonly run: <A, E>(effect: Effect.Effect<A, E, Ralph | ExecutionRuntime>) => Promise<A>;
@@ -223,102 +208,7 @@ function makeContext(
 	cwd: string,
 	newSessionPlan: readonly NewSessionPlan[] = [{ cancelled: false }],
 ): ContextHarness {
-	const notifications: Notifications = [];
-	const widgetUpdates: WidgetUpdates = [];
-	const statusUpdates: StatusUpdates = [];
-	const newSessionCalls: unknown[] = [];
-	const switchSessionCalls: string[] = [];
-	let sessionFile = path.join(cwd, ".pi", "sessions", "controller.session.json");
-	let newSessionCounter = 0;
-	let activeTools: ReadonlyArray<string> = [];
-
-	const ctx = {
-		cwd,
-		hasUI: true,
-		model: undefined,
-		modelRegistry: {
-			find: (provider: string, id: string) => ({ provider, id }),
-			getAll: () => [],
-		},
-		sessionManager: {
-			getEntries: () => [],
-			getBranch: () => [],
-			getSessionId: () => "test-session",
-			getSessionFile: () => sessionFile,
-		},
-		ui: {
-			setStatus: (_key: string, text: string | undefined) => {
-				statusUpdates.push(text);
-			},
-			setWidget: (_key: string, content: string[] | undefined) => {
-				widgetUpdates.push(content);
-			},
-			setFooter: () => () => undefined,
-			setEditorComponent: () => undefined,
-			notify: (message: string, level: string) => {
-				notifications.push({ message, level });
-			},
-			confirm: async () => true,
-			getEditorText: () => "",
-			theme: {
-				fg: (_color: string, text: string) => text,
-				bold: (text: string) => text,
-			},
-		},
-		isIdle: () => true,
-		abort: () => undefined,
-		hasPendingMessages: () => false,
-		shutdown: () => undefined,
-		getContextUsage: () => undefined,
-		getActiveTools: () => [...activeTools],
-		setActiveTools: (nextTools: ReadonlyArray<string>) => {
-			activeTools = [...nextTools];
-		},
-		getAllTools: () => [],
-		getCommands: () => [],
-		setModel: async () => true,
-		getThinkingLevel: () => "medium",
-		setThinkingLevel: () => undefined,
-		compact: () => undefined,
-		getSystemPrompt: () => "",
-		waitForIdle: async () => undefined,
-		newSession: async (options?: unknown) => {
-			newSessionCalls.push(options);
-			const plan = newSessionPlan[newSessionCounter] ?? { cancelled: false };
-			newSessionCounter += 1;
-			if (!plan.cancelled) {
-				sessionFile =
-					plan.sessionFile ??
-					path.join(cwd, ".pi", "sessions", `child-${newSessionCounter}.session.json`);
-			}
-			return { cancelled: plan.cancelled };
-		},
-		fork: async () => ({ cancelled: false }),
-		navigateTree: async () => ({ cancelled: false }),
-		switchSession: async (target: string) => {
-			switchSessionCalls.push(target);
-			sessionFile = target;
-			return { cancelled: false };
-		},
-		reload: async () => undefined,
-	} as unknown as ExtensionCommandContext;
-
-	return {
-		ctx,
-		notifications,
-		widgetUpdates,
-		statusUpdates,
-		newSessionCalls,
-		switchSessionCalls,
-		setSessionFile: (next) => {
-			sessionFile = next;
-		},
-		getSessionFile: () => sessionFile,
-		setActiveTools: (next) => {
-			activeTools = [...next];
-		},
-		getActiveTools: () => [...activeTools],
-	};
+	return makeFakeCommandContext({ cwd, newSessionPlan });
 }
 
 function makePiHarness(): PiHarness {

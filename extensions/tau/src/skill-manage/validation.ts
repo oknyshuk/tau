@@ -1,4 +1,4 @@
-import { parse as parseYaml } from "yaml";
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { isRecord } from "../shared/json.js";
 
 const MAX_NAME_LENGTH = 64;
@@ -39,27 +39,24 @@ export function validateFrontmatter(content: string): string | undefined {
 		return "SKILL.md must start with YAML frontmatter (---).";
 	}
 
-	const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n([\s\S]*))?$/);
-	if (!match) {
-		return "SKILL.md frontmatter must end with --- on its own line.";
-	}
-
-	const frontmatterRaw = match[1];
-	const bodyRaw = match[2] ?? "";
-	if (frontmatterRaw === undefined) {
-		return "SKILL.md frontmatter must end with --- on its own line.";
-	}
-
-	let frontmatter: unknown;
+	let parsed: { frontmatter: Record<string, unknown>; body: string };
 	try {
-		frontmatter = parseYaml(frontmatterRaw);
+		parsed = parseFrontmatter(content);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		return `Invalid YAML frontmatter: ${message}`;
 	}
 
+	const { frontmatter, body } = parsed;
+
 	if (!isRecord(frontmatter)) {
 		return "SKILL.md frontmatter must be a YAML mapping.";
+	}
+
+	// pi's parseFrontmatter returns { frontmatter: {}, body: content } when the
+	// closing `---` is missing. Detect that case explicitly.
+	if (Object.keys(frontmatter).length === 0 && body === content.replace(/\r\n/g, "\n").replace(/\r/g, "\n")) {
+		return "SKILL.md frontmatter must end with --- on its own line.";
 	}
 
 	const name = frontmatter["name"];
@@ -76,7 +73,7 @@ export function validateFrontmatter(content: string): string | undefined {
 		return `Skill description must be ${MAX_DESCRIPTION_LENGTH} characters or fewer.`;
 	}
 
-	if (bodyRaw.trim().length === 0) {
+	if (body.trim().length === 0) {
 		return "SKILL.md must include body content after the frontmatter.";
 	}
 
