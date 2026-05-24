@@ -47,7 +47,7 @@ import {
 import { WorkerSessionController } from "./worker/session-controller.js";
 import { isAgentDisabledForSession } from "../agents-menu/index.js";
 
-export { WORKER_DELEGATION_PROMPT, createWorkerCustomTools } from "./worker/tools.js";
+export { createWorkerCustomTools } from "./worker/tools.js";
 export { resolveModelPattern, toolOnlyStreamFn } from "./worker/model-runner.js";
 
 const MAX_SUBMIT_RESULT_RETRIES = 3;

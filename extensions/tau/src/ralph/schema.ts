@@ -20,7 +20,7 @@ const RalphFinishDecisionSchema = Schema.Struct({
 	message: Schema.NonEmptyString,
 });
 
-export const RalphPendingDecisionSchema = Schema.Union([
+const RalphPendingDecisionSchema = Schema.Union([
 	RalphContinueDecisionSchema,
 	RalphFinishDecisionSchema,
 ]);
@@ -47,7 +47,7 @@ function toContractValidationError(entity: string, error: unknown): RalphContrac
 	});
 }
 
-export const LoopStatusSchema = Schema.Literals(["active", "paused", "completed"]);
+const LoopStatusSchema = Schema.Literals(["active", "paused", "completed"]);
 export type LoopStatus = Schema.Schema.Type<typeof LoopStatusSchema>;
 
 export const LoopNameSchema = Schema.NonEmptyString.check(Schema.isMaxLength(120)).check(
@@ -55,7 +55,7 @@ export const LoopNameSchema = Schema.NonEmptyString.check(Schema.isMaxLength(120
 		(value) => value === sanitizeLoopName(value) || "expected a sanitized ralph loop name",
 	),
 );
-export type LoopName = Schema.Schema.Type<typeof LoopNameSchema>;
+type LoopName = Schema.Schema.Type<typeof LoopNameSchema>;
 
 const LoopStateSharedFields = {
 	name: LoopNameSchema,
@@ -74,7 +74,7 @@ const LoopStateSharedFields = {
 	pendingDecision: Schema.mutableKey(OptionalRalphPendingDecisionSchema),
 } as const;
 
-export const LoopStateSchema = Schema.Struct({
+const LoopStateSchema = Schema.Struct({
 	...LoopStateSharedFields,
 	executionProfile: Schema.mutableKey(ExecutionProfileSchema),
 	sandboxProfile: Schema.mutableKey(Schema.OptionFromNullOr(SandboxProfileSchema)),
@@ -85,33 +85,33 @@ export const LoopStateSchema = Schema.Struct({
 export type LoopState = Schema.Schema.Type<typeof LoopStateSchema>;
 export type EncodedLoopState = Schema.Codec.Encoded<typeof LoopStateSchema>;
 
-export const StartLoopInputSchema = Schema.Struct({
+const StartLoopInputSchema = Schema.Struct({
 	name: LoopNameSchema,
 	maxIterations: NonNegativeIntSchema,
 	itemsPerIteration: NonNegativeIntSchema,
 	reflectEvery: NonNegativeIntSchema,
 	reflectInstructions: Schema.String,
 });
-export type StartLoopInput = Schema.Schema.Type<typeof StartLoopInputSchema>;
+type StartLoopInput = Schema.Schema.Type<typeof StartLoopInputSchema>;
 
-export const ResumeLoopInputSchema = Schema.Struct({
+const ResumeLoopInputSchema = Schema.Struct({
 	name: LoopNameSchema,
 });
-export type ResumeLoopInput = Schema.Schema.Type<typeof ResumeLoopInputSchema>;
+type ResumeLoopInput = Schema.Schema.Type<typeof ResumeLoopInputSchema>;
 
-export const ArchiveLoopInputSchema = Schema.Struct({
+const ArchiveLoopInputSchema = Schema.Struct({
 	name: LoopNameSchema,
 });
-export type ArchiveLoopInput = Schema.Schema.Type<typeof ArchiveLoopInputSchema>;
+type ArchiveLoopInput = Schema.Schema.Type<typeof ArchiveLoopInputSchema>;
 
-export const LoopSummarySchema = Schema.Struct({
+const LoopSummarySchema = Schema.Struct({
 	name: LoopNameSchema,
 	status: LoopStatusSchema,
 	iteration: NonNegativeIntSchema,
 	maxIterations: NonNegativeIntSchema,
 	taskFile: Schema.NonEmptyString,
 });
-export type LoopSummary = Schema.Schema.Type<typeof LoopSummarySchema>;
+type LoopSummary = Schema.Schema.Type<typeof LoopSummarySchema>;
 
 const encodeLoopStateSchema = Schema.encodeUnknownEffect(LoopStateSchema);
 const decodeLoopStateSchemaSync = Schema.decodeUnknownSync(LoopStateSchema);
@@ -182,7 +182,7 @@ export function decodeLoopStateSync(value: unknown): LoopState {
 	return decodeLoopStateCompatSync(value);
 }
 
-export function encodeLoopStateSync(state: LoopState): EncodedLoopState {
+function encodeLoopStateSync(state: LoopState): EncodedLoopState {
 	try {
 		return encodeLoopStateSchemaSync(state);
 	} catch (error) {
@@ -190,10 +190,10 @@ export function encodeLoopStateSync(state: LoopState): EncodedLoopState {
 	}
 }
 
-export function decodeLoopStateJsonSync(input: string): LoopState {
+function decodeLoopStateJsonSync(input: string): LoopState {
 	return decodeLoopStateSync(parseJsonUnknownSync(input));
 }
 
-export function encodeLoopStateJsonSync(state: LoopState): string {
+function encodeLoopStateJsonSync(state: LoopState): string {
 	return JSON.stringify(encodeLoopStateSync(state), null, 2);
 }

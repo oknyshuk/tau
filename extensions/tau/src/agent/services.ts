@@ -39,7 +39,7 @@ export class AgentError extends Data.TaggedError("AgentError")<{
 }> {}
 
 // Config
-export interface AgentConfigService {
+interface AgentConfigService {
 	readonly maxThreads: number;
 	readonly maxDepth: number;
 }

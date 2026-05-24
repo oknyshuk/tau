@@ -39,7 +39,7 @@ function formatToolArgs(toolName: string, args: unknown): string {
 	}
 }
 
-export interface WorkerSessionSubscriptionOptions {
+interface WorkerSessionSubscriptionOptions {
 	readonly session: AgentSession;
 	readonly tracking: WorkerTrackingState;
 	readonly resultSchema: unknown | undefined;

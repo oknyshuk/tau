@@ -1,6 +1,6 @@
 import { isRecord } from "../shared/json.js";
 
-export type MemoryMutationAction = "add" | "update" | "remove";
+type MemoryMutationAction = "add" | "update" | "remove";
 
 export function readMemoryToolAction(params: unknown): string | undefined {
 	if (!isRecord(params)) {
@@ -11,7 +11,7 @@ export function readMemoryToolAction(params: unknown): string | undefined {
 	return typeof action === "string" ? action : undefined;
 }
 
-export function isMemoryMutationAction(
+function isMemoryMutationAction(
 	action: string | undefined,
 ): action is MemoryMutationAction {
 	return action === "add" || action === "update" || action === "remove";

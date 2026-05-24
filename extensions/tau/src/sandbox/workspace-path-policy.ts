@@ -2,7 +2,7 @@ import * as path from "node:path";
 
 import { safeRealpath, isPathInsideRoot } from "../shared/fs.js";
 
-export interface ProtectedPathRule {
+interface ProtectedPathRule {
 	readonly rootSegment: string;
 	readonly writableExceptionSegments: readonly string[];
 }
@@ -12,12 +12,12 @@ export const WORKSPACE_PROTECTED_RULES: ProtectedPathRule[] = [
 	{ rootSegment: ".pi", writableExceptionSegments: [".pi/loops/tasks"] },
 ];
 
-export interface ResolvedProtectedPathRule {
+interface ResolvedProtectedPathRule {
 	readonly root: string;
 	readonly writableExceptions: readonly string[];
 }
 
-export function resolveProtectedRulePaths(workspaceRoot: string): ResolvedProtectedPathRule[] {
+function resolveProtectedRulePaths(workspaceRoot: string): ResolvedProtectedPathRule[] {
 	const resolvedRoot = safeRealpath(workspaceRoot);
 	return WORKSPACE_PROTECTED_RULES.map((rule) => ({
 		root: safeRealpath(path.join(resolvedRoot, rule.rootSegment)),
@@ -27,7 +27,7 @@ export function resolveProtectedRulePaths(workspaceRoot: string): ResolvedProtec
 	}));
 }
 
-export type PathClassification =
+type PathClassification =
 	| { readonly kind: "protected"; readonly root: string }
 	| { readonly kind: "writableException"; readonly root: string }
 	| { readonly kind: "normal" };

@@ -15,21 +15,21 @@ export class RalphLoopNotFoundError extends Schema.TaggedErrorClass<RalphLoopNot
 	},
 ) {}
 
-export class RalphLoopAlreadyActiveError extends Schema.TaggedErrorClass<RalphLoopAlreadyActiveError>()(
+class RalphLoopAlreadyActiveError extends Schema.TaggedErrorClass<RalphLoopAlreadyActiveError>()(
 	"RalphLoopAlreadyActiveError",
 	{
 		loopName: Schema.String,
 	},
 ) {}
 
-export class RalphLoopAlreadyCompletedError extends Schema.TaggedErrorClass<RalphLoopAlreadyCompletedError>()(
+class RalphLoopAlreadyCompletedError extends Schema.TaggedErrorClass<RalphLoopAlreadyCompletedError>()(
 	"RalphLoopAlreadyCompletedError",
 	{
 		loopName: Schema.String,
 	},
 ) {}
 
-export class RalphInvalidLoopStateError extends Schema.TaggedErrorClass<RalphInvalidLoopStateError>()(
+class RalphInvalidLoopStateError extends Schema.TaggedErrorClass<RalphInvalidLoopStateError>()(
 	"RalphInvalidLoopStateError",
 	{
 		loopName: Schema.String,
@@ -37,14 +37,14 @@ export class RalphInvalidLoopStateError extends Schema.TaggedErrorClass<RalphInv
 	},
 ) {}
 
-export class RalphControllerSessionMissingError extends Schema.TaggedErrorClass<RalphControllerSessionMissingError>()(
+class RalphControllerSessionMissingError extends Schema.TaggedErrorClass<RalphControllerSessionMissingError>()(
 	"RalphControllerSessionMissingError",
 	{
 		loopName: Schema.String,
 	},
 ) {}
 
-export class RalphTaskFileMissingError extends Schema.TaggedErrorClass<RalphTaskFileMissingError>()(
+class RalphTaskFileMissingError extends Schema.TaggedErrorClass<RalphTaskFileMissingError>()(
 	"RalphTaskFileMissingError",
 	{
 		loopName: Schema.String,
@@ -52,14 +52,14 @@ export class RalphTaskFileMissingError extends Schema.TaggedErrorClass<RalphTask
 	},
 ) {}
 
-export class RalphLoopBlockedByActiveSubagentsError extends Schema.TaggedErrorClass<RalphLoopBlockedByActiveSubagentsError>()(
+class RalphLoopBlockedByActiveSubagentsError extends Schema.TaggedErrorClass<RalphLoopBlockedByActiveSubagentsError>()(
 	"RalphLoopBlockedByActiveSubagentsError",
 	{
 		loopName: Schema.String,
 	},
 ) {}
 
-export class RalphSessionSwitchCancelledError extends Schema.TaggedErrorClass<RalphSessionSwitchCancelledError>()(
+class RalphSessionSwitchCancelledError extends Schema.TaggedErrorClass<RalphSessionSwitchCancelledError>()(
 	"RalphSessionSwitchCancelledError",
 	{
 		loopName: Schema.String,
@@ -67,7 +67,7 @@ export class RalphSessionSwitchCancelledError extends Schema.TaggedErrorClass<Ra
 	},
 ) {}
 
-export class RalphIterationSessionCreationCancelledError extends Schema.TaggedErrorClass<RalphIterationSessionCreationCancelledError>()(
+class RalphIterationSessionCreationCancelledError extends Schema.TaggedErrorClass<RalphIterationSessionCreationCancelledError>()(
 	"RalphIterationSessionCreationCancelledError",
 	{
 		loopName: Schema.String,
@@ -75,7 +75,7 @@ export class RalphIterationSessionCreationCancelledError extends Schema.TaggedEr
 	},
 ) {}
 
-export type RalphError =
+type RalphError =
 	| RalphContractValidationError
 	| RalphLoopNotFoundError
 	| RalphLoopAlreadyActiveError

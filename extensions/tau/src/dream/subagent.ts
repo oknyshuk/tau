@@ -37,7 +37,7 @@ export interface DreamSubagentContext {
 	readonly modelRegistry: ModelRegistry;
 }
 
-export interface DreamSubagentRunRequest {
+interface DreamSubagentRunRequest {
 	readonly cwd: string;
 	readonly runId: string;
 	readonly mode: "manual" | "auto";
@@ -56,7 +56,7 @@ export interface DreamSubagentResult {
 	readonly memoryMutations: number;
 }
 
-export interface DreamSubagentApi {
+interface DreamSubagentApi {
 	readonly run: (
 		request: DreamSubagentRunRequest,
 		context: DreamSubagentContext,
@@ -490,7 +490,7 @@ function runImpl(
 // Live layer
 // ---------------------------------------------------------------------------
 
-export const DreamSubagentLive = Layer.succeed(
+const DreamSubagentLive = Layer.succeed(
 	DreamSubagent,
 	DreamSubagent.of({
 		run: runImpl,

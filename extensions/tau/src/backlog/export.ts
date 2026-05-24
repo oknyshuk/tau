@@ -78,7 +78,7 @@ function markdownSection(title: string, content: string | undefined): string | u
 	return `## ${title}\n\n${trimmed}`;
 }
 
-export function serializeIssueToMarkdown(issue: Issue): string {
+function serializeIssueToMarkdown(issue: Issue): string {
 	const frontmatterYaml = stringifyYaml(issueFrontmatter(issue)).trimEnd();
 	const sections = [
 		markdownSection("description", issue.description),

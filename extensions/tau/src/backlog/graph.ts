@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { BacklogDependencyCycleError } from "./errors.js";
 import type { DependencyType, Issue } from "./schema.js";
 
-export type Graph = ReadonlyMap<string, ReadonlySet<string>>;
+type Graph = ReadonlyMap<string, ReadonlySet<string>>;
 
 const CycleEdgeTypes = new Set<DependencyType>([
 	"blocks",
@@ -13,7 +13,7 @@ const CycleEdgeTypes = new Set<DependencyType>([
 	"delegated-from",
 ]);
 
-export const isCycleEdgeType = (depType: DependencyType): boolean => CycleEdgeTypes.has(depType);
+const isCycleEdgeType = (depType: DependencyType): boolean => CycleEdgeTypes.has(depType);
 
 export const buildGraph = (issues: ReadonlyArray<Issue>): Graph => {
 	const graph = new Map<string, Set<string>>();
@@ -132,4 +132,3 @@ export const assertNoDependencyCycles = (
 		}
 	});
 
-export const assertNoDependencyCyclesEffect = assertNoDependencyCycles;

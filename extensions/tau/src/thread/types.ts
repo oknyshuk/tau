@@ -29,7 +29,7 @@ export interface FindThreadResult {
 /**
  * Thread content block for read_thread
  */
-export interface ThreadContentBlock {
+interface ThreadContentBlock {
 	readonly type: "user" | "assistant" | "tool_result" | "compaction" | "branch_summary";
 	readonly content: string;
 	readonly timestamp?: string;
@@ -73,14 +73,14 @@ export interface SessionCatalogEntry {
 /**
  * Parameters for find_thread tool
  */
-export interface FindThreadParams {
+interface FindThreadParams {
 	readonly query: string;
 }
 
 /**
  * Parameters for read_thread tool
  */
-export interface ReadThreadParams {
+interface ReadThreadParams {
 	readonly threadID: string;
 	readonly goal?: string;
 }
@@ -88,7 +88,7 @@ export interface ReadThreadParams {
 /**
  * Service interface for thread operations
  */
-export interface ThreadCatalogService {
+interface ThreadCatalogService {
 	readonly find: (
 		query: string,
 		cwd: string,

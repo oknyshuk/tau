@@ -6,7 +6,7 @@ import { setWorkerApprovalBroker } from "../approval-broker.js";
 import { subscribeToWorkerSession } from "./session-subscription.js";
 import { buildShutdownStatus, type WorkerTrackingState } from "./status.js";
 
-export interface WorkerSessionControllerOptions {
+interface WorkerSessionControllerOptions {
 	readonly tracking: WorkerTrackingState;
 	readonly resultSchema: unknown | undefined;
 	readonly maxSubmitResultRetries: number;

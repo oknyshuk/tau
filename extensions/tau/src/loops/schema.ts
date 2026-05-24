@@ -22,11 +22,11 @@ const RalphFinishDecisionSchema = Schema.Struct({
 	message: Schema.NonEmptyString,
 });
 
-export const RalphPendingDecisionSchema = Schema.Union([
+const RalphPendingDecisionSchema = Schema.Union([
 	RalphContinueDecisionSchema,
 	RalphFinishDecisionSchema,
 ]);
-export type RalphPendingDecision = Schema.Schema.Type<typeof RalphPendingDecisionSchema>;
+type RalphPendingDecision = Schema.Schema.Type<typeof RalphPendingDecisionSchema>;
 
 const OptionalRalphPendingDecisionSchema = Schema.OptionFromNullOr(RalphPendingDecisionSchema);
 
@@ -54,7 +54,7 @@ const parseJsonUnknown = (
 		catch: (error) => toContractValidationError(entity, error),
 	});
 
-export function sanitizeLoopTaskId(value: string): string {
+function sanitizeLoopTaskId(value: string): string {
 	return value
 		.trim()
 		.replace(/[^a-zA-Z0-9._-]/g, "-")
@@ -67,40 +67,40 @@ export function sanitizePhaseId(value: string): string {
 	return sanitizeLoopTaskId(value);
 }
 
-export const LoopTaskIdSchema = Schema.NonEmptyString.check(Schema.isMaxLength(120)).check(
+const LoopTaskIdSchema = Schema.NonEmptyString.check(Schema.isMaxLength(120)).check(
 	Schema.makeFilter(
 		(value) => value === sanitizeLoopTaskId(value) || "expected a sanitized loop task id",
 	),
 );
-export type LoopTaskId = Schema.Schema.Type<typeof LoopTaskIdSchema>;
+type LoopTaskId = Schema.Schema.Type<typeof LoopTaskIdSchema>;
 
-export const PhaseIdSchema = Schema.NonEmptyString.check(Schema.isMaxLength(120)).check(
+const PhaseIdSchema = Schema.NonEmptyString.check(Schema.isMaxLength(120)).check(
 	Schema.makeFilter(
 		(value) => value === sanitizePhaseId(value) || "expected a sanitized phase id",
 	),
 );
-export type PhaseId = Schema.Schema.Type<typeof PhaseIdSchema>;
+type PhaseId = Schema.Schema.Type<typeof PhaseIdSchema>;
 
-export const LoopKindSchema = Schema.Literals([
+const LoopKindSchema = Schema.Literals([
 	"ralph",
 	"autoresearch",
 	"blocked_manual_resolution",
 ]);
-export type LoopKind = Schema.Schema.Type<typeof LoopKindSchema>;
+type LoopKind = Schema.Schema.Type<typeof LoopKindSchema>;
 
-export const LoopLifecycleSchema = Schema.Literals([
+const LoopLifecycleSchema = Schema.Literals([
 	"draft",
 	"active",
 	"paused",
 	"completed",
 	"archived",
 ]);
-export type LoopLifecycle = Schema.Schema.Type<typeof LoopLifecycleSchema>;
+type LoopLifecycle = Schema.Schema.Type<typeof LoopLifecycleSchema>;
 
-export const MetricDirectionSchema = Schema.Literals(["lower", "higher"]);
+const MetricDirectionSchema = Schema.Literals(["lower", "higher"]);
 export type MetricDirection = Schema.Schema.Type<typeof MetricDirectionSchema>;
 
-export const LoopSessionRefSchema = Schema.Struct({
+const LoopSessionRefSchema = Schema.Struct({
 	sessionId: Schema.NonEmptyString,
 	sessionFile: Schema.NonEmptyString,
 });
@@ -108,11 +108,11 @@ export type LoopSessionRef = Schema.Schema.Type<typeof LoopSessionRefSchema>;
 
 const OptionalSessionSchema = Schema.OptionFromNullOr(LoopSessionRefSchema);
 
-export const LoopOwnershipSchema = Schema.Struct({
+const LoopOwnershipSchema = Schema.Struct({
 	controller: OptionalSessionSchema,
 	child: OptionalSessionSchema,
 });
-export type LoopOwnership = Schema.Schema.Type<typeof LoopOwnershipSchema>;
+type LoopOwnership = Schema.Schema.Type<typeof LoopOwnershipSchema>;
 
 const LoopStateSharedFields = {
 	taskId: LoopTaskIdSchema,
@@ -164,7 +164,7 @@ const AutoresearchLoopStateDetailsSchema = Schema.Struct({
 	constraints: Schema.Array(Schema.NonEmptyString),
 	pinnedExecutionProfile: ExecutionProfileSchema,
 });
-export type AutoresearchLoopStateDetails = Schema.Schema.Type<
+type AutoresearchLoopStateDetails = Schema.Schema.Type<
 	typeof AutoresearchLoopStateDetailsSchema
 >;
 
@@ -175,16 +175,16 @@ const ManualResolutionStateSchema = Schema.Struct({
 	recoveryActions: Schema.Array(Schema.NonEmptyString),
 	recoveryNotes: Schema.Array(Schema.String),
 });
-export type ManualResolutionState = Schema.Schema.Type<typeof ManualResolutionStateSchema>;
+type ManualResolutionState = Schema.Schema.Type<typeof ManualResolutionStateSchema>;
 
-export const RalphLoopPersistedStateSchema = Schema.Struct({
+const RalphLoopPersistedStateSchema = Schema.Struct({
 	...LoopStateSharedFields,
 	kind: Schema.Literal("ralph"),
 	ralph: RalphLoopStateDetailsSchema,
 });
 export type RalphLoopPersistedState = Schema.Schema.Type<typeof RalphLoopPersistedStateSchema>;
 
-export const AutoresearchLoopPersistedStateSchema = Schema.Struct({
+const AutoresearchLoopPersistedStateSchema = Schema.Struct({
 	...LoopStateSharedFields,
 	kind: Schema.Literal("autoresearch"),
 	autoresearch: AutoresearchLoopStateDetailsSchema,
@@ -193,7 +193,7 @@ export type AutoresearchLoopPersistedState = Schema.Schema.Type<
 	typeof AutoresearchLoopPersistedStateSchema
 >;
 
-export const BlockedManualResolutionLoopStateSchema = Schema.Struct({
+const BlockedManualResolutionLoopStateSchema = Schema.Struct({
 	...LoopStateSharedFields,
 	kind: Schema.Literal("blocked_manual_resolution"),
 	previousKind: Schema.Literals(["ralph", "autoresearch"]),
@@ -203,7 +203,7 @@ export type BlockedManualResolutionLoopState = Schema.Schema.Type<
 	typeof BlockedManualResolutionLoopStateSchema
 >;
 
-export const LoopPersistedStateSchema = Schema.Union([
+const LoopPersistedStateSchema = Schema.Union([
 	RalphLoopPersistedStateSchema,
 	AutoresearchLoopPersistedStateSchema,
 	BlockedManualResolutionLoopStateSchema,
@@ -211,12 +211,12 @@ export const LoopPersistedStateSchema = Schema.Union([
 export type LoopPersistedState = Schema.Schema.Type<typeof LoopPersistedStateSchema>;
 export type EncodedLoopPersistedState = Schema.Codec.Encoded<typeof LoopPersistedStateSchema>;
 
-export interface LoopPersistedStateDecodeResult {
+interface LoopPersistedStateDecodeResult {
 	readonly state: LoopPersistedState;
 	readonly migrated: boolean;
 }
 
-export const AutoresearchPhaseSnapshotSchema = Schema.Struct({
+const AutoresearchPhaseSnapshotSchema = Schema.Struct({
 	kind: Schema.Literal("autoresearch"),
 	taskId: LoopTaskIdSchema,
 	phaseId: PhaseIdSchema,
@@ -240,7 +240,7 @@ export const AutoresearchPhaseSnapshotSchema = Schema.Struct({
 	pinnedExecutionProfile: ExecutionProfileSchema,
 });
 export type AutoresearchPhaseSnapshot = Schema.Schema.Type<typeof AutoresearchPhaseSnapshotSchema>;
-export type EncodedAutoresearchPhaseSnapshot = Schema.Codec.Encoded<
+type EncodedAutoresearchPhaseSnapshot = Schema.Codec.Encoded<
 	typeof AutoresearchPhaseSnapshotSchema
 >;
 
@@ -263,7 +263,7 @@ export function decodeLoopTaskIdSync(value: unknown): LoopTaskId {
 	}
 }
 
-export function decodePhaseIdSync(value: unknown): PhaseId {
+function decodePhaseIdSync(value: unknown): PhaseId {
 	try {
 		return decodePhaseIdSchemaSync(value);
 	} catch (error) {
@@ -296,7 +296,7 @@ export const encodeLoopPersistedState = (
 		Effect.mapError((error) => toContractValidationError("loops.state", error)),
 	);
 
-export const decodeLoopPersistedStateJson = (
+const decodeLoopPersistedStateJson = (
 	input: string,
 ): Effect.Effect<LoopPersistedState, LoopContractValidationError, never> =>
 	parseJsonUnknown(input, "loops.state.json").pipe(Effect.flatMap(decodeLoopPersistedState));
@@ -313,7 +313,7 @@ export const encodeLoopPersistedStateJson = (
 ): Effect.Effect<string, LoopContractValidationError, never> =>
 	encodeLoopPersistedState(state).pipe(Effect.map((encoded) => JSON.stringify(encoded, null, 2)));
 
-export function decodeLoopPersistedStateSync(value: unknown): LoopPersistedState {
+function decodeLoopPersistedStateSync(value: unknown): LoopPersistedState {
 	try {
 		return decodeLoopPersistedStateSyncWithMigration(value).state;
 	} catch (error) {
@@ -321,7 +321,7 @@ export function decodeLoopPersistedStateSync(value: unknown): LoopPersistedState
 	}
 }
 
-export function decodeLoopPersistedStateSyncWithMigration(
+function decodeLoopPersistedStateSyncWithMigration(
 	value: unknown,
 ): LoopPersistedStateDecodeResult {
 	return {
@@ -330,7 +330,7 @@ export function decodeLoopPersistedStateSyncWithMigration(
 	};
 }
 
-export function encodeLoopPersistedStateSync(state: LoopPersistedState): EncodedLoopPersistedState {
+function encodeLoopPersistedStateSync(state: LoopPersistedState): EncodedLoopPersistedState {
 	try {
 		return encodeLoopPersistedStateSchemaSync(state);
 	} catch (error) {
@@ -342,7 +342,7 @@ export function decodeLoopPersistedStateJsonSync(input: string): LoopPersistedSt
 	return decodeLoopPersistedStateSync(parseJsonUnknownSync(input));
 }
 
-export function decodeLoopPersistedStateJsonSyncWithMigration(
+function decodeLoopPersistedStateJsonSyncWithMigration(
 	input: string,
 ): LoopPersistedStateDecodeResult {
 	return decodeLoopPersistedStateSyncWithMigration(parseJsonUnknownSync(input));
@@ -381,7 +381,7 @@ export const encodeAutoresearchPhaseSnapshotJson = (
 		Effect.map((encoded) => JSON.stringify(encoded, null, 2)),
 	);
 
-export function decodeAutoresearchPhaseSnapshotSync(value: unknown): AutoresearchPhaseSnapshot {
+function decodeAutoresearchPhaseSnapshotSync(value: unknown): AutoresearchPhaseSnapshot {
 	try {
 		return decodePhaseSnapshotSchemaSync(value);
 	} catch (error) {
@@ -389,7 +389,7 @@ export function decodeAutoresearchPhaseSnapshotSync(value: unknown): Autoresearc
 	}
 }
 
-export function encodeAutoresearchPhaseSnapshotSync(
+function encodeAutoresearchPhaseSnapshotSync(
 	snapshot: AutoresearchPhaseSnapshot,
 ): EncodedAutoresearchPhaseSnapshot {
 	try {
@@ -403,7 +403,7 @@ export function decodeAutoresearchPhaseSnapshotJsonSync(input: string): Autorese
 	return decodeAutoresearchPhaseSnapshotSync(parseJsonUnknownSync(input));
 }
 
-export function encodeAutoresearchPhaseSnapshotJsonSync(
+function encodeAutoresearchPhaseSnapshotJsonSync(
 	snapshot: AutoresearchPhaseSnapshot,
 ): string {
 	return JSON.stringify(encodeAutoresearchPhaseSnapshotSync(snapshot), null, 2);
@@ -459,7 +459,7 @@ export const validateLoopOwnership = (
 		return yield* Effect.void;
 	});
 
-export function isLoopStateKind(
+function isLoopStateKind(
 	state: LoopPersistedState,
 	kind: Exclude<LoopKind, "blocked_manual_resolution">,
 ): boolean {

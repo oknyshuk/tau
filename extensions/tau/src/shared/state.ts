@@ -83,7 +83,7 @@ type PersistedStateEntry = {
 	readonly index: number;
 };
 
-export type PersistedStateLoadResult =
+type PersistedStateLoadResult =
 	| { readonly _tag: "missing" }
 	| { readonly _tag: "invalid"; readonly error: PersistedStateDecodeError }
 	| { readonly _tag: "ok"; readonly state: TauPersistedState };

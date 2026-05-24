@@ -20,7 +20,7 @@ import type { IssueQuery } from "./query.js";
  * - Command service is the only mutation/query facade used by the tool adapter.
  * - Storage layout and command UX parity are hard constraints during migration.
  */
-export const BACKLOG_COMMAND_SURFACE = [
+const BACKLOG_COMMAND_SURFACE = [
 	"list",
 	"show",
 	"ready",
@@ -35,15 +35,15 @@ export const BACKLOG_COMMAND_SURFACE = [
 	"search",
 ] as const;
 
-export type BacklogCommandName = (typeof BACKLOG_COMMAND_SURFACE)[number];
+type BacklogCommandName = (typeof BACKLOG_COMMAND_SURFACE)[number];
 
-export const BACKLOG_RUNTIME_BOUNDARY_RULES = Object.freeze({
+const BACKLOG_RUNTIME_BOUNDARY_RULES = Object.freeze({
 	runtimeRunnerBoundary: "Only extension and tool adapters may execute backlog effects.",
 	storageLayout: "Canonical events stay under .pi/backlog/events/** and cache under .pi/backlog/cache/**.",
 	uxParity: "CLI command syntax and rendered output must stay stable during migration.",
 });
 
-export interface BacklogConfigService {
+interface BacklogConfigService {
 	readonly workspaceRoot: string;
 	readonly eventsRoot: string;
 	readonly cacheRoot: string;
@@ -54,7 +54,7 @@ export class BacklogConfig extends Context.Service<BacklogConfig, BacklogConfigS
 	"BacklogConfig",
 ) {}
 
-export interface BacklogRepositoryService {
+interface BacklogRepositoryService {
 	readonly readEvents: () => Effect.Effect<
 		ReadonlyArray<BacklogEvent>,
 		BacklogStorageError | BacklogContractValidationError,

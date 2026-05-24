@@ -20,7 +20,7 @@ export type DreamRunError =
 	| MemoryMutationError
 	| MemoryFileError;
 
-export class DreamTaskNotFound extends Data.TaggedError("DreamTaskNotFound")<{
+class DreamTaskNotFound extends Data.TaggedError("DreamTaskNotFound")<{
 	readonly taskId: DreamTaskId;
 }> {}
 

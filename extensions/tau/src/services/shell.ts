@@ -27,7 +27,7 @@ export class ShellExecutionError extends Schema.TaggedErrorClass<ShellExecutionE
 	{ reason: Schema.String },
 ) {}
 
-export type ShellSpawnRequest = {
+type ShellSpawnRequest = {
 	readonly file: string;
 	readonly args: readonly string[];
 	readonly cwd: string;
@@ -39,7 +39,7 @@ export type ShellSpawnRequest = {
 	readonly abortSignal?: AbortSignal;
 };
 
-export type ShellWriteRequest = {
+type ShellWriteRequest = {
 	readonly sessionId: number;
 	readonly ownerId: string;
 	readonly chars: string;
@@ -91,10 +91,10 @@ export class Shell extends Context.Service<Shell, ShellService>()("tau/services/
 
 export const EXEC_DEFAULT_YIELD_TIME_MS = 10_000;
 export const WRITE_STDIN_DEFAULT_YIELD_TIME_MS = 250;
-export const MIN_YIELD_TIME_MS = 250;
-export const MAX_YIELD_TIME_MS = 30_000;
-export const MIN_EMPTY_WRITE_STDIN_YIELD_TIME_MS = 5_000;
-export const MAX_EMPTY_WRITE_STDIN_YIELD_TIME_MS = 300_000;
+const MIN_YIELD_TIME_MS = 250;
+const MAX_YIELD_TIME_MS = 30_000;
+const MIN_EMPTY_WRITE_STDIN_YIELD_TIME_MS = 5_000;
+const MAX_EMPTY_WRITE_STDIN_YIELD_TIME_MS = 300_000;
 
 function killProcessTree(pid: number): void {
 	try {

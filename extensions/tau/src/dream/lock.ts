@@ -101,7 +101,7 @@ function toDreamLockError(error: unknown, lockPath: string, operation: string): 
 	});
 }
 
-export const DreamLockLive = Layer.succeed(
+const DreamLockLive = Layer.succeed(
 	DreamLock,
 	DreamLock.of({
 		acquire: (cwd) => {

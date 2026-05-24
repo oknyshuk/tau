@@ -6,7 +6,7 @@ export const LOOPS_STATE_DIR = path.join(LOOPS_DIR, "state");
 export const LOOPS_PHASES_DIR = path.join(LOOPS_DIR, "phases");
 export const LOOPS_RUNS_DIR = path.join(LOOPS_DIR, "runs");
 
-export const LOOPS_ARCHIVE_DIR = path.join(LOOPS_DIR, "archive");
+const LOOPS_ARCHIVE_DIR = path.join(LOOPS_DIR, "archive");
 export const LOOPS_ARCHIVE_TASKS_DIR = path.join(LOOPS_ARCHIVE_DIR, "tasks");
 export const LOOPS_ARCHIVE_STATE_DIR = path.join(LOOPS_ARCHIVE_DIR, "state");
 export const LOOPS_ARCHIVE_PHASES_DIR = path.join(LOOPS_ARCHIVE_DIR, "phases");

@@ -48,7 +48,7 @@ function getSessionFileFromContext(ctx: { readonly sessionManager?: unknown }): 
  */
 const agentSelections = new AgentSelectionStore();
 
-export function isAgentDisabledForCwd(cwd: string, name: string): boolean {
+function isAgentDisabledForCwd(cwd: string, name: string): boolean {
 	return agentSelections.isDisabledForCwd(cwd, name);
 }
 
@@ -68,7 +68,7 @@ export function resolveEnabledAgentsForSessionAuthoritative(
 	return agentSelections.resolveEnabledAgentsForSession(cwd, sessionFile, availableAgents);
 }
 
-export function setAgentEnabledForCwd(cwd: string, name: string, enabled: boolean): void {
+function setAgentEnabledForCwd(cwd: string, name: string, enabled: boolean): void {
 	agentSelections.setEnabledForCwd(cwd, name, enabled);
 }
 

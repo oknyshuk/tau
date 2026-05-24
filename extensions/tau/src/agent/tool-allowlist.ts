@@ -10,7 +10,7 @@ import {
 	shouldUseApplyPatchForProvider,
 } from "../sandbox/mutation-tools.js";
 
-export const STRUCTURED_OUTPUT_TOOL_NAME = "submit_result";
+const STRUCTURED_OUTPUT_TOOL_NAME = "submit_result";
 
 export function parseConfiguredToolNames(
 	value: unknown,

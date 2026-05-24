@@ -1,4 +1,4 @@
-export function formatModelId(model: {
+function formatModelId(model: {
 	readonly provider: string;
 	readonly id: string;
 }): string {

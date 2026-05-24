@@ -55,7 +55,7 @@ export interface DreamSchedulerApi {
 	) => Effect.Effect<number | null, DreamLockError>;
 }
 
-export interface DreamSchedulerLiveConfig {
+interface DreamSchedulerLiveConfig {
 	readonly loadConfig: (cwd: string) => Effect.Effect<DreamConfig, DreamConfigError>;
 }
 

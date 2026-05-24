@@ -57,7 +57,7 @@ const atomicAppendFileString = (
 		yield* atomicWriteFileString(fs, filePath, `${existing}${content}`);
 	});
 
-export interface AutoresearchRepoService {
+interface AutoresearchRepoService {
 	readonly readJsonl: (workDir: string) => Effect.Effect<Option.Option<string>, StorageError, never>;
 	readonly writeJsonl: (workDir: string, content: string) => Effect.Effect<void, StorageError, never>;
 	readonly appendJsonlLine: (workDir: string, line: string) => Effect.Effect<void, StorageError, never>;

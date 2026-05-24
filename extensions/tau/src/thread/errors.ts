@@ -14,7 +14,7 @@ export class ThreadAmbiguousError extends Data.TaggedError("ThreadAmbiguousError
 	readonly matches: ReadonlyArray<{ readonly id: string; readonly path: string }>;
 }> {}
 
-export class SessionParseError extends Data.TaggedError("SessionParseError")<{
+class SessionParseError extends Data.TaggedError("SessionParseError")<{
 	readonly path: string;
 	readonly cause: unknown;
 }> {}

@@ -1,9 +1,9 @@
 import { Schema } from "effect";
 
-export const DreamRunMode = Schema.Literals(["manual", "auto"]);
-export type DreamRunMode = typeof DreamRunMode.Type;
+const DreamRunMode = Schema.Literals(["manual", "auto"]);
+type DreamRunMode = typeof DreamRunMode.Type;
 
-export const DreamPhase = Schema.Literals([
+const DreamPhase = Schema.Literals([
 	"queued",
 	"orient",
 	"gather",
@@ -11,15 +11,15 @@ export const DreamPhase = Schema.Literals([
 	"prune",
 	"done",
 ]);
-export type DreamPhase = typeof DreamPhase.Type;
+type DreamPhase = typeof DreamPhase.Type;
 
-export const DreamTaskStatus = Schema.Literals([
+const DreamTaskStatus = Schema.Literals([
 	"running",
 	"completed",
 	"failed",
 	"cancelled",
 ]);
-export type DreamTaskStatus = typeof DreamTaskStatus.Type;
+type DreamTaskStatus = typeof DreamTaskStatus.Type;
 
 export const DreamTaskId = Schema.String;
 export type DreamTaskId = typeof DreamTaskId.Type;

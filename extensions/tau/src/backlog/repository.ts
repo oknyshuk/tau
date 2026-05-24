@@ -5,7 +5,7 @@ import { FileSystem, Effect, Layer } from "effect";
 
 import {
 	decodeBacklogEvent,
-	replayBacklogEventsEffect,
+	replayBacklogEvents,
 	resolveBacklogPaths,
 	sortBacklogEvents,
 	type BacklogEvent,
@@ -17,7 +17,7 @@ import {
 	BacklogLockError,
 	BacklogStorageError,
 } from "./errors.js";
-import { assertNoDependencyCyclesEffect } from "./graph.js";
+import { assertNoDependencyCycles } from "./graph.js";
 import {
 	decodeIssue,
 	encodeIssue,
@@ -240,7 +240,7 @@ const serializeMaterializedIssues = (
 		return `${encoded.map((issue) => JSON.stringify(issue)).join("\n")}\n`;
 	});
 
-export const BacklogConfigLive = (workspaceRoot: string) => {
+const BacklogConfigLive = (workspaceRoot: string) => {
 	const paths = resolveBacklogPaths(workspaceRoot);
 	return Layer.succeed(
 		BacklogConfig,
@@ -253,7 +253,7 @@ export const BacklogConfigLive = (workspaceRoot: string) => {
 	);
 };
 
-export const BacklogRepositoryLive = Layer.effect(
+const BacklogRepositoryLive = Layer.effect(
 	BacklogRepository,
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
@@ -290,12 +290,12 @@ export const BacklogRepositoryLive = Layer.effect(
 			events: ReadonlyArray<BacklogEvent>,
 		): Effect.Effect<void, BacklogContractValidationError | BacklogDependencyCycleError, never> =>
 			Effect.gen(function* () {
-				const replayed = yield* replayBacklogEventsEffect(events);
+				const replayed = yield* replayBacklogEvents(events);
 				const issues: Issue[] = [];
 				for (const issue of replayed.values()) {
 					issues.push(yield* decodeIssue(issue.fields));
 				}
-				yield* assertNoDependencyCyclesEffect(issues);
+				yield* assertNoDependencyCycles(issues);
 			});
 
 		const appendEvent = (
@@ -341,12 +341,12 @@ export const BacklogRepositoryLive = Layer.effect(
 		> =>
 			Effect.gen(function* () {
 				const events = yield* readEvents();
-				const replayed = yield* replayBacklogEventsEffect(events);
+				const replayed = yield* replayBacklogEvents(events);
 				const issues: Issue[] = [];
 				for (const issue of replayed.values()) {
 					issues.push(yield* decodeIssue(issue.fields));
 				}
-				yield* assertNoDependencyCyclesEffect(issues);
+				yield* assertNoDependencyCycles(issues);
 				yield* writeMaterializedIssues(issues);
 				return issues;
 			});

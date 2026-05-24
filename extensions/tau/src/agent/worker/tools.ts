@@ -5,7 +5,7 @@ import { createApplyPatchToolDefinition } from "../../sandbox/apply-patch.js";
 import { createBacklogToolDefinition } from "../../backlog/tool.js";
 import { createExaToolDefinitions } from "../../exa/index.js";
 
-export const WORKER_DELEGATION_PROMPT = `## Worker Agent Instructions
+const WORKER_DELEGATION_PROMPT = `## Worker Agent Instructions
 
 You are a worker agent spawned by an orchestrator. Follow these rules:
 

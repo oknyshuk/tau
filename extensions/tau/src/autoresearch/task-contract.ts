@@ -59,7 +59,7 @@ const AUTORESEARCH_WORKFLOW_SECTIONS: readonly WorkflowSection[] = [
 	},
 ] as const;
 
-export type AutoresearchTaskContract = {
+type AutoresearchTaskContract = {
 	readonly kind: "autoresearch";
 	readonly title: string;
 	readonly benchmark: {
@@ -82,7 +82,7 @@ export type AutoresearchTaskContract = {
 	}>;
 };
 
-export type AutoresearchTaskContractInput = {
+type AutoresearchTaskContractInput = {
 	readonly title: string;
 	readonly benchmarkCommand: string;
 	readonly checksCommand: Option.Option<string>;
@@ -584,7 +584,7 @@ export function buildAutoresearchPhaseFingerprint(
 		.digest("hex");
 }
 
-export function deriveAutoresearchPhaseId(fingerprint: string): string {
+function deriveAutoresearchPhaseId(fingerprint: string): string {
 	return sanitizePhaseId(`phase-${fingerprint.slice(0, 32)}`);
 }
 

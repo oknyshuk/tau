@@ -14,7 +14,7 @@ import {
 import { AgentError } from "./services.js";
 import type { AgentDefinition, ModelSpec } from "./types.js";
 
-export type ResolvedAgentExecution = {
+type ResolvedAgentExecution = {
 	readonly definition: AgentDefinition;
 	readonly executionState: ExecutionSessionState;
 	readonly executionProfile: ExecutionProfile;

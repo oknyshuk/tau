@@ -15,7 +15,7 @@ import { readModelId } from "../prompt/profile.js";
 import { parseProviderModel } from "../shared/model-id.js";
 import { ExecutionState } from "./execution-state.js";
 
-export type ExecutionApplyResult =
+type ExecutionApplyResult =
 	| {
 			readonly applied: true;
 			readonly profile: ExecutionProfile;
@@ -25,7 +25,7 @@ export type ExecutionApplyResult =
 			readonly reason: string;
 	  };
 
-export type ExecutionApplyOptions = {
+type ExecutionApplyOptions = {
 	readonly notifyOnSuccess?: boolean;
 	readonly persist?: boolean;
 	readonly ephemeral?: boolean;

@@ -5,7 +5,7 @@
 
 import type { MemoryBucketEntriesSnapshot, MemoryEntry, MemoryEntriesSnapshot } from "../memory/format.js";
 
-export interface BuildDreamPromptOpts {
+interface BuildDreamPromptOpts {
 	readonly runId: string;
 	readonly mode: "manual" | "auto";
 	readonly nowIso: string;

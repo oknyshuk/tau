@@ -13,13 +13,13 @@ function toContractValidationError(entity: string, error: unknown): Autoresearch
 	});
 }
 
-export const MetricDirectionSchema = Schema.Literals(["lower", "higher"]);
+const MetricDirectionSchema = Schema.Literals(["lower", "higher"]);
 export type MetricDirection = "lower" | "higher";
 
-export const ExperimentStatusSchema = Schema.Literals(["keep", "discard", "crash", "checks_failed"]);
-export type ExperimentStatus = "keep" | "discard" | "crash" | "checks_failed";
+const ExperimentStatusSchema = Schema.Literals(["keep", "discard", "crash", "checks_failed"]);
+type ExperimentStatus = "keep" | "discard" | "crash" | "checks_failed";
 
-export const ASIValueSchema: Schema.Schema<unknown> = Schema.suspend((): Schema.Schema<unknown> =>
+const ASIValueSchema: Schema.Schema<unknown> = Schema.suspend((): Schema.Schema<unknown> =>
 	Schema.Union([
 		Schema.String,
 		Schema.Number,
@@ -68,11 +68,11 @@ export type ExperimentState = {
 	executionProfile: ExecutionProfile | null;
 };
 
-export const AutoresearchConfigSchema = Schema.Struct({
+const AutoresearchConfigSchema = Schema.Struct({
 	maxIterations: Schema.optional(Schema.Number),
 	workingDir: Schema.optional(Schema.String),
 });
-export type AutoresearchConfig = {
+type AutoresearchConfig = {
 	maxIterations?: number | undefined;
 	workingDir?: string | undefined;
 };
@@ -92,7 +92,7 @@ export type AutoresearchJsonConfigEntry = {
 	executionProfile?: ExecutionProfile | undefined;
 };
 
-export type AutoresearchJsonRunEntry = {
+type AutoresearchJsonRunEntry = {
 	type?: "run" | undefined;
 	run?: number | undefined;
 	commit: string;
@@ -105,7 +105,7 @@ export type AutoresearchJsonRunEntry = {
 	asi?: ASIData | undefined;
 };
 
-export type AutoresearchJsonlLine = AutoresearchJsonConfigEntry | AutoresearchJsonRunEntry;
+type AutoresearchJsonlLine = AutoresearchJsonConfigEntry | AutoresearchJsonRunEntry;
 
 const parseJsonUnknown = (input: string): Effect.Effect<unknown, AutoresearchContractValidationError, never> =>
 	Effect.try({
@@ -118,7 +118,7 @@ export const decodeExperimentState = (
 ): Effect.Effect<ExperimentState, AutoresearchContractValidationError, never> =>
 	Effect.fail(toContractValidationError("autoresearch.experiment_state", "not implemented"));
 
-export const decodeAutoresearchJsonlLineFromString = (
+const decodeAutoresearchJsonlLineFromString = (
 	input: string,
 ): Effect.Effect<AutoresearchJsonlLine, AutoresearchContractValidationError, never> =>
 	parseJsonUnknown(input).pipe(

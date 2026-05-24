@@ -69,7 +69,7 @@ function stopRalphActiveTimer(
 	};
 }
 
-export type LoopCreateRalphInput = {
+type LoopCreateRalphInput = {
 	readonly kind: "ralph";
 	readonly taskId: string;
 	readonly title: string;
@@ -83,7 +83,7 @@ export type LoopCreateRalphInput = {
 	readonly capabilityContract: RalphCapabilityContract | undefined;
 };
 
-export type LoopCreateAutoresearchInput = {
+type LoopCreateAutoresearchInput = {
 	readonly kind: "autoresearch";
 	readonly taskId: string;
 	readonly title: string;
@@ -101,20 +101,20 @@ export type LoopCreateAutoresearchInput = {
 	readonly executionProfile: ExecutionProfile;
 };
 
-export type LoopCreateInput = LoopCreateRalphInput | LoopCreateAutoresearchInput;
+type LoopCreateInput = LoopCreateRalphInput | LoopCreateAutoresearchInput;
 
-export type LoopManualResolutionInput = {
+type LoopManualResolutionInput = {
 	readonly reasonCode: string;
 	readonly message: string;
 	readonly recoveryActions: readonly string[];
 	readonly recoveryNotes: readonly string[];
 };
 
-export type LoopCleanResult = {
+type LoopCleanResult = {
 	readonly cleanedTaskIds: readonly string[];
 };
 
-export type LoopCleanKind = "all" | "ralph" | "autoresearch";
+type LoopCleanKind = "all" | "ralph" | "autoresearch";
 
 export interface LoopEngineService {
 	readonly createLoop: (

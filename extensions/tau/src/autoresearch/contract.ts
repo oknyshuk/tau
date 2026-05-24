@@ -6,7 +6,7 @@ import {
 	AUTORESEARCH_CHECKS_SH,
 } from "./paths.js";
 
-export interface AutoresearchBenchmarkContract {
+interface AutoresearchBenchmarkContract {
 	command: string | null;
 	primaryMetric: string | null;
 	metricUnit: string;
@@ -21,13 +21,13 @@ export interface AutoresearchContract {
 	constraints: string[];
 }
 
-export interface AutoresearchContractLoadResult {
+interface AutoresearchContractLoadResult {
 	contract: AutoresearchContract;
 	errors: string[];
 	path: string;
 }
 
-export interface AutoresearchScriptSnapshot {
+interface AutoresearchScriptSnapshot {
 	benchmarkScript: string;
 	benchmarkScriptPath: string;
 	checksScript: string | null;
@@ -39,7 +39,7 @@ const HEADING_REGEX = /^##\s+(.+?)\s*$/;
 const LIST_ITEM_REGEX = /^\s*[-*]\s+(.*)$/;
 const KEY_VALUE_REGEX = /^\s*[-*]\s+([^:]+):\s*(.*)$/;
 
-export function readAutoresearchContract(workDir: string): AutoresearchContractLoadResult {
+function readAutoresearchContract(workDir: string): AutoresearchContractLoadResult {
 	// This is a synchronous boundary; caller maps it into Effect if needed.
 	// We accept the content as a parameter in tests, so the exported helper
 	// for the runtime is readAutoresearchContractFromContent.
@@ -61,7 +61,7 @@ export function readAutoresearchContractFromContent(
 	return { contract, errors, path: contractPath };
 }
 
-export function parseAutoresearchContract(markdown: string): AutoresearchContract {
+function parseAutoresearchContract(markdown: string): AutoresearchContract {
 	const sections = extractSections(markdown);
 	return {
 		benchmark: parseBenchmarkSection(sections.get("benchmark") ?? ""),
@@ -71,7 +71,7 @@ export function parseAutoresearchContract(markdown: string): AutoresearchContrac
 	};
 }
 
-export function validateAutoresearchContract(contract: AutoresearchContract): string[] {
+function validateAutoresearchContract(contract: AutoresearchContract): string[] {
 	const errors: string[] = [];
 	if (!contract.benchmark.command) {
 		errors.push("Benchmark.command is required in autoresearch.md.");
@@ -115,7 +115,7 @@ export function buildAutoresearchSegmentFingerprint(
 	return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
-export function normalizeAutoresearchList(values: readonly string[]): string[] {
+function normalizeAutoresearchList(values: readonly string[]): string[] {
 	const normalized: string[] = [];
 	const seen = new Set<string>();
 	for (const value of values) {
@@ -128,13 +128,13 @@ export function normalizeAutoresearchList(values: readonly string[]): string[] {
 	return normalized;
 }
 
-export function normalizeContractPathSpec(value: string): string {
+function normalizeContractPathSpec(value: string): string {
 	const normalized = value.trim().replaceAll("\\", "/");
 	if (normalized === "." || normalized === "./") return ".";
 	return normalized.replace(/^\.\/+/, "").replace(/\/+$/, "");
 }
 
-export function pathMatchesContractPath(pathValue: string, specValue: string): boolean {
+function pathMatchesContractPath(pathValue: string, specValue: string): boolean {
 	const normalizedPath = normalizeContractPathSpec(pathValue);
 	const normalizedSpec = normalizeContractPathSpec(specValue);
 	if (normalizedSpec === ".") return true;

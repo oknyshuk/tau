@@ -72,7 +72,7 @@ export class DreamSubagentSpawnFailed extends Schema.TaggedErrorClass<DreamSubag
 	},
 ) {}
 
-export class DreamSubagentAborted extends Schema.TaggedErrorClass<DreamSubagentAborted>()(
+class DreamSubagentAborted extends Schema.TaggedErrorClass<DreamSubagentAborted>()(
 	"DreamSubagentAborted",
 	{},
 ) {}
@@ -96,7 +96,7 @@ export class DreamConfigDecodeError extends Schema.TaggedErrorClass<DreamConfigD
 	},
 ) {}
 
-export class DreamConfigMissingModel extends Schema.TaggedErrorClass<DreamConfigMissingModel>()(
+class DreamConfigMissingModel extends Schema.TaggedErrorClass<DreamConfigMissingModel>()(
 	"DreamConfigMissingModel",
 	{
 		path: Schema.String,

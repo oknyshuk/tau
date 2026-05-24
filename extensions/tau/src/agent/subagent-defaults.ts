@@ -55,7 +55,7 @@ const SubagentDefaultsSchema = Schema.Struct({
 	thinking: Schema.optional(ThinkingLevelSchema),
 });
 
-export type SubagentDefaults = Schema.Schema.Type<typeof SubagentDefaultsSchema>;
+type SubagentDefaults = Schema.Schema.Type<typeof SubagentDefaultsSchema>;
 
 export interface ResolvedSubagentDefaults {
 	readonly model: Model<Api> | undefined;

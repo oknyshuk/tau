@@ -5,8 +5,8 @@ import type { ASIData, MetricDirection, NumericMetricMap } from "./schema.js";
 type ASIValue = string | number | boolean | null | ASIValue[] | { [key: string]: ASIValue };
 import { AUTORESEARCH_DIR } from "./paths.js";
 
-export const METRIC_LINE_PREFIX = "METRIC";
-export const ASI_LINE_PREFIX = "ASI";
+const METRIC_LINE_PREFIX = "METRIC";
+const ASI_LINE_PREFIX = "ASI";
 export const EXPERIMENT_MAX_LINES = 10;
 export const EXPERIMENT_MAX_BYTES = 4 * 1024;
 
@@ -82,7 +82,7 @@ export function mergeAsi(base: ASIData | null, override: ASIData | undefined): A
 	};
 }
 
-export function commas(value: number): string {
+function commas(value: number): string {
 	const sign = value < 0 ? "-" : "";
 	const digits = String(Math.trunc(Math.abs(value)));
 	const groups: string[] = [];
@@ -92,7 +92,7 @@ export function commas(value: number): string {
 	return sign + groups.join(",");
 }
 
-export function fmtNum(value: number, decimals = 0): string {
+function fmtNum(value: number, decimals = 0): string {
 	if (decimals <= 0) return commas(Math.round(value));
 	const absolute = Math.abs(value);
 	const whole = Math.floor(absolute);

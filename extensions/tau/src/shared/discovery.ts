@@ -65,7 +65,7 @@ export function getProjectSettingsPath(projectPiDir: string): string {
 	return path.join(projectPiDir, "settings.json");
 }
 
-export function findNearestProjectPiDir(cwd: string): string | null {
+function findNearestProjectPiDir(cwd: string): string | null {
 	let current = cwd;
 	for (;;) {
 		const candidate = path.join(current, ".pi");

@@ -71,7 +71,7 @@ export class BacklogCommandUsageError extends Schema.TaggedErrorClass<BacklogCom
 	},
 ) {}
 
-export type BacklogError =
+type BacklogError =
 	| BacklogContractValidationError
 	| BacklogIssueNotFoundError
 	| BacklogDependencyCycleError

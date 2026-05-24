@@ -1203,7 +1203,7 @@ function formatPlanType(planType: string | undefined): string | undefined {
 // Public API: registers renderer + /status command
 // ---------------------------------------------------------------------------
 
-export type StatusPersistence = {
+type StatusPersistence = {
 	readonly getSnapshot: () => TauPersistedState;
 	readonly update: (patch: Partial<TauPersistedState>) => void;
 };

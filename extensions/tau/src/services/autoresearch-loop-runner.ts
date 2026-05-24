@@ -1,6 +1,6 @@
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Scope, Context } from "effect";
 
-export type WaitForAutoresearchAgentEndResult =
+type WaitForAutoresearchAgentEndResult =
 	| {
 		readonly _tag: "completed";
 		readonly event: unknown;

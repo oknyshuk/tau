@@ -14,9 +14,9 @@ import { Schema } from "effect";
  *   enforcement.
  */
 
-export const CAPABILITY_CONTRACT_VERSION = "1" as const;
+const CAPABILITY_CONTRACT_VERSION = "1" as const;
 
-export const ToolMetadataFingerprintSchema = Schema.Struct({
+const ToolMetadataFingerprintSchema = Schema.Struct({
 	name: Schema.NonEmptyString,
 	label: Schema.String,
 	description: Schema.String,
@@ -25,7 +25,7 @@ export type ToolMetadataFingerprint = Schema.Schema.Type<
 	typeof ToolMetadataFingerprintSchema
 >;
 
-export const AgentMetadataFingerprintSchema = Schema.Struct({
+const AgentMetadataFingerprintSchema = Schema.Struct({
 	name: Schema.NonEmptyString,
 	description: Schema.String,
 });
@@ -33,21 +33,21 @@ export type AgentMetadataFingerprint = Schema.Schema.Type<
 	typeof AgentMetadataFingerprintSchema
 >;
 
-export const RalphToolContractSchema = Schema.Struct({
+const RalphToolContractSchema = Schema.Struct({
 	/** User-configurable active tool names (ralph_continue / ralph_finish excluded). */
 	activeNames: Schema.Array(Schema.NonEmptyString),
 	/** Snapshot of available tools at capture time for informational display. */
 	availableSnapshot: Schema.Array(ToolMetadataFingerprintSchema),
 });
-export type RalphToolContract = Schema.Schema.Type<typeof RalphToolContractSchema>;
+type RalphToolContract = Schema.Schema.Type<typeof RalphToolContractSchema>;
 
-export const RalphAgentContractSchema = Schema.Struct({
+const RalphAgentContractSchema = Schema.Struct({
 	/** Enabled agent names for this loop. */
 	enabledNames: Schema.Array(Schema.NonEmptyString),
 	/** Snapshot of agent registry at capture time for informational display. */
 	registrySnapshot: Schema.Array(AgentMetadataFingerprintSchema),
 });
-export type RalphAgentContract = Schema.Schema.Type<typeof RalphAgentContractSchema>;
+type RalphAgentContract = Schema.Schema.Type<typeof RalphAgentContractSchema>;
 
 export const RalphCapabilityContractSchema = Schema.Struct({
 	version: Schema.Literal(CAPABILITY_CONTRACT_VERSION),

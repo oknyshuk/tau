@@ -6,14 +6,14 @@ export const IssueStatusSchema = Schema.String.check(Schema.isMinLength(1));
 export type IssueStatus = Schema.Schema.Type<typeof IssueStatusSchema>;
 
 export const IssueTypeSchema = Schema.String.check(Schema.isMinLength(1));
-export type IssueType = Schema.Schema.Type<typeof IssueTypeSchema>;
+type IssueType = Schema.Schema.Type<typeof IssueTypeSchema>;
 
-export const DependencyTypeSchema = Schema.String.check(Schema.isMinLength(1)).check(
+const DependencyTypeSchema = Schema.String.check(Schema.isMinLength(1)).check(
 	Schema.isMaxLength(50),
 );
 export type DependencyType = Schema.Schema.Type<typeof DependencyTypeSchema>;
 
-export const DependencySchema = Schema.Struct({
+const DependencySchema = Schema.Struct({
 	issue_id: Schema.NonEmptyString,
 	depends_on_id: Schema.NonEmptyString,
 	type: DependencyTypeSchema,
@@ -24,7 +24,7 @@ export const DependencySchema = Schema.Struct({
 });
 export type Dependency = Schema.Schema.Type<typeof DependencySchema>;
 
-export const CommentSchema = Schema.Struct({
+const CommentSchema = Schema.Struct({
 	id: Schema.Number,
 	issue_id: Schema.NonEmptyString,
 	author: Schema.String,
@@ -99,7 +99,7 @@ const IssueKnownFieldsSchema = Schema.Struct({
 	payload: Schema.optional(Schema.String),
 });
 
-export const IssueFieldsSchema = Schema.StructWithRest(IssueKnownFieldsSchema, [IssueExtraFields]);
+const IssueFieldsSchema = Schema.StructWithRest(IssueKnownFieldsSchema, [IssueExtraFields]);
 export type Issue = Schema.Schema.Type<typeof IssueFieldsSchema>;
 
 export type EncodedIssue = Schema.Codec.Encoded<typeof IssueFieldsSchema>;

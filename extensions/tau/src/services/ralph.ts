@@ -53,26 +53,26 @@ type CurrentLoopRef = {
 	readonly loopName: string;
 };
 
-export type RalphRunLoopResult = {
+type RalphRunLoopResult = {
 	readonly status: "blocked" | "stopped";
 	readonly message: Option.Option<string>;
 	readonly banner: Option.Option<string>;
 };
 
-export type RalphContinueResult = {
+type RalphContinueResult = {
 	readonly text: string;
 };
 
-export type RalphFinishResult = {
+type RalphFinishResult = {
 	readonly text: string;
 };
 
-export type RalphAgentEndResult = {
+type RalphAgentEndResult = {
 	readonly consumedByWaitingLoop: boolean;
 	readonly banner: Option.Option<string>;
 };
 
-export type RalphStartLoopInput = {
+type RalphStartLoopInput = {
 	readonly loopName: string;
 	readonly taskFile: string;
 	readonly executionProfile: ExecutionProfile;
@@ -92,7 +92,7 @@ export type RalphStartLoopInput = {
 	};
 };
 
-export type RalphStartLoopStateResult =
+type RalphStartLoopStateResult =
 	| {
 			readonly status: "started";
 			readonly loopName: string;
@@ -108,12 +108,12 @@ export type RalphStartLoopStateResult =
 			readonly status: "missing_controller_session";
 	  };
 
-export type RalphPrepareLoopTaskInput = {
+type RalphPrepareLoopTaskInput = {
 	readonly loopName: string;
 	readonly taskContent: string;
 };
 
-export type RalphPrepareLoopTaskResult =
+type RalphPrepareLoopTaskResult =
 	| {
 			readonly status: "prepared";
 			readonly taskFile: string;
@@ -123,7 +123,7 @@ export type RalphPrepareLoopTaskResult =
 			readonly loopName: string;
 	  };
 
-export type RalphCreateDraftLoopForConfigurationInput = {
+type RalphCreateDraftLoopForConfigurationInput = {
 	readonly loopName: string;
 	readonly taskFile: string;
 	readonly taskContent: string;
@@ -136,12 +136,12 @@ export type RalphCreateDraftLoopForConfigurationInput = {
 	readonly capabilityContract: RalphCapabilityContract;
 };
 
-export type RalphCreateDraftLoopForConfigurationResult = {
+type RalphCreateDraftLoopForConfigurationResult = {
 	readonly loop: LoopState;
 	readonly createdState: boolean;
 };
 
-export type RalphPauseCurrentLoopResult =
+type RalphPauseCurrentLoopResult =
 	| {
 			readonly status: "paused";
 			readonly loopName: string;
@@ -168,7 +168,7 @@ export type RalphStopLoopResult =
 			readonly loopName: string;
 	  };
 
-export type RalphResumeLoopStateResult =
+type RalphResumeLoopStateResult =
 	| {
 			readonly status: "resumed";
 			readonly loopName: string;
@@ -189,12 +189,12 @@ export type RalphResumeLoopStateResult =
 			readonly requestedMaxIterations: number;
 	  };
 
-export type RalphResumeLoopInput = {
+type RalphResumeLoopInput = {
 	readonly loopName: string;
 	readonly maxIterations: Option.Option<number>;
 };
 
-export type RalphCancelLoopResult =
+type RalphCancelLoopResult =
 	| {
 			readonly status: "cancelled";
 	  }
@@ -202,7 +202,7 @@ export type RalphCancelLoopResult =
 			readonly status: "not_found";
 	  };
 
-export type RalphArchiveLoopByNameResult =
+type RalphArchiveLoopByNameResult =
 	| {
 			readonly status: "archived";
 	  }
@@ -213,11 +213,11 @@ export type RalphArchiveLoopByNameResult =
 			readonly status: "active_loop";
 	  };
 
-export type RalphCleanCompletedLoopsResult = {
+type RalphCleanCompletedLoopsResult = {
 	readonly cleanedLoops: ReadonlyArray<string>;
 };
 
-export type RalphNukeLoopsResult = {
+type RalphNukeLoopsResult = {
 	readonly removed: boolean;
 };
 
@@ -244,7 +244,7 @@ export type RalphCommandBoundary = {
 	) => Effect.Effect<{ readonly dispatched: boolean; readonly reason?: string }, never, never>;
 };
 
-export interface RalphLiveConfig {
+interface RalphLiveConfig {
 	readonly hasActiveSubagents: () => Effect.Effect<boolean, never, never>;
 }
 

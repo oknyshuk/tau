@@ -255,7 +255,7 @@ export function searchGlobalSessions(
 /**
  * Find a session by ID (exact match or prefix)
  */
-export function findSessionById(
+function findSessionById(
   threadID: string,
   cwd: string
 ): Effect.Effect<

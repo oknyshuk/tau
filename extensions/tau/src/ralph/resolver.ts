@@ -21,7 +21,7 @@ import {
 
 // ─── Pure types ─────────────────────────────────────────────────────────────
 
-export type ContractCaptureInput = {
+type ContractCaptureInput = {
 	readonly activeTools: ReadonlyArray<string>;
 	readonly allTools: ReadonlyArray<{ readonly name: string; readonly description: string }>;
 	readonly agentRegistry: AgentRegistry;
@@ -29,9 +29,9 @@ export type ContractCaptureInput = {
 	readonly useApplyPatchForMutationTools?: boolean;
 };
 
-export type ContractApplyTarget = "controller" | "child";
+type ContractApplyTarget = "controller" | "child";
 
-export type ContractValidationIssue =
+type ContractValidationIssue =
 	| { readonly kind: "missing_control_tools"; readonly missing: ReadonlyArray<string> }
 	| { readonly kind: "missing_pinned_tools"; readonly missing: ReadonlyArray<string> }
 	| { readonly kind: "missing_enabled_agents"; readonly missing: ReadonlyArray<string> }
@@ -45,7 +45,7 @@ export type ContractValidationIssue =
 	| { readonly kind: "unsupported_thinking"; readonly model: string; readonly thinking: string }
 	| { readonly kind: "missing_sandbox_profile"; readonly message: string };
 
-export type ContractValidationResult =
+type ContractValidationResult =
 	| { readonly valid: true }
 	| { readonly valid: false; readonly issues: ReadonlyArray<ContractValidationIssue> };
 

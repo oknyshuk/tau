@@ -51,7 +51,7 @@ export class AutoresearchGitError extends Schema.TaggedErrorClass<AutoresearchGi
 	},
 ) {}
 
-export type AutoresearchError =
+type AutoresearchError =
 	| AutoresearchContractValidationError
 	| AutoresearchNoPendingRunError
 	| AutoresearchFingerprintMismatchError

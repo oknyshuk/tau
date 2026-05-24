@@ -135,7 +135,7 @@ const statusSummary = (issues: ReadonlyArray<Issue>): BacklogStatusSummary => ({
 	pinned: issues.filter((issue) => issue.pinned === true).length,
 });
 
-export const BacklogCommandServiceLive = Layer.effect(
+const BacklogCommandServiceLive = Layer.effect(
 	BacklogCommandService,
 	Effect.gen(function* () {
 		const repository = yield* BacklogRepository;
@@ -473,7 +473,7 @@ export const createIssue = (
 		}),
 	);
 
-export const updateIssue = (
+const updateIssue = (
 	workspaceRoot: string,
 	input: UpdateIssueInputLegacy,
 ): Effect.Effect<Issue, BacklogCommandMutationError, never> =>

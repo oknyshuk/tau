@@ -1,6 +1,6 @@
 import type { ContextUsage } from "@earendil-works/pi-coding-agent";
 
-export const DEFAULT_COMPACTION_RESERVE_TOKENS = 16_384;
+const DEFAULT_COMPACTION_RESERVE_TOKENS = 16_384;
 
 export function shouldDeferAutoresearchResumeUntilAfterCompaction(
 	usage: ContextUsage | undefined,

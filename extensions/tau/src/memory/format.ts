@@ -22,7 +22,7 @@ export const MemoryEntryId = Schema.String.check(
 ).pipe(Schema.brand("MemoryEntryId"));
 
 export type MemoryEntryId = typeof MemoryEntryId.Type;
-export type MemoryTimestamp = typeof Schema.DateTimeUtcFromString.Type;
+type MemoryTimestamp = typeof Schema.DateTimeUtcFromString.Type;
 
 const MemoryEntryContent = Schema.String.check(
 	Schema.makeFilter(
@@ -36,7 +36,7 @@ const MemoryEntryTypeSchema = Schema.String.check(
 	),
 );
 
-export type MemoryEntryType = typeof MemoryEntryTypeSchema.Type;
+type MemoryEntryType = typeof MemoryEntryTypeSchema.Type;
 
 const MemoryEntrySummary = Schema.String.check(
 	Schema.makeFilter(
@@ -56,9 +56,9 @@ export class MemoryEntry extends Schema.Class<MemoryEntry>("MemoryEntry")({
 	updatedAt: Schema.DateTimeUtcFromString,
 }) {}
 
-export type MemoryEntryJson = typeof MemoryEntry.Encoded;
+type MemoryEntryJson = typeof MemoryEntry.Encoded;
 
-export interface CreateMemoryEntryOptions {
+interface CreateMemoryEntryOptions {
 	readonly id?: string;
 	readonly scope?: MemoryScope;
 	readonly type?: string;
@@ -78,19 +78,19 @@ interface LegacyCreateMemoryEntryOptions {
 	readonly updatedAt?: MemoryTimestamp;
 }
 
-export interface LegacyMemoryMigrationOptions {
+interface LegacyMemoryMigrationOptions {
 	readonly now?: MemoryTimestamp;
 	readonly createId?: () => string;
 	readonly scope?: MemoryScope;
 	readonly type?: string;
 }
 
-export interface ParseMemoryEntryOptions {
+interface ParseMemoryEntryOptions {
 	readonly scope?: MemoryScope;
 	readonly defaultType?: string;
 }
 
-export interface ParseMemoryEntriesResult {
+interface ParseMemoryEntriesResult {
 	readonly entries: MemoryEntry[];
 	readonly migrated: boolean;
 }
@@ -125,7 +125,7 @@ export interface MemoryEntriesSnapshot {
 	readonly user: MemoryBucketEntriesSnapshot;
 }
 
-export interface MemoryIndexEntry {
+interface MemoryIndexEntry {
 	readonly id: MemoryEntryId;
 	readonly scope: MemoryScope;
 	readonly type: string;
@@ -155,7 +155,7 @@ export function normalizeMemoryContent(value: string): string {
 	return value.replace(/\r\n?/gu, "\n").trim();
 }
 
-export function normalizeMemoryType(value: string): string {
+function normalizeMemoryType(value: string): string {
 	return value.trim().toLowerCase();
 }
 
@@ -307,7 +307,7 @@ export function cloneMemoryEntry(
 	});
 }
 
-export function serializeMemoryEntry(entry: MemoryEntry): string {
+function serializeMemoryEntry(entry: MemoryEntry): string {
 	return JSON.stringify(encodeMemoryEntry(entry));
 }
 
@@ -315,7 +315,7 @@ export function serializeMemoryEntries(entries: readonly MemoryEntry[]): string 
 	return entries.map(serializeMemoryEntry).join("\n");
 }
 
-export function parseMemoryEntry(line: string): MemoryEntry {
+function parseMemoryEntry(line: string): MemoryEntry {
 	return parseMemoryEntryWithMigration(line).entry;
 }
 

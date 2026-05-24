@@ -12,7 +12,7 @@ import { findNearestProjectPiDirEffect } from "../shared/settings.js";
 import { decodeAgentModelSpec } from "./model-spec.js";
 import { parseConfiguredToolNames } from "./tool-allowlist.js";
 
-export class AgentDefinitionError extends Data.TaggedError("AgentDefinitionError")<{
+class AgentDefinitionError extends Data.TaggedError("AgentDefinitionError")<{
 	readonly message: string;
 	readonly cause?: unknown;
 }> {}

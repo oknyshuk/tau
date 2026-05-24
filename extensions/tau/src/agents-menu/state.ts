@@ -26,7 +26,7 @@ const DEFAULT_RALPH_ENABLED_AGENTS = ["finder"] as const;
 const RALPH_SESSION_CACHE_KEY_DELIMITER = "\u0000";
 const ralphOwnedSessionCache = new Map<string, boolean>();
 
-export type RalphLoopMetadata = {
+type RalphLoopMetadata = {
 	readonly loopName: string;
 	readonly activeTools: ReadonlyArray<string>;
 	readonly enabledAgents: ReadonlyArray<string>;

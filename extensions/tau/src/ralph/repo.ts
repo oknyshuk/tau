@@ -215,7 +215,7 @@ export function loopOwnsSessionFile(loop: LoopState, sessionFile: string | undef
 	);
 }
 
-export function ralphDir(cwd: string): string {
+function ralphDir(cwd: string): string {
 	return path.resolve(cwd, RALPH_DIR);
 }
 

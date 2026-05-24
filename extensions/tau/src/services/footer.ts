@@ -118,7 +118,7 @@ const truncateMiddle = (text: string, width: number): string => {
 	return `${start}...${end}`;
 };
 
-export const parseGitNumstat = (output: string): VcsLineDelta => {
+const parseGitNumstat = (output: string): VcsLineDelta => {
 	let added = 0;
 	let removed = 0;
 

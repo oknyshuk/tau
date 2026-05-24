@@ -16,7 +16,7 @@ export class JsonFileError extends Data.TaggedError("JsonFileError")<{
 	readonly cause?: unknown;
 }> {}
 
-export function parseJsonObject(
+function parseJsonObject(
 	raw: string,
 	filePath: string,
 ): Effect.Effect<AnyRecord, JsonFileError> {
@@ -40,7 +40,7 @@ export function parseJsonObject(
 	);
 }
 
-export function readJsonFileDetailed(filePath: string): JsonFileReadResult {
+function readJsonFileDetailed(filePath: string): JsonFileReadResult {
 	if (!fs.existsSync(filePath)) {
 		return { _tag: "missing" };
 	}
@@ -60,7 +60,7 @@ export function readJsonFileDetailed(filePath: string): JsonFileReadResult {
 	}
 }
 
-export function readJsonFile(filePath: string): AnyRecord | null {
+function readJsonFile(filePath: string): AnyRecord | null {
 	const result = readJsonFileDetailed(filePath);
 	return result._tag === "ok" ? result.data : null;
 }

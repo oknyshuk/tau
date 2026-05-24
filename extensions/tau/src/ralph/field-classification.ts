@@ -13,9 +13,9 @@
 
 import type { RalphLoopStateDetails } from "../loops/schema.js";
 
-export type FieldClassification = "configurable" | "runtime" | "system";
+type FieldClassification = "configurable" | "runtime" | "system";
 
-export interface FieldClassificationEntry {
+interface FieldClassificationEntry {
 	readonly field: keyof RalphLoopStateDetails;
 	readonly classification: FieldClassification;
 	readonly description: string;

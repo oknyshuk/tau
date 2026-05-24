@@ -6,7 +6,7 @@ import type {
 	ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 
-export interface ToolExecuteContext<TDetails> {
+interface ToolExecuteContext<TDetails> {
 	readonly toolCallId: string;
 	readonly signal: AbortSignal | undefined;
 	readonly onUpdate: AgentToolUpdateCallback<TDetails> | undefined;

@@ -3,7 +3,7 @@ import { Schema } from "effect";
 import { EXECUTION_THINKING_LEVELS, type ExecutionThinkingLevel } from "../agent/model-spec.js";
 import { deepMerge } from "../shared/json.js";
 
-export const ExecutionToolsPolicySchema = Schema.Union([
+const ExecutionToolsPolicySchema = Schema.Union([
 	Schema.Struct({
 		kind: Schema.Literal("inherit"),
 	}),
@@ -16,9 +16,9 @@ export const ExecutionToolsPolicySchema = Schema.Union([
 		tools: Schema.NonEmptyArray(Schema.NonEmptyString),
 	}),
 ]);
-export type ExecutionToolsPolicy = Schema.Schema.Type<typeof ExecutionToolsPolicySchema>;
+type ExecutionToolsPolicy = Schema.Schema.Type<typeof ExecutionToolsPolicySchema>;
 
-export const ExecutionPolicySchema = Schema.Struct({
+const ExecutionPolicySchema = Schema.Struct({
 	tools: ExecutionToolsPolicySchema,
 });
 export type ExecutionPolicy = Schema.Schema.Type<typeof ExecutionPolicySchema>;
@@ -28,7 +28,7 @@ export const ExecutionPersistedStateSchema = Schema.Struct({
 });
 export type ExecutionPersistedState = Schema.Schema.Type<typeof ExecutionPersistedStateSchema>;
 
-export const ExecutionSessionStateSchema = Schema.Struct({
+const ExecutionSessionStateSchema = Schema.Struct({
 	policy: ExecutionPolicySchema,
 });
 export type ExecutionSessionState = Schema.Schema.Type<typeof ExecutionSessionStateSchema>;

@@ -26,7 +26,7 @@ export class RalphConfigLoopNotFoundError extends RalphConfigError {
 	}
 }
 
-export class RalphConfigInvalidFieldError extends RalphConfigError {
+class RalphConfigInvalidFieldError extends RalphConfigError {
 	readonly _tag = "RalphConfigInvalidFieldError";
 	constructor(field: string, reason: string) {
 		super({ entity: `ralph.config.field.${field}`, reason });
@@ -164,7 +164,7 @@ function validateNonNegativeInteger(
 
 // ─── Service ────────────────────────────────────────────────────────────────
 
-export interface RalphLoopConfigService {
+interface RalphLoopConfigService {
 	/**
 	 * Load a Ralph loop state by name for configuration.
 	 */

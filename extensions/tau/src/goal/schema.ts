@@ -8,10 +8,10 @@ export const GOAL_ENTRY_TYPE = "tau:goal";
 const NonNegativeIntSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const PositiveIntSchema = Schema.Int.check(Schema.isGreaterThan(0));
 
-export const GoalStatusSchema = Schema.Literals(["active", "paused", "budget_limited", "complete"]);
+const GoalStatusSchema = Schema.Literals(["active", "paused", "budget_limited", "complete"]);
 export type GoalStatus = Schema.Schema.Type<typeof GoalStatusSchema>;
 
-export const GoalSnapshotSchema = Schema.Struct({
+const GoalSnapshotSchema = Schema.Struct({
 	objective: Schema.NonEmptyString.check(Schema.isMaxLength(4_000)),
 	status: GoalStatusSchema,
 	tokenBudget: Schema.NullOr(PositiveIntSchema),
@@ -25,11 +25,11 @@ export const GoalSnapshotSchema = Schema.Struct({
 });
 export type GoalSnapshot = Schema.Schema.Type<typeof GoalSnapshotSchema>;
 
-export const GoalEntrySchema = Schema.Struct({
+const GoalEntrySchema = Schema.Struct({
 	version: Schema.Literal(2),
 	snapshot: Schema.NullOr(GoalSnapshotSchema),
 });
-export type GoalEntry = Schema.Schema.Type<typeof GoalEntrySchema>;
+type GoalEntry = Schema.Schema.Type<typeof GoalEntrySchema>;
 
 const decodeGoalEntry = Schema.decodeUnknownEffect(GoalEntrySchema);
 
@@ -47,7 +47,7 @@ function entryVersion(value: unknown): number | null {
 	return typeof version === "number" ? version : null;
 }
 
-export const decodeGoalEntryData = (
+const decodeGoalEntryData = (
 	value: unknown,
 ): Effect.Effect<GoalEntry, GoalValidationError, never> =>
 	Effect.gen(function* () {

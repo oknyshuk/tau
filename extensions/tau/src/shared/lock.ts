@@ -30,7 +30,7 @@ interface LockSnapshot {
 	readonly parsed: ParsedLockMetadata;
 }
 
-export interface SharedLockMetadata {
+interface SharedLockMetadata {
 	readonly pid: number;
 	readonly token: string;
 	readonly acquiredAtMs?: number;
@@ -43,13 +43,13 @@ export interface SharedFileLockConfig {
 	readonly heldPolicy: "fail" | "wait";
 }
 
-export interface SharedFileLockLease {
+interface SharedFileLockLease {
 	readonly path: string;
 	readonly token: string;
 	readonly acquiredAtMs: number;
 }
 
-export interface SharedFileLockInfo {
+interface SharedFileLockInfo {
 	readonly path: string;
 	readonly holderPid?: number;
 	readonly acquiredAtMs?: number;
@@ -93,7 +93,7 @@ export class SharedFileLockIoError extends Schema.TaggedErrorClass<SharedFileLoc
 	},
 ) {}
 
-export type SharedFileLockError =
+type SharedFileLockError =
 	| SharedFileLockHeld
 	| SharedFileLockCorrupt
 	| SharedFileLockTimeout

@@ -56,7 +56,7 @@ export function currentResults(results: readonly ExperimentResult[], segment: nu
 	return results.filter((result) => result.segment === segment);
 }
 
-export function findBaselineResult(results: readonly ExperimentResult[], segment: number): ExperimentResult | null {
+function findBaselineResult(results: readonly ExperimentResult[], segment: number): ExperimentResult | null {
 	return currentResults(results, segment).find((result) => result.status === "keep") ?? null;
 }
 
@@ -118,7 +118,7 @@ export function findBestResult(
 	return best;
 }
 
-export function sortedMedian(values: readonly number[]): number {
+function sortedMedian(values: readonly number[]): number {
 	if (values.length === 0) return 0;
 	const sorted = [...values].sort((left, right) => left - right);
 	const midpoint = Math.floor(sorted.length / 2);
@@ -156,7 +156,7 @@ export function computeConfidence(
 	return Math.abs(bestKept - baseline) / mad;
 }
 
-export interface ReconstructedExperimentData {
+interface ReconstructedExperimentData {
 	hasLog: boolean;
 	state: ExperimentState;
 }

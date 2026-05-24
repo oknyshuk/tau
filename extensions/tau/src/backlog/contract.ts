@@ -51,10 +51,10 @@ export function resolveBacklogPaths(workspaceRoot: string) {
 	});
 }
 
-export type BacklogFieldValue = unknown;
+type BacklogFieldValue = unknown;
 
-export const BacklogFieldValuesSchema = Schema.Record(Schema.String, Schema.Unknown);
-export type BacklogFieldValues = Schema.Schema.Type<typeof BacklogFieldValuesSchema>;
+const BacklogFieldValuesSchema = Schema.Record(Schema.String, Schema.Unknown);
+type BacklogFieldValues = Schema.Schema.Type<typeof BacklogFieldValuesSchema>;
 
 const BacklogEventEnvelopeFields = {
 	schema_version: Schema.Literal(1),
@@ -70,7 +70,7 @@ export const BacklogIssueCreatedEventSchema = Schema.Struct({
 	fields: BacklogFieldValuesSchema,
 });
 
-export const BacklogIssueImportedEventSchema = Schema.Struct({
+const BacklogIssueImportedEventSchema = Schema.Struct({
 	...BacklogEventEnvelopeFields,
 	kind: Schema.Literal("issue.imported"),
 	source: Schema.Struct({
@@ -87,7 +87,7 @@ export const BacklogIssueUpdatedEventSchema = Schema.Struct({
 	unset_fields: Schema.Array(Schema.NonEmptyString),
 });
 
-export const BacklogEventSchema = Schema.Union([
+const BacklogEventSchema = Schema.Union([
 	BacklogIssueCreatedEventSchema,
 	BacklogIssueImportedEventSchema,
 	BacklogIssueUpdatedEventSchema,
@@ -97,7 +97,7 @@ export type BacklogEvent = Schema.Schema.Type<typeof BacklogEventSchema>;
 const decodeRecordedAtSchema = Schema.decodeUnknownEffect(BacklogRecordedAtSchema);
 const decodeBacklogEventSchema = Schema.decodeUnknownEffect(BacklogEventSchema);
 
-export const decodeBacklogRecordedAt = (
+const decodeBacklogRecordedAt = (
 	value: unknown,
 ): Effect.Effect<string, BacklogContractValidationError, never> =>
 	decodeRecordedAtSchema(value).pipe(
@@ -121,13 +121,13 @@ export const decodeBacklogEvent = (
 		),
 	);
 
-export type BacklogFieldClock = {
+type BacklogFieldClock = {
 	readonly recorded_at: string;
 	readonly event_id: string;
 	readonly deleted: boolean;
 };
 
-export type BacklogMaterializedIssue = {
+type BacklogMaterializedIssue = {
 	readonly issue_id: string;
 	readonly origin_kind: "issue.created" | "issue.imported";
 	readonly fields: Readonly<Record<string, BacklogFieldValue>>;
@@ -349,4 +349,3 @@ export const replayBacklogEvents = (
 		);
 	});
 
-export const replayBacklogEventsEffect = replayBacklogEvents;

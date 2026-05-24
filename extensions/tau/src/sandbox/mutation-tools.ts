@@ -1,12 +1,12 @@
-export const EDIT_TOOL_NAME = "edit";
-export const WRITE_TOOL_NAME = "write";
+const EDIT_TOOL_NAME = "edit";
+const WRITE_TOOL_NAME = "write";
 export const APPLY_PATCH_TOOL_NAME = "apply_patch";
-export const BASH_TOOL_NAME = "bash";
-export const EXEC_COMMAND_TOOL_NAME = "exec_command";
-export const WRITE_STDIN_TOOL_NAME = "write_stdin";
+const BASH_TOOL_NAME = "bash";
+const EXEC_COMMAND_TOOL_NAME = "exec_command";
+const WRITE_STDIN_TOOL_NAME = "write_stdin";
 
 export type LegacyMutationToolName = typeof EDIT_TOOL_NAME | typeof WRITE_TOOL_NAME;
-export type MutationToolName = LegacyMutationToolName | typeof APPLY_PATCH_TOOL_NAME;
+type MutationToolName = LegacyMutationToolName | typeof APPLY_PATCH_TOOL_NAME;
 
 const OPENAI_APPLY_PATCH_PROVIDERS = new Set(["openai", "openai-codex"]);
 
@@ -17,7 +17,7 @@ export function shouldUseApplyPatchForProvider(
 	return OPENAI_APPLY_PATCH_PROVIDERS.has(provider);
 }
 
-export function isMutationToolName(name: string): name is MutationToolName {
+function isMutationToolName(name: string): name is MutationToolName {
 	return name === EDIT_TOOL_NAME || name === WRITE_TOOL_NAME || name === APPLY_PATCH_TOOL_NAME;
 }
 

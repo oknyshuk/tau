@@ -93,12 +93,12 @@ export interface BenchmarkProgress {
 	readonly tailOutput: string;
 }
 
-export interface KeepCommitResult {
+interface KeepCommitResult {
 	readonly commit: string;
 	readonly note: string;
 }
 
-export interface RevertResult {
+interface RevertResult {
 	readonly note: string;
 }
 
@@ -139,7 +139,7 @@ export interface AutoresearchExecutionBoundary {
 // Session runtime
 // ------------------------------------------------------------------------------
 
-export interface PendingRunSummary {
+interface PendingRunSummary {
 	readonly checksDurationSeconds: number | null;
 	readonly checksPass: boolean | null;
 	readonly checksTimedOut: boolean;
@@ -153,7 +153,7 @@ export interface PendingRunSummary {
 	readonly runNumber: number;
 }
 
-export interface SessionRuntime {
+interface SessionRuntime {
 	autoresearchMode: boolean;
 	autoResumeArmed: boolean;
 	loopProgressThisTurn: boolean;
@@ -201,7 +201,7 @@ function createSessionRuntime(): SessionRuntime {
 // Inputs / Outputs
 // ------------------------------------------------------------------------------
 
-export interface InitExperimentInput {
+interface InitExperimentInput {
 	readonly name: string;
 	readonly metricName: string;
 	readonly metricUnit: string;
@@ -214,7 +214,7 @@ export interface InitExperimentInput {
 	readonly executionProfile: ExecutionProfile;
 }
 
-export interface InitExperimentResult {
+interface InitExperimentResult {
 	readonly name: string;
 	readonly metricName: string;
 	readonly metricUnit: string;
@@ -225,14 +225,14 @@ export interface InitExperimentResult {
 	readonly isReinitializing: boolean;
 }
 
-export interface RunExperimentInput {
+interface RunExperimentInput {
 	readonly command: string;
 	readonly timeoutSeconds: number;
 	readonly checksTimeoutSeconds: number;
 	readonly contextUsage?: { readonly tokens: number; readonly contextWindow: number } | undefined;
 }
 
-export interface LogExperimentInput {
+interface LogExperimentInput {
 	readonly commit: string;
 	readonly metric: number;
 	readonly status: ExperimentResult["status"];
@@ -242,7 +242,7 @@ export interface LogExperimentInput {
 	readonly asi: ASIData | undefined;
 }
 
-export interface LogExperimentResult {
+interface LogExperimentResult {
 	readonly status: ExperimentResult["status"];
 	readonly runNumber: number;
 	readonly gitNote: string | null;
@@ -273,7 +273,7 @@ export interface AutoresearchViewData {
 	readonly maxExperiments: number | null;
 }
 
-export interface OnAgentEndResult {
+interface OnAgentEndResult {
 	readonly didResume: boolean;
 	readonly blockedReason: string | null;
 }
@@ -282,7 +282,7 @@ export interface OnAgentEndResult {
 // Service interface
 // ------------------------------------------------------------------------------
 
-export interface AutoresearchService {
+interface AutoresearchService {
 	readonly rehydrate: (
 		sessionId: string,
 		workDir: string,

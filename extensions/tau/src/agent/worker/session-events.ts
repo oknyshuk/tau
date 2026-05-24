@@ -5,7 +5,7 @@ import { isRecord } from "../../shared/json.js";
 
 type AssistantTextPart = { type: string; text?: string };
 
-export type AssistantLikeMessage = {
+type AssistantLikeMessage = {
 	role: "assistant";
 	content?: ReadonlyArray<AssistantTextPart>;
 	stopReason?: string;
@@ -42,7 +42,7 @@ export function getAssistantText(message: AssistantLikeMessage | undefined): str
 	);
 }
 
-export function getAssistantFailureReason(
+function getAssistantFailureReason(
 	message: AssistantLikeMessage | undefined,
 	fallback: string,
 ): string {

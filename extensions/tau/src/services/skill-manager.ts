@@ -24,34 +24,34 @@ import {
 } from "../skill-manage/validation.js";
 import { EXTENSION_ROOT, findNearestWorkspaceRoot } from "../shared/discovery.js";
 
-export interface SkillCreateResult {
+interface SkillCreateResult {
 	readonly name: string;
 	readonly path: string;
 	readonly category?: string;
 }
 
-export interface SkillEditResult {
+interface SkillEditResult {
 	readonly name: string;
 	readonly path: string;
 }
 
-export interface SkillPatchResult {
+interface SkillPatchResult {
 	readonly name: string;
 	readonly replacements: number;
 	readonly filePath: string;
 	readonly diff: string;
 }
 
-export interface SkillDeleteResult {
+interface SkillDeleteResult {
 	readonly name: string;
 }
 
-export interface SkillWriteFileResult {
+interface SkillWriteFileResult {
 	readonly name: string;
 	readonly filePath: string;
 }
 
-export interface SkillRemoveFileResult {
+interface SkillRemoveFileResult {
 	readonly name: string;
 	readonly filePath: string;
 }

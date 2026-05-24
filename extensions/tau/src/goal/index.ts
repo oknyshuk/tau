@@ -25,7 +25,7 @@ import {
 } from "./prompts.js";
 import type { GoalSnapshot, GoalStatus } from "./schema.js";
 
-export type GoalRuntime = {
+type GoalRuntime = {
 	readonly runPromise: <A, E>(effect: Effect.Effect<A, E, Goal>) => Promise<A>;
 	readonly runFork: <A, E>(effect: Effect.Effect<A, E, Goal>) => Fiber.Fiber<A, E>;
 };

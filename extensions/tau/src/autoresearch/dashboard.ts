@@ -37,7 +37,7 @@ export function renderExpandedHeader(
 	);
 }
 
-export function renderCompactRunningLine(
+function renderCompactRunningLine(
 	viewData: AutoresearchViewData,
 	width: number,
 	theme: Theme,
@@ -56,7 +56,7 @@ export function renderCompactRunningLine(
 	return truncateToWidth(parts.join(""), width);
 }
 
-export function renderCompactSummary(
+function renderCompactSummary(
 	viewData: AutoresearchViewData,
 	width: number,
 	theme: Theme,

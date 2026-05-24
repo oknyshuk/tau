@@ -9,6 +9,7 @@
 	},
 	"dependencies": {
 		"@effect/platform-node": "4.0.0-beta.54",
+		"diff": "^8.0.2",
 		"effect": "4.0.0-beta.54",
 		"nanoid": "^5.1.7",
 		"yaml": "^2.7.0"

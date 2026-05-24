@@ -8,17 +8,17 @@ import {
 	type Issue,
 } from "./schema.js";
 
-export const SortFieldSchema = Schema.Union([
+const SortFieldSchema = Schema.Union([
 	Schema.Literal("priority"),
 	Schema.Literal("created_at"),
 	Schema.Literal("updated_at"),
 ] as const);
 export type SortField = Schema.Schema.Type<typeof SortFieldSchema>;
 
-export const SortOrderSchema = Schema.Union([Schema.Literal("asc"), Schema.Literal("desc")] as const);
+const SortOrderSchema = Schema.Union([Schema.Literal("asc"), Schema.Literal("desc")] as const);
 export type SortOrder = Schema.Schema.Type<typeof SortOrderSchema>;
 
-export const IssueQuerySchema = Schema.Struct({
+const IssueQuerySchema = Schema.Struct({
 	status: Schema.optional(Schema.Union([IssueStatusSchema, Schema.Array(IssueStatusSchema)] as const)),
 	type: Schema.optional(Schema.Union([IssueTypeSchema, Schema.Array(IssueTypeSchema)] as const)),
 	priority: Schema.optional(Schema.Union([Schema.Number, Schema.Array(Schema.Number)] as const)),

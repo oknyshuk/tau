@@ -4,7 +4,7 @@ export type ApprovalPolicy = "never" | "on-failure" | "on-request" | "unless-tru
 
 export type SandboxPreset = "read-only" | "workspace-write" | "full-access";
 
-export const SANDBOX_PRESETS: Record<
+const SANDBOX_PRESETS: Record<
 	SandboxPreset,
 	{ filesystemMode: FilesystemMode; networkMode: NetworkMode; approvalPolicy: ApprovalPolicy }
 > = {
@@ -27,13 +27,13 @@ export const SANDBOX_PRESET_NAMES: readonly SandboxPreset[] = [
 	"full-access",
 ] as const;
 
-export const FILESYSTEM_MODES: readonly FilesystemMode[] = [
+const FILESYSTEM_MODES: readonly FilesystemMode[] = [
 	"read-only",
 	"workspace-write",
 	"danger-full-access",
 ] as const;
-export const NETWORK_MODES: readonly NetworkMode[] = ["deny", "allow-all"] as const;
-export const APPROVAL_POLICIES: readonly ApprovalPolicy[] = [
+const NETWORK_MODES: readonly NetworkMode[] = ["deny", "allow-all"] as const;
+const APPROVAL_POLICIES: readonly ApprovalPolicy[] = [
 	"never",
 	"on-failure",
 	"on-request",

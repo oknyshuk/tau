@@ -135,7 +135,7 @@ const renameIfExists = (
 		);
 	});
 
-export interface LoopRepoService {
+interface LoopRepoService {
 	readonly loadState: (
 		cwd: string,
 		taskId: string,
