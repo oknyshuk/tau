@@ -2,6 +2,7 @@ import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-a
 import { Text } from "@earendil-works/pi-tui";
 
 import type { ShellRunResult } from "../services/shell.js";
+import { isRecord } from "../shared/json.js";
 
 export type ShellToolDetails = ShellRunResult & {
 	readonly kind: "exec_command" | "write_stdin";
@@ -17,9 +18,6 @@ const EXPANDED_OUTPUT_LINES = 200;
 const MAX_COMMAND_CHARS = 120;
 const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-?]*[ -/]*[@-~]`, "g");
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-	return typeof value === "object" && value !== null;
-}
 
 function stringField(record: Readonly<Record<string, unknown>>, key: string): string | undefined {
 	const value = record[key];

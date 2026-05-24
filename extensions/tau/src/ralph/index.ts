@@ -36,6 +36,13 @@ import { sanitizeLoopName, type LoopState, type LoopStatus } from "./schema.js";
 import { setToolEnabled } from "../shared/tool-activation.js";
 import { formatTokenCount } from "../shared/format-tokens.js";
 import { loadPersistedState, TAU_PERSISTED_STATE_TYPE } from "../shared/state.js";
+import {
+	cwdFromContextIfLive,
+	isIgnorableSessionContextError,
+	isManagedRuntimeDisposedError,
+	isStaleExtensionContextError,
+	sessionFileFromContextIfLive,
+} from "../shared/extension-context.js";
 import { captureCapabilityContract, effectiveToolNames } from "./resolver.js";
 import {
 	excludeRalphSystemControlTools,
@@ -484,26 +491,6 @@ function handlePersistedStateFailure(
 	return Option.some(message);
 }
 
-function isManagedRuntimeDisposedError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	if (message.includes("All fibers interrupted without error")) {
-		return true;
-	}
-	if (error instanceof Error) {
-		return error.message.includes("ManagedRuntime disposed");
-	}
-	return message.includes("ManagedRuntime disposed");
-}
-
-function isStaleExtensionContextError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return message.includes("This extension ctx is stale after session replacement or reload");
-}
-
-function isIgnorableSessionContextError(error: unknown): boolean {
-	return isManagedRuntimeDisposedError(error) || isStaleExtensionContextError(error);
-}
-
 function hasReplacementSender(ctx: RalphSessionContext): ctx is ReplacementSessionContext {
 	return "sendUserMessage" in ctx && typeof ctx.sendUserMessage === "function";
 }
@@ -556,30 +543,6 @@ function sessionFileFromContext(ctx: Pick<ExtensionContext, "sessionManager">): 
 	return typeof ctx.sessionManager.getSessionFile === "function"
 		? ctx.sessionManager.getSessionFile()
 		: undefined;
-}
-
-function sessionFileFromContextIfLive(
-	ctx: Pick<ExtensionContext, "sessionManager">,
-): string | undefined {
-	try {
-		return sessionFileFromContext(ctx);
-	} catch (error) {
-		if (isIgnorableSessionContextError(error)) {
-			return undefined;
-		}
-		throw error;
-	}
-}
-
-function cwdFromContextIfLive(ctx: Pick<ExtensionContext, "cwd">): string | undefined {
-	try {
-		return ctx.cwd;
-	} catch (error) {
-		if (isIgnorableSessionContextError(error)) {
-			return undefined;
-		}
-		throw error;
-	}
 }
 
 function readSandboxSessionOverride(

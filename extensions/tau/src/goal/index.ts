@@ -24,6 +24,7 @@ import {
 	goalSystemPrompt,
 } from "./prompts.js";
 import type { GoalSnapshot, GoalStatus } from "./schema.js";
+import { isRecord } from "../shared/json.js";
 
 type GoalRuntime = {
 	readonly runPromise: <A, E>(effect: Effect.Effect<A, E, Goal>) => Promise<A>;
@@ -53,9 +54,6 @@ type UpdateGoalParams = {
 	readonly status: "complete";
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function decodeNoParams(raw: unknown): Record<string, never> {
 	if (!isRecord(raw)) {

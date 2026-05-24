@@ -1,6 +1,6 @@
 import * as path from "node:path";
 
-import { Clock, Effect, Layer, Option, Ref, Context } from "effect";
+import { Effect, Layer, Option, Ref, Context } from "effect";
 import type { TruncationResult } from "@earendil-works/pi-coding-agent";
 
 import { AutoresearchRepo } from "../autoresearch/repo.js";
@@ -55,6 +55,7 @@ import {
 } from "../autoresearch/paths.js";
 import type { ExecutionProfile } from "../execution/schema.js";
 import { StorageError } from "../shared/atomic-write.js";
+import { nowIso } from "../shared/clock.js";
 import { isRecord } from "../shared/json.js";
 
 // ------------------------------------------------------------------------------
@@ -327,10 +328,6 @@ export class Autoresearch extends Context.Service<Autoresearch, AutoresearchServ
 // Helpers
 // ------------------------------------------------------------------------------
 
-const nowIso = Effect.gen(function* () {
-	const millis = yield* Clock.currentTimeMillis;
-	return new Date(millis).toISOString();
-});
 
 function getRuntime(
 	sessionsRef: Ref.Ref<Map<string, SessionRuntime>>,

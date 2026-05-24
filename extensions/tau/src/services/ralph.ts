@@ -30,6 +30,7 @@ import {
 	type RalphConfigMutation,
 } from "../ralph/config-service.js";
 import { StorageError } from "../shared/atomic-write.js";
+import { nowIso } from "../shared/clock.js";
 import { LoopEngine } from "./loop-engine.js";
 
 type LoopStepResult =
@@ -463,10 +464,6 @@ const sessionRefFromFile = (sessionFile: string): LoopSessionRef => ({
 	sessionFile,
 });
 
-const nowIso = Effect.gen(function* () {
-	const millis = yield* Clock.currentTimeMillis;
-	return new Date(millis).toISOString();
-});
 
 function buildPrompt(state: LoopState, taskContent: string, isReflection: boolean): string {
 	const maxStr = state.maxIterations > 0 ? `/${state.maxIterations}` : "";

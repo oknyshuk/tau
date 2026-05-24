@@ -2,20 +2,19 @@
 // subagent, and task registry to execute memory consolidation runs.
 // The model does the work directly through tools (memory + dream_finish).
 
-import { Clock, Effect, Exit, Layer, Option, Schema, Scope, Context } from "effect";
+import { Clock, Effect, Exit, Layer, Option, Scope, Context } from "effect";
 import { nanoid } from "nanoid";
-import { Type, type Static } from "@sinclair/typebox";
 
 import type { ModelRegistry, ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 import {
-	DreamFinishParams as DreamFinishParamsSchema,
 	type DreamFinishParams,
 	type DreamProgressEvent,
 	type DreamRunRequest,
 	type DreamRunResult,
 	type DreamTaskHandle,
 } from "./domain.js";
+import { DreamFinishToolParams, parseDreamFinishParams } from "./finish-tool.js";
 import type { DreamConfig } from "./config.js";
 import type {
 	DreamConfigError,
@@ -66,44 +65,14 @@ export interface DreamRunnerLiveConfig {
 }
 
 // ---------------------------------------------------------------------------
-// dream_finish tool for auto-mode subagent sessions
+// dream_finish tool for auto-mode subagent sessions — schema + parser are
+// shared with dream/init.ts via dream/finish-tool.ts.
 // ---------------------------------------------------------------------------
-
-const DreamFinishToolParams = Type.Object({
-	runId: Type.String({ description: "Dream run id" }),
-	summary: Type.String({ description: "Brief summary of what was found and changed" }),
-	reviewedSessions: Type.Array(Type.String(), { description: "Session IDs reviewed" }),
-	noChanges: Type.Boolean({ description: "True if no memory changes were made" }),
-});
-
-type DreamFinishToolParams = Static<typeof DreamFinishToolParams>;
 
 /** Mutable holder for dream_finish params captured from the subagent. */
 interface DreamFinishCapture {
 	value: DreamFinishParams | undefined;
 }
-
-const decodeDreamFinishParamsSync = Schema.decodeUnknownSync(DreamFinishParamsSchema);
-
-const parseDreamFinishParams = (
-	rawParams: unknown,
-): { readonly ok: true; readonly params: DreamFinishParams } | {
-	readonly ok: false;
-	readonly error: string;
-} => {
-	try {
-		return {
-			ok: true,
-			params: decodeDreamFinishParamsSync(rawParams),
-		};
-	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
-		return {
-			ok: false,
-			error: `Invalid dream_finish params: ${reason}`,
-		};
-	}
-};
 
 function createDreamFinishToolForSubagent(
 	expectedRunId: string,

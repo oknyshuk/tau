@@ -88,6 +88,12 @@ import { shouldCloseAutoresearchOverlay } from "./overlay-input.js";
 import type { ExperimentResult } from "./schema.js";
 import { computeConfidence, findBestResult } from "./state.js";
 import { setToolEnabled } from "../shared/tool-activation.js";
+import { isRecord } from "../shared/json.js";
+import {
+	cwdFromContextIfLive,
+	isIgnorableSessionContextError,
+	sessionFileFromContextIfLive,
+} from "../shared/extension-context.js";
 
 const AUTORESEARCH_RUN_TOOL_NAME = "autoresearch_run";
 const AUTORESEARCH_DONE_TOOL_NAME = "autoresearch_done";
@@ -124,43 +130,6 @@ function commandSessionRef(
 
 function getSessionKey(ctx: Pick<ExtensionContext, "sessionManager">): string {
 	return ctx.sessionManager.getSessionId();
-}
-
-function isStaleExtensionContextError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return message.includes("This extension ctx is stale after session replacement or reload");
-}
-
-function isRuntimeShutdownError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return (
-		message.includes("ManagedRuntime disposed") ||
-		message.includes("All fibers interrupted without error")
-	);
-}
-
-function sessionFileFromContextIfLive(
-	ctx: Pick<ExtensionContext, "sessionManager">,
-): string | undefined {
-	try {
-		return ctx.sessionManager.getSessionFile?.();
-	} catch (error) {
-		if (isStaleExtensionContextError(error)) {
-			return undefined;
-		}
-		throw error;
-	}
-}
-
-function cwdFromContextIfLive(ctx: Pick<ExtensionContext, "cwd">): string | undefined {
-	try {
-		return ctx.cwd;
-	} catch (error) {
-		if (isStaleExtensionContextError(error)) {
-			return undefined;
-		}
-		throw error;
-	}
 }
 
 function isAutoresearchLoopState(state: LoopPersistedState): boolean {
@@ -268,9 +237,6 @@ const LEGACY_AUTORESEARCH_ARTIFACTS = [
 	"autoresearch.config.json",
 ] as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function sessionRefMatches(left: LoopSessionRef, right: LoopSessionRef): boolean {
 	return left.sessionFile === right.sessionFile;
@@ -2441,7 +2407,7 @@ export default function initAutoresearch(
 
 			await updateAutoresearchUI(cwd, ctx);
 		} catch (error) {
-			if (isRuntimeShutdownError(error) || isStaleExtensionContextError(error)) {
+			if (isIgnorableSessionContextError(error)) {
 				return;
 			}
 			if (

@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { Effect, FileSystem, Layer, Option, Context } from "effect";
 
 import { StorageError, atomicWriteFileString, toStorageError } from "../shared/atomic-write.js";
+import { nowIso } from "../shared/clock.js";
 import { LoopContractValidationError } from "../loops/errors.js";
 import { loopTaskFile } from "../loops/paths.js";
 import { LoopRepo, LoopRepoLive } from "../loops/repo.js";
@@ -22,6 +23,7 @@ import {
 import { RalphContractValidationError } from "./errors.js";
 import type { LoopState } from "./schema.js";
 import { emptyRalphLoopMetrics } from "./schema.js";
+import { isRecord } from "../shared/json.js";
 
 const isPlatformReasonTag = (error: unknown, tag: string): boolean => {
 	if (typeof error !== "object" || error === null) {
@@ -48,14 +50,10 @@ const optionContains = (option: Option.Option<string>, value: string | undefined
 	});
 };
 
-const nowIso = Effect.sync(() => new Date().toISOString());
 
 const LEGACY_LAYOUT_MESSAGE =
 	"Legacy Ralph layout detected under .pi/ralph. Import or remove old flat files, then retry.";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function isSafeRawTaskDirectoryName(taskId: string): boolean {
 	return taskId.length > 0 && taskId !== "." && taskId !== "..";

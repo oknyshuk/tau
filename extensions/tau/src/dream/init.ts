@@ -1,6 +1,5 @@
-import { Effect, Option, Schema } from "effect";
+import { Effect, Option } from "effect";
 import { nanoid } from "nanoid";
-import { Type, type Static } from "@sinclair/typebox";
 
 import type {
 	ExtensionAPI,
@@ -11,12 +10,12 @@ import type {
 
 import { loadDreamConfig } from "./config-loader.js";
 import {
-	DreamFinishParams as DreamFinishParamsSchema,
 	type DreamFinishParams,
 	type DreamRunRequest,
 	type DreamRunResult,
 	type DreamTaskState,
 } from "./domain.js";
+import { DreamFinishToolParams, parseDreamFinishParams } from "./finish-tool.js";
 import { DreamLock, type ManualDreamLease } from "./lock.js";
 import { DreamRunner, DreamRunnerLive, type DreamRunnerApi } from "./runner.js";
 import { DreamScheduler, type DreamSchedulerApi } from "./scheduler.js";
@@ -48,38 +47,9 @@ const DEFAULT_MAX_POLLS = 300;
 const DREAM_SCOPED_TOOLS = ["dream_finish"] as const;
 
 // ---------------------------------------------------------------------------
-// dream_finish tool params (foreground mode)
+// dream_finish tool params (foreground mode) — defined in dream/finish-tool.ts
+// and shared with dream/runner.ts.
 // ---------------------------------------------------------------------------
-
-const DreamFinishToolParams = Type.Object({
-	runId: Type.String({ description: "Foreground dream run id" }),
-	summary: Type.String({ description: "Brief summary of what was found and changed" }),
-	reviewedSessions: Type.Array(Type.String(), { description: "Session IDs reviewed" }),
-	noChanges: Type.Boolean({ description: "True if no memory changes were made" }),
-});
-
-type DreamFinishToolParams = Static<typeof DreamFinishToolParams>;
-
-const decodeDreamFinishParamsSync = Schema.decodeUnknownSync(DreamFinishParamsSchema);
-
-const parseDreamFinishParams = (
-	rawParams: unknown,
-):
-	| { readonly ok: true; readonly params: DreamFinishParams }
-	| { readonly ok: false; readonly error: string } => {
-	try {
-		return {
-			ok: true,
-			params: decodeDreamFinishParamsSync(rawParams),
-		};
-	} catch (error) {
-		const reason = error instanceof Error ? error.message : String(error);
-		return {
-			ok: false,
-			error: `Invalid dream_finish params: ${reason}`,
-		};
-	}
-};
 
 // ---------------------------------------------------------------------------
 // Foreground run state

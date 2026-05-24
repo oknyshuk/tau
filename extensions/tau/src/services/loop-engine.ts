@@ -1,10 +1,11 @@
-import { Clock, Effect, Layer, Option, Context } from "effect";
+import { Effect, Layer, Option, Context } from "effect";
 
 import type { ExecutionProfile } from "../execution/schema.js";
 import type { ResolvedSandboxConfig } from "../sandbox/config.js";
 import { emptyRalphLoopMetrics } from "../ralph/schema.js";
 import { makeEmptyCapabilityContract, type RalphCapabilityContract } from "../ralph/contract.js";
 import type { StorageError } from "../shared/atomic-write.js";
+import { nowIso } from "../shared/clock.js";
 import {
 	createAutoresearchPhaseSnapshot,
 	normalizeAutoresearchTaskContractInput,
@@ -35,10 +36,6 @@ import {
 	validateLoopOwnership,
 } from "../loops/schema.js";
 
-const nowIso = Effect.gen(function* () {
-	const millis = yield* Clock.currentTimeMillis;
-	return new Date(millis).toISOString();
-});
 
 type TaskLock = {
 	readonly key: string;

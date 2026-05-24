@@ -1,4 +1,5 @@
 import { parse as parseYaml } from "yaml";
+import { isRecord } from "../shared/json.js";
 
 const MAX_NAME_LENGTH = 64;
 const MAX_DESCRIPTION_LENGTH = 1024;
@@ -16,9 +17,6 @@ const INJECTION_PATTERNS = [
 	"]]>",
 ] as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function validateName(name: string): string | undefined {
 	if (name.trim().length === 0) {

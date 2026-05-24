@@ -6,6 +6,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import type { ExecutionProfile } from "../execution/schema.js";
 import { LoopContractValidationError } from "../loops/errors.js";
+import { isRecord } from "../shared/json.js";
 import {
 	sanitizePhaseId,
 	type AutoresearchPhaseSnapshot,
@@ -100,9 +101,6 @@ function contractError(entity: string, reason: string): LoopContractValidationEr
 	return new LoopContractValidationError({ entity, reason });
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function normalizePlainString(value: string): string {
 	return value.trim().replaceAll("\\", "/");

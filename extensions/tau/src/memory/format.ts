@@ -1,5 +1,6 @@
 import { DateTime, Schema } from "effect";
 import { nanoid } from "nanoid";
+import { isRecord } from "../shared/json.js";
 
 const MemoryScopeSchema = Schema.Union([
 	Schema.Literal("project"),
@@ -181,9 +182,6 @@ export function memorySummaryMatchesContent(summary: string, content: string): b
 	return normalizeMemorySummary(summary) === summarizeMemoryContent(content);
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function readString(record: Record<string, unknown>, key: string): string | undefined {
 	const value = record[key];
