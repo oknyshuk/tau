@@ -5,30 +5,18 @@ import { ExecutionProfileSchema } from "../execution/schema.js";
 import { SandboxConfigRequired as SandboxProfileSchema } from "../schemas/config.js";
 import { RalphCapabilityContractSchema } from "../ralph/contract.js";
 import { RalphConfigMutationListSchema } from "../ralph/config-mutation.js";
+import {
+	OptionalRalphPendingDecisionSchema,
+	RalphLoopMetricsSchema,
+	RalphPendingDecisionSchema,
+} from "../ralph/state-primitives.js";
 import { LoopContractValidationError, LoopOwnershipValidationError } from "./errors.js";
 
 const NonNegativeIntSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
-const FiniteNumber = Schema.Number.check(Schema.isFinite());
 const OptionalStringSchema = Schema.OptionFromNullOr(Schema.String);
 
-const RalphContinueDecisionSchema = Schema.Struct({
-	kind: Schema.Literal("continue"),
-	requestedAt: Schema.String,
-});
-
-const RalphFinishDecisionSchema = Schema.Struct({
-	kind: Schema.Literal("finish"),
-	requestedAt: Schema.String,
-	message: Schema.NonEmptyString,
-});
-
-const RalphPendingDecisionSchema = Schema.Union([
-	RalphContinueDecisionSchema,
-	RalphFinishDecisionSchema,
-]);
+export { RalphPendingDecisionSchema };
 type RalphPendingDecision = Schema.Schema.Type<typeof RalphPendingDecisionSchema>;
-
-const OptionalRalphPendingDecisionSchema = Schema.OptionFromNullOr(RalphPendingDecisionSchema);
 
 function toContractValidationError(entity: string, error: unknown): LoopContractValidationError {
 	return new LoopContractValidationError({
@@ -137,12 +125,7 @@ const RalphLoopStateDetailsSchema = Schema.Struct({
 	pendingDecision: OptionalRalphPendingDecisionSchema,
 	pinnedExecutionProfile: ExecutionProfileSchema,
 	sandboxProfile: Schema.OptionFromNullOr(SandboxProfileSchema),
-	metrics: Schema.Struct({
-		totalTokens: NonNegativeIntSchema,
-		totalCostUsd: FiniteNumber.check(Schema.isGreaterThanOrEqualTo(0)),
-		activeDurationMs: NonNegativeIntSchema,
-		activeStartedAt: OptionalStringSchema,
-	}),
+	metrics: RalphLoopMetricsSchema,
 	capabilityContract: RalphCapabilityContractSchema,
 	deferredConfigMutations: RalphConfigMutationListSchema,
 });

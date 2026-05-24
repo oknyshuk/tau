@@ -5,36 +5,19 @@ import { SandboxConfigRequired as SandboxProfileSchema } from "../schemas/config
 import { RalphCapabilityContractSchema } from "./contract.js";
 import { RalphConfigMutationListSchema } from "./config-mutation.js";
 import { RalphContractValidationError } from "./errors.js";
+import {
+	OptionalRalphPendingDecisionSchema,
+	RalphLoopMetricsSchema,
+	RalphPendingDecisionSchema,
+	type RalphLoopMetrics,
+	type RalphPendingDecision,
+} from "./state-primitives.js";
 
 const NonNegativeIntSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const OptionalStringSchema = Schema.OptionFromNullOr(Schema.String);
 
-const RalphContinueDecisionSchema = Schema.Struct({
-	kind: Schema.Literal("continue"),
-	requestedAt: Schema.String,
-});
-
-const RalphFinishDecisionSchema = Schema.Struct({
-	kind: Schema.Literal("finish"),
-	requestedAt: Schema.String,
-	message: Schema.NonEmptyString,
-});
-
-const RalphPendingDecisionSchema = Schema.Union([
-	RalphContinueDecisionSchema,
-	RalphFinishDecisionSchema,
-]);
-export type RalphPendingDecision = Schema.Schema.Type<typeof RalphPendingDecisionSchema>;
-
-const OptionalRalphPendingDecisionSchema = Schema.OptionFromNullOr(RalphPendingDecisionSchema);
-
-const RalphLoopMetricsSchema = Schema.Struct({
-	totalTokens: NonNegativeIntSchema,
-	totalCostUsd: Schema.Number.check(Schema.isFinite(), Schema.isGreaterThanOrEqualTo(0)),
-	activeDurationMs: NonNegativeIntSchema,
-	activeStartedAt: OptionalStringSchema,
-});
-export type RalphLoopMetrics = Schema.Schema.Type<typeof RalphLoopMetricsSchema>;
+export { RalphPendingDecisionSchema };
+export type { RalphPendingDecision, RalphLoopMetrics };
 
 export function sanitizeLoopName(name: string): string {
 	return name.replace(/[^a-zA-Z0-9_.-]/g, "_").replace(/_+/g, "_");
