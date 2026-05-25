@@ -26,12 +26,12 @@ import {
 	AutoresearchLoopRunner,
 	type AutoresearchLoopRunnerService,
 } from "../services/autoresearch-loop-runner.js";
-import {
-	type BenchmarkProgress,
-	type ExecuteBenchmarkInput,
-	type RunDetails,
-	type AutoresearchViewData,
-} from "../services/autoresearch.js";
+import type {
+	BenchmarkProgress,
+	ExecuteBenchmarkInput,
+	RunDetails,
+	AutoresearchViewData,
+} from "./view.js";
 import type { ExecutionProfile } from "../execution/schema.js";
 import { getSandboxedBashOperations } from "../sandbox/index.js";
 import type { BashOperations } from "@earendil-works/pi-coding-agent";

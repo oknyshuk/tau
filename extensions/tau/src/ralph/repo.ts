@@ -1,4 +1,3 @@
-import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { Effect, FileSystem, Layer, Option, Context } from "effect";
@@ -51,8 +50,6 @@ const optionContains = (option: Option.Option<string>, value: string | undefined
 };
 
 
-const LEGACY_LAYOUT_MESSAGE =
-	"Legacy Ralph layout detected under .pi/ralph. Import or remove old flat files, then retry.";
 
 
 function isSafeRawTaskDirectoryName(taskId: string): boolean {
@@ -92,31 +89,6 @@ function mapLoopRepoError(
 	}
 	return toContractError(error.entity, error.reason);
 }
-
-function makeLegacyLayoutError(): RalphContractValidationError {
-	return toContractError("ralph.legacy_layout", LEGACY_LAYOUT_MESSAGE);
-}
-
-async function hasFlatFilesInDir(dir: string): Promise<boolean> {
-	try {
-		const entries = await fs.promises.readdir(dir);
-		for (const entry of entries) {
-			if (entry.endsWith(".state.json") || entry.endsWith(".md")) {
-				return true;
-			}
-		}
-	} catch {
-		// Directory does not exist.
-	}
-	return false;
-}
-
-const detectLegacyLayout = (cwd: string): Effect.Effect<boolean, never, never> =>
-	Effect.promise(async () => {
-		const root = path.resolve(cwd, ".pi", "ralph");
-		const archive = path.join(root, "archive");
-		return (await hasFlatFilesInDir(root)) || (await hasFlatFilesInDir(archive));
-	});
 
 function lifecycleToStatus(lifecycle: LoopPersistedState["lifecycle"]): LoopState["status"] {
 	switch (lifecycle) {
@@ -215,10 +187,6 @@ export function loopOwnsSessionFile(loop: LoopState, sessionFile: string | undef
 
 function ralphDir(cwd: string): string {
 	return path.resolve(cwd, RALPH_DIR);
-}
-
-function legacyRalphDir(cwd: string): string {
-	return path.resolve(cwd, ".pi", "ralph");
 }
 
 const readOptionalFile = (
@@ -362,9 +330,6 @@ const RalphRepoBase = Layer.effect(
 
 		const loadState: RalphRepoService["loadState"] = Effect.fn("RalphRepo.loadState")(
 			function* (cwd, name, archived = false) {
-				if (yield* detectLegacyLayout(cwd)) {
-					return yield* Effect.fail(makeLegacyLayoutError());
-				}
 				const persisted = yield* loopRepo
 					.loadState(cwd, name, archived)
 					.pipe(Effect.mapError(mapLoopRepoError));
@@ -394,9 +359,6 @@ const RalphRepoBase = Layer.effect(
 
 		const listLoops: RalphRepoService["listLoops"] = Effect.fn("RalphRepo.listLoops")(
 			function* (cwd, archived = false) {
-				if (yield* detectLegacyLayout(cwd)) {
-					return yield* Effect.fail(makeLegacyLayoutError());
-				}
 				const persisted = yield* loopRepo
 					.listStates(cwd, archived)
 					.pipe(Effect.mapError(mapLoopRepoError));
@@ -549,7 +511,7 @@ const RalphRepoBase = Layer.effect(
 		const existsRalphDirectory: RalphRepoService["existsRalphDirectory"] = Effect.fn(
 			"RalphRepo.existsRalphDirectory",
 		)(function* (cwd) {
-			const canonicalExists = yield* fs
+			return yield* fs
 				.exists(ralphDir(cwd))
 				.pipe(
 					Effect.mapError((error) =>
@@ -557,21 +519,6 @@ const RalphRepoBase = Layer.effect(
 							"exists-ralph-dir",
 							ralphDir(cwd),
 							`Failed to inspect ${ralphDir(cwd)}`,
-							error,
-						),
-					),
-				);
-			if (canonicalExists) {
-				return true;
-			}
-			return yield* fs
-				.exists(legacyRalphDir(cwd))
-				.pipe(
-					Effect.mapError((error) =>
-						toStorageError(
-							"exists-legacy-ralph-dir",
-							legacyRalphDir(cwd),
-							`Failed to inspect ${legacyRalphDir(cwd)}`,
 							error,
 						),
 					),
@@ -664,22 +611,6 @@ const RalphRepoBase = Layer.effect(
 					yield* loopRepo.deleteRunDirectory(cwd, stateFile.taskId, true);
 				}
 			}
-
-			yield* fs
-				.remove(legacyRalphDir(cwd), {
-					recursive: true,
-					force: true,
-				})
-				.pipe(
-					Effect.mapError((error) =>
-						toStorageError(
-							"remove-ralph-dir",
-							legacyRalphDir(cwd),
-							`Failed to remove ${legacyRalphDir(cwd)}`,
-							error,
-						),
-					),
-				);
 		});
 
 		return RalphRepo.of({

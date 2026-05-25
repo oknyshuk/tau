@@ -1,7 +1,7 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { ExperimentResult } from "./schema.js";
-import type { AutoresearchViewData } from "../services/autoresearch.js";
+import type { AutoresearchViewData } from "./view.js";
 import { formatNum, formatElapsed } from "./helpers.js";
 import {
 	currentResults,

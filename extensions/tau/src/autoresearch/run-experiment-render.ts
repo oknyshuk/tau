@@ -3,7 +3,7 @@ import type { Theme, ToolRenderResultOptions } from "@earendil-works/pi-coding-a
 import { formatSize } from "@earendil-works/pi-coding-agent";
 import { Option } from "effect";
 
-import type { RunDetails, BenchmarkProgress } from "../services/autoresearch.js";
+import type { RunDetails, BenchmarkProgress } from "./view.js";
 import { EXPERIMENT_MAX_BYTES, formatNum } from "./helpers.js";
 
 const PREVIEW_LINES = 5;

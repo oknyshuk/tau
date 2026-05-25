@@ -1,9 +1,6 @@
-import * as path from "node:path";
-
 import type { ASIData, MetricDirection, NumericMetricMap } from "./schema.js";
 
 type ASIValue = string | number | boolean | null | ASIValue[] | { [key: string]: ASIValue };
-import { AUTORESEARCH_DIR } from "./paths.js";
 
 const METRIC_LINE_PREFIX = "METRIC";
 const ASI_LINE_PREFIX = "ASI";
@@ -74,14 +71,6 @@ function parseAsiValue(raw: string): ASIValue {
 	return value;
 }
 
-export function mergeAsi(base: ASIData | null, override: ASIData | undefined): ASIData | undefined {
-	if (!base && !override) return undefined;
-	return {
-		...(base ?? {}),
-		...(override ?? {}),
-	};
-}
-
 function commas(value: number): string {
 	const sign = value < 0 ? "-" : "";
 	const digits = String(Math.trunc(Math.abs(value)));
@@ -112,58 +101,6 @@ export function formatElapsed(ms: number): string {
 	const s = totalSec % 60;
 	if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
 	return `${s}s`;
-}
-
-export function getAutoresearchRunDirectory(workDir: string, runNumber: number): string {
-	return path.join(workDir, AUTORESEARCH_DIR, "runs", String(runNumber).padStart(4, "0"));
-}
-
-export function isAutoresearchShCommand(command: string): boolean {
-	let normalized = command.trim();
-	normalized = normalized.replace(/^(?:\w+=\S*\s+)+/, "");
-
-	let previous = "";
-	while (previous !== normalized) {
-		previous = normalized;
-		normalized = normalized.replace(/^(?:env|time|nice|nohup)(?:\s+-\S+(?:\s+\d+)?)?\s+/, "");
-	}
-	if (/[;&|<>]/.test(normalized)) {
-		return false;
-	}
-
-	const tokens = normalized.split(/\s+/);
-	if (tokens.length === 0) return false;
-
-	let index = 0;
-	if (tokens[index] === "bash" || tokens[index] === "sh") {
-		index += 1;
-		while (index < tokens.length && tokens[index]?.startsWith("-")) {
-			if (tokens[index]?.includes("c")) {
-				return false;
-			}
-			index += 1;
-		}
-	}
-
-	const scriptToken = tokens[index];
-	if (!scriptToken || !/^(?:\.\/|\/[\w/.-]*\/)?autoresearch\.sh$/.test(scriptToken)) {
-		return false;
-	}
-
-	for (const token of tokens.slice(index + 1)) {
-		if (
-			token === "&&" ||
-			token === "||" ||
-			token === ";" ||
-			token === "|" ||
-			token === ">" ||
-			token === "<"
-		) {
-			return false;
-		}
-	}
-
-	return true;
 }
 
 export function isBetter(current: number, best: number, direction: MetricDirection): boolean {

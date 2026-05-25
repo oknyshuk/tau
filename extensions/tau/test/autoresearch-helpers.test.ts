@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
 	parseMetricLines,
 	parseAsiLines,
-	isAutoresearchShCommand,
 	isBetter,
 	inferMetricUnitFromName,
 } from "../src/autoresearch/helpers.js";
@@ -60,20 +59,6 @@ describe("autoresearch helpers", () => {
 
 		it("returns null when empty", () => {
 			expect(parseAsiLines("no asi here")).toBeNull();
-		});
-	});
-
-	describe("isAutoresearchShCommand", () => {
-		it("accepts direct autoresearch.sh invocation", () => {
-			expect(isAutoresearchShCommand("bash autoresearch.sh")).toBe(true);
-			expect(isAutoresearchShCommand("sh autoresearch.sh")).toBe(true);
-			expect(isAutoresearchShCommand("./autoresearch.sh")).toBe(true);
-		});
-
-		it("rejects chained or scripted commands", () => {
-			expect(isAutoresearchShCommand("bash autoresearch.sh && echo done")).toBe(false);
-			expect(isAutoresearchShCommand("node benchmark.js")).toBe(false);
-			expect(isAutoresearchShCommand("bash -c 'autoresearch.sh'")).toBe(false);
 		});
 	});
 

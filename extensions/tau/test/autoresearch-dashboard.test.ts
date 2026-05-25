@@ -4,7 +4,7 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 
 import { renderWidget } from "../src/autoresearch/dashboard.js";
 import { renderDashboardLines } from "../src/autoresearch/dashboard.js";
-import type { AutoresearchViewData } from "../src/services/autoresearch.js";
+import type { AutoresearchViewData } from "../src/autoresearch/view.js";
 
 const plainTheme = {
 	fg: (_color: string, text: string) => text,

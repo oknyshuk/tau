@@ -1447,31 +1447,4 @@ describe("ralph store behavior freeze", () => {
 			),
 		).toBe(true);
 	});
-
-	it("nukes legacy Ralph directory even when canonical loops directory is absent", async () => {
-		const cwd = makeTempDir();
-		tempDirs.push(cwd);
-
-		const notifications: Notifications = [];
-		const { pi, commands } = makePiStub();
-		const ralphRuntime = makeRalphRuntime();
-		runtimes.push(ralphRuntime);
-		initRalph(pi, ralphRuntime.run);
-		const command = commands.get("ralph");
-		expect(command).toBeDefined();
-
-		const legacyDir = path.join(cwd, ".pi", "ralph");
-		fs.mkdirSync(legacyDir, { recursive: true });
-		fs.writeFileSync(path.join(legacyDir, "legacy-loop.state.json"), "{}", "utf-8");
-
-		const context = makeContext(cwd, notifications);
-		await command?.handler("nuke --yes", context);
-
-		expect(fs.existsSync(legacyDir)).toBe(false);
-		expect(
-			notifications.some((entry) =>
-				entry.message.includes("Removed Ralph loop data under .pi/loops."),
-			),
-		).toBe(true);
-	});
 });
