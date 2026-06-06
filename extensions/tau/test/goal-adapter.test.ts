@@ -445,6 +445,41 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
+	it("starts replacement goal accounting from the command time while running", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const runningCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "first goal");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(2_500);
+		await runGoalCommand(harness, "second goal", runningCtx);
+		vi.setSystemTime(4_000);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(10),
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("second goal");
+		expect(snapshot?.tokensUsed).toBe(10);
+		expect(snapshot?.timeUsedSeconds).toBe(1);
+	});
+
 	it("accounts assistant token usage on turn_end", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

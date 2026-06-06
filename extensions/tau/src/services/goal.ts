@@ -44,13 +44,21 @@ export interface GoalService {
 		options?: {
 			readonly failIfExists?: boolean;
 			readonly accountFromNextTurn?: boolean;
+			readonly startActiveAccountingAtMs?: number;
 		},
 	) => Effect.Effect<GoalSnapshot, GoalError, never>;
 	readonly setStatus: (
 		sessionId: string,
 		status: GoalStatus,
-		options?: { readonly accountCurrentTurn?: boolean },
+		options?: {
+			readonly accountCurrentTurn?: boolean;
+			readonly startActiveAccountingAtMs?: number;
+		},
 	) => Effect.Effect<GoalSnapshot | null, GoalError, never>;
+	readonly prepareExternalMutation: (
+		sessionId: string,
+		nowMs: number,
+	) => Effect.Effect<GoalAgentEndResult, never, never>;
 	readonly clear: (sessionId: string) => Effect.Effect<void, never, never>;
 	readonly markAgentStart: (
 		sessionId: string,
@@ -303,6 +311,7 @@ export const GoalLive = Layer.effect(
 					yield* Ref.update(runtimes, (state) =>
 						withRuntime(state, sessionId, () => ({
 							...runtimeWithSnapshot(nextSnapshot),
+							activeTurnStartedAtMs: options?.startActiveAccountingAtMs ?? null,
 							skipNextTurnAccounting: options?.accountFromNextTurn === true,
 						})),
 					);
@@ -312,6 +321,7 @@ export const GoalLive = Layer.effect(
 				yield* Ref.update(runtimes, (state) =>
 					withRuntime(state, sessionId, () => ({
 						...runtimeWithSnapshot(snapshot),
+						activeTurnStartedAtMs: options?.startActiveAccountingAtMs ?? null,
 						skipNextTurnAccounting: options?.accountFromNextTurn === true,
 					})),
 				);
@@ -339,6 +349,10 @@ export const GoalLive = Layer.effect(
 						return {
 							...runtime,
 							snapshot: nextSnapshot,
+							activeTurnStartedAtMs:
+								status === "active"
+									? (options?.startActiveAccountingAtMs ?? runtime.activeTurnStartedAtMs)
+									: runtime.activeTurnStartedAtMs,
 							continuationInFlight: false,
 							terminalTurnAccountingPending:
 								(status === "complete" || status === "blocked") &&
@@ -484,6 +498,15 @@ export const GoalLive = Layer.effect(
 				continuationHadToolCall: hasAssistantError(event) ? null : hasAssistantToolCall(event),
 			});
 
+		const prepareExternalMutation: GoalService["prepareExternalMutation"] = (
+			sessionId,
+			nowMs,
+		) =>
+			accountUsage(sessionId, 0, nowMs, {
+				finishActiveAccounting: true,
+				continuationHadToolCall: null,
+			});
+
 		const markContinuationDispatched: GoalService["markContinuationDispatched"] = (sessionId) =>
 			Ref.modify(runtimes, (state) => {
 				let snapshot: GoalSnapshot | null = null;
@@ -524,6 +547,7 @@ export const GoalLive = Layer.effect(
 			liveSnapshot,
 			create,
 			setStatus,
+			prepareExternalMutation,
 			clear,
 			markAgentStart,
 			accountAgentEnd,

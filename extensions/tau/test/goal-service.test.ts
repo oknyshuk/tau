@@ -416,6 +416,37 @@ describe("goal service", () => {
 		expect(snapshot.timeUsedSeconds).toBe(1);
 	});
 
+	it("accounts active progress before an external goal replacement", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "old goal", null);
+				yield* goal.markAgentStart("session-1", 0);
+				const prepared = yield* goal.prepareExternalMutation("session-1", 2_500);
+				const replacement = yield* goal.create("session-1", "new goal", null, null, {
+					startActiveAccountingAtMs: 2_500,
+				});
+				const nextTurn = yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(10, false),
+					4_000,
+				);
+				return { prepared, replacement, nextTurn };
+			}),
+		);
+
+		expect(result.prepared.snapshot?.objective).toBe("old goal");
+		expect(result.prepared.snapshot?.timeUsedSeconds).toBe(2);
+		expect(result.replacement.objective).toBe("new goal");
+		expect(result.replacement.timeUsedSeconds).toBe(0);
+		expect(result.nextTurn.snapshot?.objective).toBe("new goal");
+		expect(result.nextTurn.snapshot?.tokensUsed).toBe(10);
+		expect(result.nextTurn.snapshot?.timeUsedSeconds).toBe(1);
+	});
+
 	it("suppresses repeated continuation when a dispatched continuation did no tool work", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

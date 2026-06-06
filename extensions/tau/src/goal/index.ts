@@ -943,6 +943,9 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					return;
 				}
 				if (parsed.command === "clear") {
+					await withGoal(runtime, (goal) =>
+						goal.prepareExternalMutation(sessionId, Date.now()),
+					);
 					await withGoal(runtime, (goal) => goal.clear(sessionId));
 					clearGoalUi(ctx, goalUiState);
 					stopGoalTicker();
@@ -954,14 +957,22 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					parsed.command === "resume" ||
 					parsed.command === "complete"
 				) {
+					const nowMs = Date.now();
 					const status: GoalStatus =
 						parsed.command === "resume"
 							? "active"
 							: parsed.command === "pause"
 								? "paused"
 								: "complete";
+					await withGoal(runtime, (goal) =>
+						goal.prepareExternalMutation(sessionId, nowMs),
+					);
 					const snapshot = await withGoal(runtime, (goal) =>
-						goal.setStatus(sessionId, status),
+						goal.setStatus(sessionId, status, {
+							...(status === "active" && !ctx.isIdle()
+								? { startActiveAccountingAtMs: nowMs }
+								: {}),
+						}),
 					);
 					await updateGoalUi(ctx);
 					ctx.ui.notify(describeGoal(snapshot), "info");
@@ -983,12 +994,17 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						return;
 					}
 				}
+				const nowMs = Date.now();
+				await withGoal(runtime, (goal) =>
+					goal.prepareExternalMutation(sessionId, nowMs),
+				);
 				const snapshot = await withGoal(runtime, (goal) =>
 					goal.create(
 						sessionId,
 						objective,
 						parsed.tokenBudget ?? null,
 						parsed.timeBudgetSeconds ?? null,
+						ctx.isIdle() ? undefined : { startActiveAccountingAtMs: nowMs },
 					),
 				);
 				await updateGoalUi(ctx);
