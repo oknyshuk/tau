@@ -303,6 +303,12 @@ function isRateLimitGoalError(errorMessage: string): boolean {
 	return /rate.?limit|too many requests|\b429\b/i.test(errorMessage);
 }
 
+function isUsageLimitGoalError(errorMessage: string): boolean {
+	return /usage.?limit|usage.?quota|quota.?exceeded|exceeded.?quota|insufficient.?quota|billing.?hard.?limit|credit.?balance|monthly.?limit|free.?quota/i.test(
+		errorMessage,
+	);
+}
+
 function goalErrorRetryDelayMs(consecutiveErrors: number): number {
 	const exponential = Math.min(
 		GOAL_ERROR_RETRY_MAX_DELAY_MS,
@@ -643,6 +649,23 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		}
 	};
 
+	const usageLimitGoalFromError = async (
+		ctx: ExtensionContext,
+		errorMessage: string,
+	): Promise<void> => {
+		const sessionId = sessionIdFromContext(ctx);
+		clearGoalErrorRetry(sessionId);
+		await withGoal(runtime, (goal) => goal.setStatus(sessionId, "usage_limited"));
+		await updateGoalUi(ctx);
+		if (ctx.hasUI) {
+			ctx.ui.notify(
+				"Goal usage limited because the assistant request hit an account or quota limit.\nLast error: " +
+					errorMessage,
+				"warning",
+			);
+		}
+	};
+
 	const dispatchGoalErrorRetry = async (
 		ctx: ExtensionContext,
 		generation: number,
@@ -706,7 +729,15 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	): Promise<void> => {
 		const sessionId = sessionIdFromContext(ctx);
 		const errorMessage = assistantErrorMessage(message);
-		if (snapshot?.status !== "active") {
+		if (snapshot?.status !== "active" && snapshot?.status !== "budget_limited") {
+			clearGoalErrorRetry(sessionId);
+			return;
+		}
+		if (isUsageLimitGoalError(errorMessage)) {
+			await usageLimitGoalFromError(ctx, errorMessage);
+			return;
+		}
+		if (snapshot.status === "budget_limited") {
 			clearGoalErrorRetry(sessionId);
 			return;
 		}

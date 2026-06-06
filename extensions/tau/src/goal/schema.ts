@@ -12,6 +12,7 @@ export const GoalStatusSchema = Schema.Literals([
 	"active",
 	"paused",
 	"blocked",
+	"usage_limited",
 	"budget_limited",
 	"complete",
 ]);

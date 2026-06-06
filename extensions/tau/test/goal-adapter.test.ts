@@ -671,6 +671,61 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
 	});
 
+	it("marks the goal usage-limited for account quota errors", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [makeErrorAssistantMessage("insufficient_quota: monthly usage limit reached")],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("usage_limited");
+		expect(harness.sentMessages).toHaveLength(0);
+		expect(harness.notifications.at(-1)?.message).toContain("usage limited");
+	});
+
+	it("can mark a budget-limited goal usage-limited after a quota error", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [makeErrorAssistantMessage("quota exceeded for this account")],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.setStatus("session-1", "budget_limited");
+			}),
+		);
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("usage_limited");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("pauses after three consecutive retryable assistant errors", async () => {
 		vi.useFakeTimers();
 		const harness = makeGoalAdapterHarness();
