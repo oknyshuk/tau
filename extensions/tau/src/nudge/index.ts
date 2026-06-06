@@ -27,7 +27,7 @@ const POLICIES: Readonly<Record<TrackedTool, NudgePolicy>> = {
 
 const TRACKED_TOOLS: readonly TrackedTool[] = ["memory", "skill_manage"] as const;
 
-const BASELINE_NUDGE =
+export const BASELINE_NUDGE =
 	"\n\nWhen you learn durable facts about the user, environment, or project, save them with `memory`. When you discover or fix a reusable workflow, create or patch a skill with `skill_manage`. Skip temporary task state and one-offs.";
 
 function isTrackedTool(name: string): name is TrackedTool {

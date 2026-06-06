@@ -22,6 +22,7 @@ import {
 	continuationPrompt,
 	errorRecoveryPrompt,
 	goalSystemPrompt,
+	objectiveUpdatedPrompt,
 } from "./prompts.js";
 import type { GoalSnapshot, GoalStatus } from "./schema.js";
 
@@ -31,6 +32,7 @@ export type GoalRuntime = {
 };
 
 const GOAL_CONTINUATION_MESSAGE_TYPE = "tau:goal-continuation";
+const GOAL_OBJECTIVE_UPDATED_MESSAGE_TYPE = "tau:goal-objective-updated";
 const GOAL_BUDGET_MESSAGE_TYPE = "tau:goal-budget-limit";
 const GOAL_ERROR_RETRY_MESSAGE_TYPE = "tau:goal-error-retry";
 const MAX_CONSECUTIVE_GOAL_ERRORS = 3;
@@ -504,6 +506,27 @@ async function dispatchGoalContinuation(
 	);
 }
 
+async function dispatchGoalObjectiveUpdated(
+	pi: ExtensionAPI,
+	runtime: GoalRuntime,
+	ctx: ExtensionContext,
+	snapshot: GoalSnapshot | null,
+): Promise<void> {
+	if (!shouldAutoContinue(snapshot, ctx)) {
+		return;
+	}
+	await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionIdFromContext(ctx)));
+	pi.sendMessage(
+		{
+			customType: GOAL_OBJECTIVE_UPDATED_MESSAGE_TYPE,
+			content: objectiveUpdatedPrompt(snapshot),
+			display: false,
+			details: { objective: snapshot.objective },
+		},
+		{ triggerTurn: true, deliverAs: "followUp" },
+	);
+}
+
 export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	let tickerFiber: Fiber.Fiber<void, never> | undefined;
 	let tickerCtx: ExtensionContext | undefined;
@@ -919,7 +942,8 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 				const objective = parsed.objective ?? "";
 				const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
-				if (existing !== null && existing.status !== "complete") {
+				const replacesActiveGoal = existing !== null && existing.status !== "complete";
+				if (replacesActiveGoal) {
 					const confirmed = await ctx.ui.confirm(
 						"Replace thread goal?",
 						`Current: ${existing.objective}\n\nNew: ${objective}`,
@@ -938,7 +962,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				);
 				await updateGoalUi(ctx);
 				ctx.ui.notify(`Set thread goal.\n${describeGoal(snapshot)}`, "info");
-				await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
+				if (replacesActiveGoal) {
+					await dispatchGoalObjectiveUpdated(pi, runtime, ctx, snapshot);
+				} else {
+					await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
+				}
 			} catch (error) {
 				ctx.ui.notify(errorText(error), "error");
 			}

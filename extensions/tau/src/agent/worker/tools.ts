@@ -4,6 +4,7 @@ import type { AgentDefinition } from "../types.js";
 import { createApplyPatchToolDefinition } from "../../sandbox/apply-patch.js";
 import { createBacklogToolDefinition } from "../../backlog/tool.js";
 import { createExaToolDefinitions } from "../../exa/index.js";
+import { BASELINE_NUDGE } from "../../nudge/index.js";
 
 export const WORKER_DELEGATION_PROMPT = `## Worker Agent Instructions
 
@@ -35,6 +36,10 @@ export function buildWorkerAppendPrompts(options: { definition: AgentDefinition 
 
 	if (options.definition.systemPrompt) {
 		prompts.push(options.definition.systemPrompt);
+	}
+
+	if (options.definition.tools?.some((tool) => tool === "memory" || tool === "skill_manage")) {
+		prompts.push(BASELINE_NUDGE);
 	}
 
 	return prompts;
