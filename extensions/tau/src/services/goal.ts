@@ -256,9 +256,12 @@ export const GoalLive = Layer.effect(
 				const snapshot = makeGoalSnapshot(objective, tokenBudget, timeBudgetSeconds, nowIso);
 				const failIfExists = options?.failIfExists === true;
 				const existing = yield* get(sessionId);
-				if (failIfExists && existing !== null && existing.status !== "complete") {
+				if (failIfExists && existing !== null) {
 					return yield* Effect.fail(
-						new GoalConflictError({ reason: "a thread goal already exists" }),
+						new GoalConflictError({
+							reason:
+								"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
+						}),
 					);
 				}
 				if (

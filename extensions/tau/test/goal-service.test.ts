@@ -120,10 +120,34 @@ describe("goal service", () => {
 					});
 				}),
 			),
-		).rejects.toMatchObject({ reason: "a thread goal already exists" });
+		).rejects.toMatchObject({
+			reason:
+				"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
+		});
 	});
 
-	it("allows a model-created goal after the previous goal is complete", async () => {
+	it("refuses a model-created goal after the previous goal is complete", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		await expect(
+			harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					yield* goal.create("session-1", "first", null, null, { failIfExists: true });
+					yield* goal.setStatus("session-1", "complete");
+					return yield* goal.create("session-1", "second", null, null, {
+						failIfExists: true,
+					});
+				}),
+			),
+		).rejects.toMatchObject({
+			reason:
+				"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
+		});
+	});
+
+	it("allows a command-owned goal after the previous goal is complete", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
 
@@ -132,7 +156,7 @@ describe("goal service", () => {
 				const goal = yield* Goal;
 				yield* goal.create("session-1", "first", null, null, { failIfExists: true });
 				yield* goal.setStatus("session-1", "complete");
-				return yield* goal.create("session-1", "second", null, null, { failIfExists: true });
+				return yield* goal.create("session-1", "second", null, null);
 			}),
 		);
 
