@@ -43,19 +43,6 @@ const agentToolDefinition: ToolDefinition = {
 	},
 };
 
-const submitResultToolDefinition: ToolDefinition = {
-	name: "submit_result",
-	label: "submit_result",
-	description: "Submit structured result",
-	parameters: Type.Object({}),
-	async execute() {
-		return {
-			content: [{ type: "text" as const, text: "submitted" }],
-			details: { ok: true },
-		};
-	},
-};
-
 const applyPatchToolDefinition: ToolDefinition = {
 	name: "apply_patch",
 	label: "apply_patch",
@@ -143,50 +130,14 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, submitResultToolDefinition, applyPatchToolDefinition],
+				customTools: [agentToolDefinition, applyPatchToolDefinition],
 			});
 
 			await Effect.runPromise(
-				applyAgentToolAllowlist(session, buildDefinition(["read", "agent"]), undefined),
+				applyAgentToolAllowlist(session, buildDefinition(["read", "agent"])),
 			);
 
 			expect(session.getActiveToolNames()).toEqual(["read", "agent"]);
-		});
-	});
-
-	it("auto-enables submit_result when structured output is required", async () => {
-		await withTempDir(async (cwd) => {
-			const settingsManager = SettingsManager.inMemory();
-			const resourceLoader = new DefaultResourceLoader({
-				cwd,
-				agentDir: path.join(cwd, ".agent"),
-				settingsManager,
-				noExtensions: true,
-				noSkills: true,
-				noPromptTemplates: true,
-				noThemes: true,
-			});
-			await resourceLoader.reload();
-
-			const { session } = await createAgentSession({
-				cwd,
-				authStorage: AuthStorage.create(),
-				modelRegistry: new ModelRegistry(AuthStorage.create()),
-				resourceLoader,
-				settingsManager,
-				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, submitResultToolDefinition, applyPatchToolDefinition],
-			});
-
-			await Effect.runPromise(
-				applyAgentToolAllowlist(
-					session,
-					buildDefinition(["read"]),
-					Type.Object({ ok: Type.Boolean() }),
-				),
-			);
-
-			expect(session.getActiveToolNames()).toEqual(["read", "submit_result"]);
 		});
 	});
 
@@ -215,7 +166,11 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [
+					agentToolDefinition,
+					applyPatchToolDefinition,
+					execCommandToolDefinition,
+				],
 				...(model ? { model } : {}),
 			});
 
@@ -223,7 +178,6 @@ describe("agent tool allowlist", () => {
 				applyAgentToolAllowlist(
 					session,
 					buildDefinition(["read", "edit", "write", "apply_patch"]),
-					undefined,
 				),
 			);
 
@@ -256,7 +210,11 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [
+					agentToolDefinition,
+					applyPatchToolDefinition,
+					execCommandToolDefinition,
+				],
 				...(model ? { model } : {}),
 			});
 
@@ -264,7 +222,6 @@ describe("agent tool allowlist", () => {
 				applyAgentToolAllowlist(
 					session,
 					buildDefinition(["read", "edit", "write", "apply_patch"]),
-					undefined,
 				),
 			);
 
@@ -297,11 +254,15 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [
+					agentToolDefinition,
+					applyPatchToolDefinition,
+					execCommandToolDefinition,
+				],
 				...(model ? { model } : {}),
 			});
 
-			await Effect.runPromise(applyAgentToolAllowlist(session, buildDefinition(undefined), undefined));
+			await Effect.runPromise(applyAgentToolAllowlist(session, buildDefinition(undefined)));
 
 			expect(session.getActiveToolNames()).toContain("apply_patch");
 			expect(session.getActiveToolNames()).not.toContain("edit");
@@ -330,7 +291,11 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [
+					agentToolDefinition,
+					applyPatchToolDefinition,
+					execCommandToolDefinition,
+				],
 			});
 
 			session.setActiveToolsByName(["read"]);
@@ -339,7 +304,6 @@ describe("agent tool allowlist", () => {
 				applyAgentToolAllowlist(
 					session,
 					buildDefinition(undefined),
-					undefined,
 					requireToolsPolicy(["exec_command"]),
 				),
 			);
@@ -369,14 +333,17 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [
+					agentToolDefinition,
+					applyPatchToolDefinition,
+					execCommandToolDefinition,
+				],
 			});
 
 			await Effect.runPromise(
 				applyAgentToolAllowlist(
 					session,
 					buildDefinition(["read"]),
-					undefined,
 					requireToolsPolicy(["exec_command"]),
 				),
 			);
@@ -406,14 +373,17 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, applyPatchToolDefinition, execCommandToolDefinition],
+				customTools: [
+					agentToolDefinition,
+					applyPatchToolDefinition,
+					execCommandToolDefinition,
+				],
 			});
 
 			await Effect.runPromise(
 				applyAgentToolAllowlist(
 					session,
 					buildDefinition(["read", "exec_command"]),
-					undefined,
 					allowlistPolicy(["read"]),
 				),
 			);

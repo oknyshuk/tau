@@ -49,54 +49,18 @@ const assistantMessage = (options: {
 });
 
 describe("worker session subscription", () => {
-	it("requests a submit_result retry when structured output is required but missing", () => {
+	it("treats aborted agent_end with assistant text as completion", () => {
 		const session = new FakeAgentSession();
 		const tracking = createWorkerTrackingState();
-		const publishCompleted = vi.fn();
-		const publishFailed = vi.fn();
-		const publishRunningStatus = vi.fn();
-		const publishRunningStatusIfNotFinal = vi.fn();
-		const repromptForSubmitResult = vi.fn();
-
-		subscribeToWorkerSession({
-			session: session.asAgentSession(),
-			tracking,
-			resultSchema: { type: "object" },
-			maxSubmitResultRetries: 3,
-			publishCompleted,
-			publishFailed,
-			publishRunningStatus,
-			publishRunningStatusIfNotFinal,
-			repromptForSubmitResult,
-		});
-
-		session.emit({ type: "turn_start" } as AgentSessionEvent);
-		session.emit({
-			type: "agent_end",
-			messages: [assistantMessage({ text: "done", stopReason: "stop" })],
-		} as AgentSessionEvent);
-
-		expect(repromptForSubmitResult).toHaveBeenCalledWith(1);
-		expect(publishCompleted).not.toHaveBeenCalled();
-		expect(publishFailed).not.toHaveBeenCalled();
-	});
-
-	it("treats aborted agent_end with captured structured output as completion", () => {
-		const session = new FakeAgentSession();
-		const tracking = createWorkerTrackingState();
-		tracking.structuredOutput = { ok: true };
 		const publishCompleted = vi.fn();
 
 		subscribeToWorkerSession({
 			session: session.asAgentSession(),
 			tracking,
-			resultSchema: { type: "object" },
-			maxSubmitResultRetries: 3,
 			publishCompleted,
 			publishFailed: vi.fn(),
 			publishRunningStatus: vi.fn(),
 			publishRunningStatusIfNotFinal: vi.fn(),
-			repromptForSubmitResult: vi.fn(),
 		});
 
 		session.emit({ type: "turn_start" } as AgentSessionEvent);
@@ -105,12 +69,12 @@ describe("worker session subscription", () => {
 			messages: [assistantMessage({ text: "ignored", stopReason: "aborted" })],
 		} as AgentSessionEvent);
 
-		expect(publishCompleted).toHaveBeenCalledWith(undefined);
+		expect(publishCompleted).toHaveBeenCalledWith("ignored");
 	});
 });
 
 describe("worker status builders", () => {
-	it("omits active turn timestamp until a turn starts and includes structured output on completion", () => {
+	it("omits active turn timestamp until a turn starts and includes completion metadata", () => {
 		const tracking = createWorkerTrackingState();
 
 		expect(buildRunningStatus(tracking)).toEqual({
@@ -127,10 +91,9 @@ describe("worker status builders", () => {
 		tracking.workedMs = 99;
 		tracking.tools.push({ name: "read", args: "file.ts", result: "ok" });
 
-		expect(buildCompletedStatus(tracking, "done", { ok: true })).toEqual({
+		expect(buildCompletedStatus(tracking, "done")).toEqual({
 			state: "completed",
 			message: "done",
-			structured_output: { ok: true },
 			turns: 2,
 			toolCalls: 3,
 			workedMs: 99,

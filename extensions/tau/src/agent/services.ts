@@ -83,7 +83,6 @@ export interface SpawnOptions {
 	readonly parentModel?: Model<Api> | undefined;
 	readonly approvalBroker?: ApprovalBroker | undefined;
 	readonly modelRegistry?: ModelRegistry | undefined;
-	readonly resultSchema?: unknown;
 	readonly agentSummaries?: ReadonlyArray<{
 		readonly name: string;
 		readonly description: string;
@@ -118,7 +117,6 @@ export class AgentManager extends Context.Service<
 export interface ControlSpawnOptions {
 	readonly agent: string;
 	readonly message: string;
-	readonly result_schema?: unknown;
 	readonly approvalBroker?: ApprovalBroker | undefined;
 	readonly parentSessionFile: string | undefined;
 	readonly parentExecution: ParentExecutionContext;

@@ -25,11 +25,13 @@ import {
 	AutoresearchLoopRunner,
 	AutoresearchLoopRunnerLive,
 } from "../src/services/autoresearch-loop-runner.js";
-import { makeExecutionRuntimeStubLayer } from "./ralph-test-helpers.js";
+import {
+	makeExecutionProfile,
+	makeExecutionRuntimeStubLayer,
+} from "./ralph-test-helpers.js";
 
-const getSandboxedBashOperationsMock = vi.fn<
-	(ctx: ExtensionContext, escalate: boolean) => BashOperations | undefined
->();
+const getSandboxedBashOperationsMock =
+	vi.fn<(ctx: ExtensionContext, escalate: boolean) => BashOperations | undefined>();
 
 vi.mock("../src/sandbox/index.js", () => ({
 	getSandboxedBashOperations: (ctx: ExtensionContext, escalate: boolean) =>
@@ -64,12 +66,20 @@ type PiHarness = {
 	readonly commands: Map<string, RegisteredCommand>;
 	readonly tools: Map<string, ToolDefinition>;
 	readonly activeTools: () => readonly string[];
-	readonly fire: (event: string, payload: unknown, ctx: ExtensionContext) => Promise<readonly unknown[]>;
+	readonly fire: (
+		event: string,
+		payload: unknown,
+		ctx: ExtensionContext,
+	) => Promise<readonly unknown[]>;
 };
 
 type RuntimeHarness = {
 	readonly run: <A, E>(
-		effect: Effect.Effect<A, E, LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner>,
+		effect: Effect.Effect<
+			A,
+			E,
+			LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner
+		>,
 	) => Promise<A>;
 	readonly dispose: () => Promise<void>;
 };
@@ -82,7 +92,9 @@ function sessionIdFromFile(sessionFile: string): string {
 	return path.basename(sessionFile, path.extname(sessionFile));
 }
 
-function makeRuntime(): RuntimeHarness {
+function makeRuntime(
+	executionRuntimeLayer = makeExecutionRuntimeStubLayer(),
+): RuntimeHarness {
 	const sandboxLayer = Layer.succeed(
 		Sandbox,
 		Sandbox.of({
@@ -101,7 +113,7 @@ function makeRuntime(): RuntimeHarness {
 
 	const layer = LoopEngineLive.pipe(
 		Layer.provideMerge(LoopRepoLive),
-		Layer.provideMerge(makeExecutionRuntimeStubLayer()),
+		Layer.provideMerge(executionRuntimeLayer),
 		Layer.provideMerge(sandboxLayer),
 		Layer.provideMerge(AutoresearchLoopRunnerLive),
 		Layer.provide(NodeFileSystem.layer),
@@ -196,6 +208,119 @@ function makeContext(
 		ctx: ctx as unknown as ExtensionCommandContext,
 		newSessionCalls,
 		setSessionFile,
+	};
+}
+
+const STALE_CONTEXT_MESSAGE =
+	"This extension ctx is stale after session replacement or reload. Do not use a captured pi or command ctx after ctx.newSession(), ctx.fork(), ctx.switchSession(), or ctx.reload().";
+
+function makeStaleInvalidatingContext(
+	cwd: string,
+	onReplacementSession?: (ctx: ExtensionCommandContext) => Promise<void>,
+): ContextHarness {
+	const newSessionCalls: unknown[] = [];
+	const staleContexts = new WeakSet<object>();
+	let newSessionCounter = 0;
+	let latestSessionFile = path.join(cwd, ".pi", "sessions", "controller.session.json");
+
+	const assertLive = (ctx: object): void => {
+		if (staleContexts.has(ctx)) {
+			throw new Error(STALE_CONTEXT_MESSAGE);
+		}
+	};
+
+	const makeLiveContext = (initialSessionFile: string): ExtensionCommandContext => {
+		let sessionFile = initialSessionFile;
+		const ctx = {
+			get cwd() {
+				assertLive(ctx);
+				return cwd;
+			},
+			get hasUI() {
+				assertLive(ctx);
+				return true;
+			},
+			get model() {
+				assertLive(ctx);
+				return undefined;
+			},
+			modelRegistry: {
+				find: (provider: string, id: string) => ({ provider, id }),
+				getAll: () => [],
+			},
+			sessionManager: {
+				getEntries: () => [],
+				getBranch: () => [],
+				getSessionId: () => sessionIdFromFile(sessionFile),
+				getSessionFile: () => sessionFile,
+			},
+			ui: {
+				setStatus: () => undefined,
+				setWidget: () => undefined,
+				setFooter: () => () => undefined,
+				setEditorComponent: () => undefined,
+				notify: () => undefined,
+				confirm: async () => true,
+				getEditorText: () => "",
+				theme: {
+					fg: (_color: string, text: string) => text,
+					bold: (text: string) => text,
+				},
+			},
+			isIdle: () => true,
+			abort: () => undefined,
+			hasPendingMessages: () => false,
+			shutdown: () => undefined,
+			getContextUsage: () => undefined,
+			compact: () => undefined,
+			getSystemPrompt: () => "",
+			waitForIdle: async () => undefined,
+			newSession: async (options?: unknown) => {
+				assertLive(ctx);
+				newSessionCalls.push(options);
+				newSessionCounter += 1;
+				const nextSessionFile = path.join(
+					cwd,
+					".pi",
+					"sessions",
+					`child-${newSessionCounter}.session.json`,
+				);
+				latestSessionFile = nextSessionFile;
+				sessionFile = nextSessionFile;
+				const replacementContext = makeLiveContext(nextSessionFile);
+				await onReplacementSession?.(replacementContext);
+				if (
+					typeof options === "object" &&
+					options !== null &&
+					"withSession" in options &&
+					typeof options.withSession === "function"
+				) {
+					await (options as ReplacementSessionOptions).withSession?.(replacementContext);
+				}
+				staleContexts.add(ctx);
+				return { cancelled: false };
+			},
+			switchSession: async (target: string, options?: ReplacementSessionOptions) => {
+				assertLive(ctx);
+				latestSessionFile = target;
+				sessionFile = target;
+				const replacementContext = makeLiveContext(target);
+				await onReplacementSession?.(replacementContext);
+				await options?.withSession?.(replacementContext);
+				staleContexts.add(ctx);
+				return { cancelled: false };
+			},
+		};
+
+		return ctx as unknown as ExtensionCommandContext;
+	};
+
+	return {
+		ctx: makeLiveContext(latestSessionFile),
+		newSessionCalls,
+		setSessionFile: (next) => {
+			latestSessionFile = next;
+		},
 	};
 }
 
@@ -314,6 +439,110 @@ describe("autoresearch tool runtime", () => {
 		);
 	});
 
+	it("does not use the command context after creating the child session", async () => {
+		const cwd = makeTempDir();
+		tempDirs.push(cwd);
+
+		const context = makeStaleInvalidatingContext(cwd);
+		const piHarness = makePiHarness();
+		const runtime = makeRuntime();
+		runtimes.push(runtime);
+		initAutoresearch(piHarness.pi, runtime.run);
+
+		const command = piHarness.commands.get("autoresearch");
+		if (command === undefined) {
+			throw new Error("autoresearch command was not registered");
+		}
+
+		await command.handler("create stale-command-context", context.ctx);
+		await expect(
+			command.handler("start stale-command-context", context.ctx),
+		).resolves.toBeUndefined();
+
+		expect(context.newSessionCalls).toHaveLength(1);
+	});
+
+	it("applies the child execution profile through the replacement session extension", async () => {
+		const cwd = makeTempDir();
+		tempDirs.push(cwd);
+
+		let staleApplyCalls = 0;
+		let replacementApplyCalls = 0;
+		let replacementBootstrapped = false;
+		const piHarness = makePiHarness();
+		const profile = makeExecutionProfile();
+		const staleExecutionRuntimeLayer = Layer.succeed(
+			ExecutionRuntime,
+			ExecutionRuntime.of({
+				setup: Effect.void,
+				captureCurrentExecutionProfile: () => Effect.succeed(profile),
+				applyExecutionProfile: () =>
+					Effect.sync(() => {
+						staleApplyCalls += 1;
+						throw new Error(STALE_CONTEXT_MESSAGE);
+					}),
+			}),
+		);
+		const replacementExecutionRuntimeLayer = Layer.succeed(
+			ExecutionRuntime,
+			ExecutionRuntime.of({
+				setup: Effect.void,
+				captureCurrentExecutionProfile: () => Effect.succeed(profile),
+				applyExecutionProfile: (nextProfile) =>
+					Effect.succeed({
+						applied: true as const,
+						profile: nextProfile,
+					}).pipe(
+						Effect.tap(() =>
+							Effect.sync(() => {
+								replacementApplyCalls += 1;
+							}),
+						),
+					),
+			}),
+		);
+		const context = makeStaleInvalidatingContext(cwd, async (replacementContext) => {
+			if (replacementBootstrapped) {
+				return;
+			}
+			replacementBootstrapped = true;
+			const replacementRuntime = makeRuntime(replacementExecutionRuntimeLayer);
+			runtimes.push(replacementRuntime);
+			initAutoresearch(piHarness.pi, replacementRuntime.run);
+			await piHarness.fire(
+				"session_start",
+				{ type: "session_start", reason: "new" },
+				replacementContext,
+			);
+		});
+		const runtime = makeRuntime(staleExecutionRuntimeLayer);
+		runtimes.push(runtime);
+		initAutoresearch(piHarness.pi, runtime.run);
+
+		const command = piHarness.commands.get("autoresearch");
+		if (command === undefined) {
+			throw new Error("autoresearch command was not registered");
+		}
+
+		await command.handler("create replacement-profile-applier", context.ctx);
+		await expect(
+			command.handler("start replacement-profile-applier", context.ctx),
+		).resolves.toBeUndefined();
+
+		const state = await runtime.run(
+			Effect.gen(function* () {
+				const engine = yield* LoopEngine;
+				const loops = yield* engine.listLoops(cwd, false);
+				return loops.find((loop) => loop.taskId === "replacement-profile-applier");
+			}),
+		);
+		expect(replacementBootstrapped).toBe(true);
+		expect(staleApplyCalls).toBe(0);
+		expect(replacementApplyCalls).toBe(1);
+		expect(state?.kind).toBe("autoresearch");
+		expect(Option.isSome(state?.ownership.child ?? Option.none())).toBe(true);
+	});
+
 	it("hides autoresearch run tools outside the active child session", async () => {
 		const cwd = makeTempDir();
 		tempDirs.push(cwd);
@@ -350,7 +579,9 @@ describe("autoresearch tool runtime", () => {
 				execCalls.push({ command, cwd: commandCwd });
 
 				if (command === "bash autoresearch.sh") {
-					options.onData?.(Buffer.from('METRIC metric=123\nASI hypothesis="workspace"\n'));
+					options.onData?.(
+						Buffer.from('METRIC metric=123\nASI hypothesis="workspace"\n'),
+					);
 					return { exitCode: 0 };
 				}
 
@@ -403,7 +634,9 @@ describe("autoresearch tool runtime", () => {
 				execCalls.push({ command, cwd: commandCwd });
 
 				if (command === "bash autoresearch.sh") {
-					options.onData?.(Buffer.from('METRIC metric=123\nASI hypothesis="workspace"\n'));
+					options.onData?.(
+						Buffer.from('METRIC metric=123\nASI hypothesis="workspace"\n'),
+					);
 					return { exitCode: 0 };
 				}
 
@@ -424,7 +657,13 @@ describe("autoresearch tool runtime", () => {
 			throw new Error("autoresearch tools were not registered");
 		}
 
-		await runTool.execute("tool-call-1", {}, new AbortController().signal, undefined, context.ctx);
+		await runTool.execute(
+			"tool-call-1",
+			{},
+			new AbortController().signal,
+			undefined,
+			context.ctx,
+		);
 		const doneResult = await doneTool.execute(
 			"tool-call-2",
 			{ status: "keep", description: "kept improvement", asi: { hypothesis: "workspace" } },
@@ -463,7 +702,9 @@ describe("autoresearch tool runtime", () => {
 				execCalls.push({ command, cwd: commandCwd });
 
 				if (command === "bash autoresearch.sh") {
-					options.onData?.(Buffer.from('METRIC metric=123\nASI hypothesis="workspace"\n'));
+					options.onData?.(
+						Buffer.from('METRIC metric=123\nASI hypothesis="workspace"\n'),
+					);
 					return { exitCode: 0 };
 				}
 
@@ -484,7 +725,13 @@ describe("autoresearch tool runtime", () => {
 			throw new Error("autoresearch tools were not registered");
 		}
 
-		await runTool.execute("tool-call-1", {}, new AbortController().signal, undefined, context.ctx);
+		await runTool.execute(
+			"tool-call-1",
+			{},
+			new AbortController().signal,
+			undefined,
+			context.ctx,
+		);
 		const doneResult = await doneTool.execute(
 			"tool-call-2",
 			{ status: "discard", description: "discarded idea", asi: { hypothesis: "workspace" } },
@@ -526,7 +773,15 @@ describe("autoresearch tool runtime", () => {
 				passed: true,
 				crashed: false,
 				timedOut: false,
-				tailOutput: ["line 1", "line 2", "line 3", "line 4", "line 5", "line 6", "line 7"].join("\n"),
+				tailOutput: [
+					"line 1",
+					"line 2",
+					"line 3",
+					"line 4",
+					"line 5",
+					"line 6",
+					"line 7",
+				].join("\n"),
 				llmTailOutput: "line 6\nline 7",
 				checksPass: true,
 				checksTimedOut: false,
@@ -561,7 +816,10 @@ describe("autoresearch tool runtime", () => {
 		const renderResult = runTool.renderResult as unknown as (
 			result: unknown,
 			options: { readonly expanded: boolean; readonly isPartial: boolean },
-			theme: { readonly fg: (_color: string, text: string) => string; readonly bold: (text: string) => string },
+			theme: {
+				readonly fg: (_color: string, text: string) => string;
+				readonly bold: (text: string) => string;
+			},
 		) => Text;
 
 		const compact = renderResult(
@@ -602,7 +860,9 @@ describe("autoresearch tool runtime", () => {
 		getSandboxedBashOperationsMock.mockReturnValue({
 			exec: async (command, _commandCwd, options) => {
 				if (command === "bash autoresearch.sh") {
-					options.onData?.(Buffer.from('METRIC metric=123\nASI hypothesis="workspace"\n'));
+					options.onData?.(
+						Buffer.from('METRIC metric=123\nASI hypothesis="workspace"\n'),
+					);
 					return { exitCode: 0 };
 				}
 
@@ -622,7 +882,13 @@ describe("autoresearch tool runtime", () => {
 		expect(context.newSessionCalls).toHaveLength(1);
 
 		const firstChildSessionFile = context.ctx.sessionManager.getSessionFile();
-		await runTool.execute("tool-call-1", {}, new AbortController().signal, undefined, context.ctx);
+		await runTool.execute(
+			"tool-call-1",
+			{},
+			new AbortController().signal,
+			undefined,
+			context.ctx,
+		);
 		await doneTool.execute(
 			"tool-call-2",
 			{ status: "discard", description: "discarded idea", asi: { hypothesis: "workspace" } },

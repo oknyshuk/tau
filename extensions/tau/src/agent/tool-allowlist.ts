@@ -9,8 +9,6 @@ import {
 	shouldUseApplyPatchForProvider,
 } from "../sandbox/mutation-tools.js";
 
-export const STRUCTURED_OUTPUT_TOOL_NAME = "submit_result";
-
 export function parseConfiguredToolNames(
 	value: unknown,
 	keyPath: string,
@@ -90,22 +88,13 @@ function getActiveToolNames(options: {
 	agentName: string;
 	configuredTools: readonly string[] | undefined;
 	availableToolNames: readonly string[];
-	structuredOutputRequired: boolean;
 }): readonly string[] | undefined {
 	if (options.configuredTools === undefined) {
 		return undefined;
 	}
 
-	const activeToolNames = [...options.configuredTools];
-	if (
-		options.structuredOutputRequired &&
-		!activeToolNames.includes(STRUCTURED_OUTPUT_TOOL_NAME)
-	) {
-		activeToolNames.push(STRUCTURED_OUTPUT_TOOL_NAME);
-	}
-
 	const available = new Set(options.availableToolNames);
-	const unknownToolNames = activeToolNames.filter((name) => !available.has(name));
+	const unknownToolNames = options.configuredTools.filter((name) => !available.has(name));
 	if (unknownToolNames.length > 0) {
 		const availableList = [...available].sort().join(", ");
 		throw new AgentError({
@@ -115,13 +104,12 @@ function getActiveToolNames(options: {
 		});
 	}
 
-	return activeToolNames;
+	return options.configuredTools;
 }
 
 export function applyAgentToolAllowlist(
 	session: AgentSession,
 	definition: AgentDefinition,
-	resultSchema: unknown | undefined,
 	executionPolicy?: ExecutionPolicy,
 ): Effect.Effect<void, AgentError> {
 	return Effect.try({
@@ -137,7 +125,6 @@ export function applyAgentToolAllowlist(
 				agentName: definition.name,
 				configuredTools,
 				availableToolNames,
-				structuredOutputRequired: resultSchema !== undefined,
 			});
 			const baseToolNames = configuredActiveToolNames ?? sessionToolNames;
 			const routedToolNames = rewriteMutationToolNames(baseToolNames, {
@@ -145,13 +132,18 @@ export function applyAgentToolAllowlist(
 				legacySelection: getLegacyMutationToolSelection(baseToolNames),
 			});
 
-			if (configuredActiveToolNames !== undefined || !sameToolNames(routedToolNames, baseToolNames)) {
+			if (
+				configuredActiveToolNames !== undefined ||
+				!sameToolNames(routedToolNames, baseToolNames)
+			) {
 				session.setActiveToolsByName(routedToolNames);
 			}
 		},
 		catch: (cause) =>
 			cause instanceof AgentError
 				? cause
-				: new AgentError({ message: cause instanceof Error ? cause.message : String(cause) }),
+				: new AgentError({
+						message: cause instanceof Error ? cause.message : String(cause),
+					}),
 	});
 }

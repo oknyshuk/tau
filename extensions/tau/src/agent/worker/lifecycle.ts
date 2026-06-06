@@ -40,7 +40,6 @@ export interface SessionInfra {
 	readonly cwd: string;
 	readonly approvalBroker: ApprovalBroker | undefined;
 	readonly definition: AgentDefinition;
-	readonly resultSchema: unknown | undefined;
 	readonly executionPolicy: ExecutionPolicy;
 }
 
@@ -99,12 +98,7 @@ export function createSessionForModel(
 		};
 		const { session } = yield* Effect.promise(() => createAgentSession(sessionOpts));
 
-		yield* applyAgentToolAllowlist(
-			session,
-			infra.definition,
-			infra.resultSchema,
-			infra.executionPolicy,
-		);
+		yield* applyAgentToolAllowlist(session, infra.definition, infra.executionPolicy);
 
 		const thinkingLevel = spec.thinking;
 		if (thinkingLevel && thinkingLevel !== "inherit") {

@@ -7,7 +7,6 @@ import {
 	getAgentDir,
 } from "@mariozechner/pi-coding-agent";
 import type { Model, Api } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
 import { Effect, SubscriptionRef, Stream } from "effect";
 import { nanoid } from "nanoid";
 import { type Status } from "./status.js";
@@ -32,7 +31,7 @@ import {
 	wireSession,
 } from "./worker/lifecycle.js";
 import { waitForSessionSettlement } from "./worker/session-events.js";
-import { resolveModelPattern, toolOnlyStreamFn } from "./worker/model-runner.js";
+import { resolveModelPattern } from "./worker/model-runner.js";
 import {
 	buildCompletedStatus,
 	buildFailedStatus,
@@ -43,9 +42,7 @@ import { WorkerSessionController } from "./worker/session-controller.js";
 import { isAgentDisabledForSession } from "../agents-menu/index.js";
 
 export { WORKER_DELEGATION_PROMPT, createWorkerCustomTools } from "./worker/tools.js";
-export { resolveModelPattern, toolOnlyStreamFn } from "./worker/model-runner.js";
-
-const MAX_SUBMIT_RESULT_RETRIES = 3;
+export { resolveModelPattern } from "./worker/model-runner.js";
 
 export class AgentWorker implements Agent {
 	private readonly tracking = createWorkerTrackingState();
@@ -76,36 +73,17 @@ export class AgentWorker implements Agent {
 	) {
 		this.sessionController = new WorkerSessionController({
 			tracking: this.tracking,
-			resultSchema: this.infra.resultSchema,
-			maxSubmitResultRetries: MAX_SUBMIT_RESULT_RETRIES,
 			spawnBackground: (effect) => this.runFork(effect),
 			publishRunningStatus: () => this.publishRunningStatus(),
 			publishRunningStatusIfNotFinal: () => this.publishRunningStatusIfNotFinal(),
 			publishCompleted: (message) => this.publishCompleted(message),
 			publishFailed: (reason) => this.publishFailed(reason),
-			repromptForSubmitResult: (retry) => this.repromptForSubmitResult(retry),
 			statusRef: this.statusRef,
 		});
 	}
 
 	get definition(): AgentDefinition {
 		return this.infra.definition;
-	}
-
-	private get structuredOutput(): unknown {
-		return this.tracking.structuredOutput;
-	}
-
-	private set structuredOutput(value: unknown) {
-		this.tracking.structuredOutput = value;
-	}
-
-	private get submitResultRetries(): number {
-		return this.tracking.submitResultRetries;
-	}
-
-	private set submitResultRetries(value: number) {
-		this.tracking.submitResultRetries = value;
 	}
 
 	private get turns(): number {
@@ -154,26 +132,7 @@ export class AgentWorker implements Agent {
 
 	private publishCompleted(message: string | undefined): void {
 		this.terminalState = "completed";
-		this.publishStatus(buildCompletedStatus(this.tracking, message, this.structuredOutput));
-	}
-
-	private repromptForSubmitResult(retry: number): Effect.Effect<void> {
-		const reminderMessage = `You MUST call the submit_result tool with JSON matching the provided schema. This is retry ${retry} of ${MAX_SUBMIT_RESULT_RETRIES}. Call submit_result now.`;
-		return Effect.tryPromise({
-			try: () =>
-				this.session.prompt(reminderMessage, {
-					source: "extension",
-					streamingBehavior: "steer",
-				}),
-			catch: (error) => new Error(error instanceof Error ? error.message : String(error)),
-		}).pipe(
-			Effect.catch((error) => {
-				const reason = error instanceof Error ? error.message : String(error);
-				return Effect.sync(() => {
-					this.publishFailed(reason);
-				});
-			}),
-		);
+		this.publishStatus(buildCompletedStatus(this.tracking, message));
 	}
 
 	static make(opts: {
@@ -187,7 +146,6 @@ export class AgentWorker implements Agent {
 		parentModel: Model<Api> | undefined;
 		approvalBroker: ApprovalBroker | undefined;
 		modelRegistry?: ModelRegistry | undefined;
-		resultSchema?: unknown;
 		runPromise: RunAgentControlPromise;
 		runFork: RunAgentControlFork;
 		agentSummaries?: ReadonlyArray<{ readonly name: string; readonly description: string }>;
@@ -206,7 +164,6 @@ export class AgentWorker implements Agent {
 
 			const appendPrompts = buildWorkerAppendPrompts({
 				definition: opts.definition,
-				resultSchema: opts.resultSchema,
 			});
 
 			const statusRef = yield* SubscriptionRef.make<Status>({ state: "pending" });
@@ -247,35 +204,6 @@ export class AgentWorker implements Agent {
 
 			const customTools = createWorkerCustomTools(agentTool as ToolDefinition);
 
-			// submit_result tool placeholder - needs agent reference, set after construction
-			let agent: AgentWorker;
-
-			if (opts.resultSchema) {
-				customTools.push({
-					name: "submit_result",
-					label: "submit_result",
-					description: "Submit structured result for the task",
-					parameters: Type.Unsafe(opts.resultSchema as object),
-					async execute(
-						_toolCallId: string,
-						params: unknown,
-						signal: AbortSignal | undefined,
-						_onUpdate,
-						_ctx,
-					) {
-						if (signal?.aborted) throw new Error("Aborted");
-						agent.structuredOutput = params;
-						agent.session.abort().catch((error) => {
-							Effect.runSync(Effect.logWarning("Agent session abort failed", error));
-						});
-						return {
-							content: [{ type: "text" as const, text: "Result received." }],
-							details: { ok: true },
-						};
-					},
-				} as ToolDefinition);
-			}
-
 			const settingsManager = SettingsManager.inMemory();
 
 			const resourceLoader = new DefaultResourceLoader({
@@ -304,7 +232,6 @@ export class AgentWorker implements Agent {
 				cwd: opts.cwd,
 				approvalBroker: opts.approvalBroker,
 				definition: opts.definition,
-				resultSchema: opts.resultSchema,
 				executionPolicy: opts.executionState.policy,
 			};
 
@@ -330,11 +257,7 @@ export class AgentWorker implements Agent {
 			// Wire sandbox and approval broker for the session
 			wireSession(session, sandboxConfig, opts.approvalBroker, opts.executionState);
 
-			if (opts.resultSchema) {
-				session.agent.streamFn = toolOnlyStreamFn;
-			}
-
-			agent = new AgentWorker(
+			const agent = new AgentWorker(
 				agentId,
 				opts.definition.name,
 				opts.depth,
@@ -390,9 +313,6 @@ export class AgentWorker implements Agent {
 				worker.infra.approvalBroker,
 				worker.executionState,
 			);
-			if (worker.infra.resultSchema) {
-				newSession.agent.streamFn = toolOnlyStreamFn;
-			}
 			worker.subscribeToSession(newSession);
 		});
 	}
@@ -482,8 +402,6 @@ export class AgentWorker implements Agent {
 		const worker = this;
 		return Effect.gen(function* () {
 			const submissionId = `sub-${nanoid(12)}`;
-			worker.submitResultRetries = 0;
-			worker.structuredOutput = undefined;
 			worker.terminalState = undefined;
 
 			yield* SubscriptionRef.set(worker.statusRef, worker.currentRunningStatus());

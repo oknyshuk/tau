@@ -61,11 +61,10 @@ vi.mock("../src/agent/tool-allowlist.js", async () => {
 			applyAgentToolAllowlistMock(...args);
 			return Effect.void;
 		},
-		STRUCTURED_OUTPUT_TOOL_NAME: "submit_result",
 	};
 });
 
-import { AgentWorker, toolOnlyStreamFn } from "../src/agent/worker.js";
+import { AgentWorker } from "../src/agent/worker.js";
 
 type FakeSessionManager = {
 	getEntries: () => unknown[];
@@ -82,6 +81,7 @@ class FakeAgentSession {
 	readonly isCompacting = false;
 	readonly customEntries: Array<{ customType: string; data: unknown }> = [];
 	readonly model: Model<Api>;
+	readonly initialStreamFn: AgentSession["agent"]["streamFn"];
 	abortCount = 0;
 	disposeCount = 0;
 	thinkingLevel: AgentSession["thinkingLevel"] = "medium";
@@ -89,6 +89,7 @@ class FakeAgentSession {
 	constructor(id: string, streamFn: AgentSession["agent"]["streamFn"], model: Model<Api>) {
 		this.sessionId = id;
 		this.model = model;
+		this.initialStreamFn = streamFn;
 		const sessionFile = `/tmp/${id}.jsonl`;
 		this.sessionManager = {
 			getEntries: () => [],
@@ -99,7 +100,7 @@ class FakeAgentSession {
 		};
 		this.agent = {
 			streamFn,
-		} as AgentSession["agent"];
+		} as unknown as AgentSession["agent"];
 	}
 
 	setThinkingLevel(level: AgentSession["thinkingLevel"]): void {
@@ -201,7 +202,7 @@ const makeSession = (index: number, model: Model<Api>): FakeAgentSession => {
 	return session;
 };
 
-describe("AgentWorker structured-output wiring", () => {
+describe("AgentWorker wiring", () => {
 	beforeEach(() => {
 		createAgentSessionMock.mockReset();
 		applyAgentToolAllowlistMock.mockClear();
@@ -210,36 +211,6 @@ describe("AgentWorker structured-output wiring", () => {
 		createAgentSessionMock.mockImplementation(async () => ({
 			session: makeSession(createdSessions.length + 1, TEST_MODEL) as unknown as AgentSession,
 		}));
-	});
-
-	it("installs toolOnlyStreamFn on the created session when structured output is requested", async () => {
-		await Effect.runPromise(
-			AgentWorker.make({
-				definition: TEST_DEFINITION,
-				depth: 0,
-				cwd: process.cwd(),
-				parentSessionFile: "parent-session",
-				executionState: TEST_EXECUTION_STATE,
-				executionProfile: TEST_EXECUTION_PROFILE,
-				parentSandboxConfig: PARENT_SANDBOX_CONFIG,
-				parentModel: TEST_MODEL,
-				approvalBroker: undefined,
-				modelRegistry: makeModelRegistry() as never,
-				resultSchema: { type: "object", properties: { ok: { type: "boolean" } } },
-				runPromise: async () => {
-					throw new Error("unused");
-				},
-				runFork: runForkForTests,
-			}),
-		);
-
-		expect(createdSessions).toHaveLength(1);
-		expect(resourceLoaderOptions[0]?.cwd).toBe(process.cwd());
-		expect(resourceLoaderOptions[0]?.agentDir).toEqual(expect.any(String));
-		expect(resourceLoaderOptions[0]?.agentDir).not.toBe("");
-		expect(resourceLoaderOptions[0]?.noExtensions).toBe(true);
-		expect(createdSessions[0]?.agent.streamFn).toBe(toolOnlyStreamFn);
-		expect(applyAgentToolAllowlistMock).toHaveBeenCalledTimes(1);
 	});
 
 	it("fails instead of creating a fallback session when the configured model cannot resolve", async () => {
@@ -259,7 +230,6 @@ describe("AgentWorker structured-output wiring", () => {
 					parentModel: TEST_MODEL,
 					approvalBroker: undefined,
 					modelRegistry: makeModelRegistry() as never,
-					resultSchema: undefined,
 					runPromise: async () => {
 						throw new Error("unused");
 					},
@@ -285,7 +255,6 @@ describe("AgentWorker structured-output wiring", () => {
 					parentModel: TEST_MODEL,
 					approvalBroker: undefined,
 					modelRegistry: undefined,
-					resultSchema: undefined,
 					runPromise: async () => {
 						throw new Error("unused");
 					},
@@ -310,7 +279,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -328,39 +296,6 @@ describe("AgentWorker structured-output wiring", () => {
 
 		expect(createdSessions[0]?.abortCount).toBe(0);
 		expect(createdSessions[0]?.disposeCount).toBe(1);
-	});
-
-	it("reinstalls toolOnlyStreamFn after session recreation on model switch", async () => {
-		const worker = await Effect.runPromise(
-			AgentWorker.make({
-				definition: TEST_DEFINITION,
-				depth: 0,
-				cwd: process.cwd(),
-				parentSessionFile: "parent-session",
-				executionState: TEST_EXECUTION_STATE,
-				executionProfile: TEST_EXECUTION_PROFILE,
-				parentSandboxConfig: PARENT_SANDBOX_CONFIG,
-				parentModel: TEST_MODEL,
-				approvalBroker: undefined,
-				modelRegistry: makeModelRegistry() as never,
-				resultSchema: { type: "object", properties: { ok: { type: "boolean" } } },
-				runPromise: async () => {
-					throw new Error("unused");
-				},
-				runFork: runForkForTests,
-			}),
-		);
-
-		await Effect.runPromise(
-			(
-				worker as unknown as {
-					switchToModel: (spec: { model: string }) => Effect.Effect<void, string>;
-				}
-			).switchToModel({ model: "openai-codex/gpt-5.4" }),
-		);
-
-		expect(createdSessions).toHaveLength(2);
-		expect(createdSessions[1]?.agent.streamFn).toBe(toolOnlyStreamFn);
 	});
 
 	it("updates inherited execution profile after worker model fallback", async () => {
@@ -384,7 +319,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -405,17 +339,17 @@ describe("AgentWorker structured-output wiring", () => {
 
 		const parentExecutionProfile = (
 			worker as unknown as {
-			agentContext: {
-				parentExecutionProfile: {
-					model: string;
-					thinking: string;
+				agentContext: {
+					parentExecutionProfile: {
+						model: string;
+						thinking: string;
+					};
 				};
-			};
-		}
-	).agentContext.parentExecutionProfile;
+			}
+		).agentContext.parentExecutionProfile;
 
-	expect(parentExecutionProfile.model).toBe("anthropic/claude-opus-4-5");
-	expect(parentExecutionProfile.thinking).toBe("high");
+		expect(parentExecutionProfile.model).toBe("anthropic/claude-opus-4-5");
+		expect(parentExecutionProfile.thinking).toBe("high");
 	});
 
 	it("preserves the inherited session file for nested agent gating", async () => {
@@ -432,7 +366,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -465,7 +398,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -507,7 +439,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -521,8 +452,8 @@ describe("AgentWorker structured-output wiring", () => {
 		expect(session?.customEntries[0]).toMatchObject({
 			customType: TAU_PERSISTED_STATE_TYPE,
 			data: {
-			execution: {
-				policy: {
+				execution: {
+					policy: {
 						tools: {
 							kind: "inherit",
 						},

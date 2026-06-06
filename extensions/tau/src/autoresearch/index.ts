@@ -139,6 +139,43 @@ function isRuntimeShutdownError(error: unknown): boolean {
 	);
 }
 
+function isIgnorableSessionContextError(error: unknown): boolean {
+	return isRuntimeShutdownError(error) || isStaleExtensionContextError(error);
+}
+
+function notifyAutoresearchSafely(
+	ctx: Pick<ExtensionContext, "hasUI" | "ui">,
+	message: string,
+	level: "error" | "info" | "warning",
+): void {
+	try {
+		if (!ctx.hasUI) {
+			return;
+		}
+		ctx.ui.notify(message, level);
+	} catch (error) {
+		if (!isIgnorableSessionContextError(error)) {
+			throw error;
+		}
+	}
+}
+
+function formatAutoresearchBoundaryError(error: unknown): string {
+	if (error instanceof Error && error.message.length > 0) {
+		return error.message;
+	}
+	if (
+		typeof error === "object" &&
+		error !== null &&
+		"message" in error &&
+		typeof error.message === "string" &&
+		error.message.length > 0
+	) {
+		return error.message;
+	}
+	return String(error);
+}
+
 function sessionFileFromContextIfLive(
 	ctx: Pick<ExtensionContext, "sessionManager">,
 ): string | undefined {
@@ -152,6 +189,122 @@ function sessionFileFromContextIfLive(
 	}
 }
 
+type AutoresearchExecutionProfileApplyResult =
+	| { readonly applied: true }
+	| { readonly applied: false; readonly reason: string };
+
+type AutoresearchPromptDispatcher = (prompt: string) => void;
+
+type AutoresearchUIUpdater = (cwd: string) => Promise<void>;
+
+type AutoresearchExecutionProfileApplier = (
+	profile: ExecutionProfile,
+) => Promise<AutoresearchExecutionProfileApplyResult>;
+
+const AUTORESEARCH_PROMPT_DISPATCHERS_GLOBAL = "__tau_autoresearch_prompt_dispatchers";
+const AUTORESEARCH_UI_UPDATERS_GLOBAL = "__tau_autoresearch_ui_updaters";
+const AUTORESEARCH_EXECUTION_PROFILE_APPLIERS_GLOBAL =
+	"__tau_autoresearch_execution_profile_appliers";
+
+type AutoresearchGlobalState = typeof globalThis & {
+	[AUTORESEARCH_PROMPT_DISPATCHERS_GLOBAL]?:
+		| Map<string, AutoresearchPromptDispatcher>
+		| undefined;
+	[AUTORESEARCH_UI_UPDATERS_GLOBAL]?: Map<string, AutoresearchUIUpdater> | undefined;
+	[AUTORESEARCH_EXECUTION_PROFILE_APPLIERS_GLOBAL]?:
+		| Map<string, AutoresearchExecutionProfileApplier>
+		| undefined;
+};
+
+function getAutoresearchPromptDispatchers(): Map<string, AutoresearchPromptDispatcher> {
+	const globalState = globalThis as AutoresearchGlobalState;
+	const existing = globalState[AUTORESEARCH_PROMPT_DISPATCHERS_GLOBAL];
+	if (existing) {
+		return existing;
+	}
+	const registry = new Map<string, AutoresearchPromptDispatcher>();
+	globalState[AUTORESEARCH_PROMPT_DISPATCHERS_GLOBAL] = registry;
+	return registry;
+}
+
+function registerAutoresearchPromptDispatcher(
+	sessionFile: string | undefined,
+	dispatcher: AutoresearchPromptDispatcher,
+): void {
+	if (sessionFile === undefined) {
+		return;
+	}
+	getAutoresearchPromptDispatchers().set(sessionFile, dispatcher);
+}
+
+function unregisterAutoresearchPromptDispatcher(sessionFile: string | undefined): void {
+	if (sessionFile === undefined) {
+		return;
+	}
+	getAutoresearchPromptDispatchers().delete(sessionFile);
+}
+
+function getAutoresearchUIUpdaters(): Map<string, AutoresearchUIUpdater> {
+	const globalState = globalThis as AutoresearchGlobalState;
+	const existing = globalState[AUTORESEARCH_UI_UPDATERS_GLOBAL];
+	if (existing) {
+		return existing;
+	}
+	const registry = new Map<string, AutoresearchUIUpdater>();
+	globalState[AUTORESEARCH_UI_UPDATERS_GLOBAL] = registry;
+	return registry;
+}
+
+function registerAutoresearchUIUpdater(
+	sessionFile: string | undefined,
+	updater: AutoresearchUIUpdater,
+): void {
+	if (sessionFile === undefined) {
+		return;
+	}
+	getAutoresearchUIUpdaters().set(sessionFile, updater);
+}
+
+function unregisterAutoresearchUIUpdater(sessionFile: string | undefined): void {
+	if (sessionFile === undefined) {
+		return;
+	}
+	getAutoresearchUIUpdaters().delete(sessionFile);
+}
+
+function getAutoresearchExecutionProfileAppliers(): Map<
+	string,
+	AutoresearchExecutionProfileApplier
+> {
+	const globalState = globalThis as AutoresearchGlobalState;
+	const existing = globalState[AUTORESEARCH_EXECUTION_PROFILE_APPLIERS_GLOBAL];
+	if (existing) {
+		return existing;
+	}
+	const registry = new Map<string, AutoresearchExecutionProfileApplier>();
+	globalState[AUTORESEARCH_EXECUTION_PROFILE_APPLIERS_GLOBAL] = registry;
+	return registry;
+}
+
+function registerAutoresearchExecutionProfileApplier(
+	sessionFile: string | undefined,
+	applier: AutoresearchExecutionProfileApplier,
+): void {
+	if (sessionFile === undefined) {
+		return;
+	}
+	getAutoresearchExecutionProfileAppliers().set(sessionFile, applier);
+}
+
+function unregisterAutoresearchExecutionProfileApplier(
+	sessionFile: string | undefined,
+): void {
+	if (sessionFile === undefined) {
+		return;
+	}
+	getAutoresearchExecutionProfileAppliers().delete(sessionFile);
+}
+
 function cwdFromContextIfLive(ctx: Pick<ExtensionContext, "cwd">): string | undefined {
 	try {
 		return ctx.cwd;
@@ -161,6 +314,13 @@ function cwdFromContextIfLive(ctx: Pick<ExtensionContext, "cwd">): string | unde
 		}
 		throw error;
 	}
+}
+
+function isSessionShutdownEvent(event: unknown): boolean {
+	if (typeof event !== "object" || event === null) {
+		return false;
+	}
+	return (event as { readonly type?: unknown }).type === "session_shutdown";
 }
 
 function isAutoresearchLoopState(state: LoopPersistedState): boolean {
@@ -744,7 +904,11 @@ function buildRunExperimentText(details: RunDetails): string {
 export default function initAutoresearch(
 	pi: ExtensionAPI,
 	runEffect: <A, E>(
-		effect: Effect.Effect<A, E, LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner>,
+		effect: Effect.Effect<
+			A,
+			E,
+			LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner
+		>,
 	) => Promise<A>,
 ): void {
 	const withLoopEngine = <A, E>(
@@ -772,10 +936,18 @@ export default function initAutoresearch(
 	): Promise<ExecutionProfile | null> =>
 		withExecutionRuntime((runtime) => runtime.captureCurrentExecutionProfile(ctx));
 
+	const syncPromptDispatcher = (
+		ctx: Pick<ExtensionContext, "sessionManager">,
+	): void => {
+		registerAutoresearchPromptDispatcher(sessionFileFromContextIfLive(ctx), (prompt) => {
+			pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+		});
+	};
+
 	const applyExecutionProfileInSession = (
 		profile: ExecutionProfile,
-		ctx: ExtensionContext,
-	): Promise<{ readonly applied: true } | { readonly applied: false; readonly reason: string }> =>
+		ctx: Pick<ExtensionContext, "model" | "modelRegistry" | "ui">,
+	): Promise<AutoresearchExecutionProfileApplyResult> =>
 		withExecutionRuntime((runtime) =>
 			runtime
 				.applyExecutionProfile(profile, ctx, {
@@ -790,7 +962,49 @@ export default function initAutoresearch(
 							: ({ applied: false, reason: result.reason } as const),
 					),
 				),
-		);
+		).catch((error) => ({
+			applied: false as const,
+			reason: formatAutoresearchBoundaryError(error),
+		}));
+
+	const syncExecutionProfileApplier = (
+		ctx: Pick<ExtensionContext, "sessionManager" | "model" | "modelRegistry" | "ui">,
+	): void => {
+		const registeredSessionFile = sessionFileFromContextIfLive(ctx);
+		registerAutoresearchExecutionProfileApplier(registeredSessionFile, (profile) => {
+			const liveSessionFile = sessionFileFromContextIfLive(ctx);
+			if (liveSessionFile !== registeredSessionFile) {
+				return Promise.resolve({
+					applied: false as const,
+					reason: `registered execution profile applier is not live for ${registeredSessionFile ?? "the session"}`,
+				});
+			}
+			return applyExecutionProfileInSession(profile, ctx);
+		});
+	};
+
+	const applyExecutionProfileForSession = async (
+		sessionFile: string,
+		profile: ExecutionProfile,
+		ctx: Pick<ExtensionContext, "model" | "modelRegistry" | "ui">,
+	): Promise<AutoresearchExecutionProfileApplyResult> => {
+		const applier = getAutoresearchExecutionProfileAppliers().get(sessionFile);
+		if (applier !== undefined) {
+			const result = await applier(profile);
+			if (result.applied) {
+				return result;
+			}
+			const applierIsStale =
+				result.reason.startsWith("registered execution profile applier is not live") ||
+				isStaleExtensionContextError(result.reason);
+			if (!applierIsStale) {
+				return result;
+			}
+			unregisterAutoresearchExecutionProfileApplier(sessionFile);
+		}
+
+		return applyExecutionProfileInSession(profile, ctx);
+	};
 
 	const withAutoresearchLoopRunner = <A, E>(
 		f: (service: AutoresearchLoopRunnerService) => Effect.Effect<A, E, never>,
@@ -1072,13 +1286,29 @@ export default function initAutoresearch(
 		readonly child: LoopSessionRef;
 	};
 
+	type AutoresearchChildSessionHandle = {
+		readonly child: LoopSessionRef;
+		readonly context: ExtensionCommandContext;
+	};
+
+	type ReplacementSessionContext = ExtensionCommandContext & {
+		readonly sendUserMessage: (
+			content: Parameters<ExtensionAPI["sendUserMessage"]>[0],
+			options?: Parameters<ExtensionAPI["sendUserMessage"]>[1],
+		) => Promise<void>;
+	};
+
+	function hasReplacementSender(ctx: ExtensionCommandContext): ctx is ReplacementSessionContext {
+		return "sendUserMessage" in ctx && typeof ctx.sendUserMessage === "function";
+	}
+
 	type ReplacementSessionOptions = {
 		readonly parentSession?: string;
-		readonly withSession?: (ctx: ExtensionCommandContext) => Promise<void> | void;
+		readonly withSession?: (ctx: ReplacementSessionContext) => Promise<void> | void;
 	};
 
 	type SwitchSessionOptions = {
-		readonly withSession?: (ctx: ExtensionCommandContext) => Promise<void> | void;
+		readonly withSession?: (ctx: ReplacementSessionContext) => Promise<void> | void;
 	};
 
 	type SessionReplacementResult = {
@@ -1240,48 +1470,46 @@ export default function initAutoresearch(
 		ctx: ExtensionCommandContext,
 		targetSessionFile: string,
 	): Promise<ExtensionCommandContext | null> => {
-		try {
-			let replacementContext: ExtensionCommandContext | undefined;
-			const switchSessionWithReplacement = ctx.switchSession as (
-				target: string,
-				options?: SwitchSessionOptions,
-			) => Promise<SessionReplacementResult>;
-			const result = await switchSessionWithReplacement(targetSessionFile, {
-				withSession: async (nextContext) => {
-					replacementContext = nextContext;
-				},
-			});
-			return result.cancelled ? null : (replacementContext ?? ctx);
-		} catch {
+		let replacementContext: ExtensionCommandContext | undefined;
+		const switchSessionWithReplacement = ctx.switchSession as (
+			target: string,
+			options?: SwitchSessionOptions,
+		) => Promise<SessionReplacementResult>;
+		const result = await switchSessionWithReplacement(targetSessionFile, {
+			withSession: async (nextContext) => {
+				replacementContext = nextContext;
+			},
+		});
+		if (result.cancelled) {
 			return null;
 		}
+		return replacementContext ?? ctx;
 	};
 
 	const createChildSession = async (
 		ctx: ExtensionCommandContext,
 		parentSessionFile: string,
 	): Promise<ExtensionCommandContext | null> => {
-		try {
-			let replacementContext: ExtensionCommandContext | undefined;
-			const newSessionWithReplacement = ctx.newSession as (
-				options: ReplacementSessionOptions,
-			) => Promise<SessionReplacementResult>;
-			const result = await newSessionWithReplacement({
-				parentSession: parentSessionFile,
-				withSession: async (nextContext) => {
-					replacementContext = nextContext;
-				},
-			});
-			return result.cancelled ? null : (replacementContext ?? ctx);
-		} catch {
+		let replacementContext: ExtensionCommandContext | undefined;
+		const newSessionWithReplacement = ctx.newSession as (
+			options: ReplacementSessionOptions,
+		) => Promise<SessionReplacementResult>;
+		const result = await newSessionWithReplacement({
+			parentSession: parentSessionFile,
+			withSession: async (nextContext) => {
+				replacementContext = nextContext;
+			},
+		});
+		if (result.cancelled) {
 			return null;
 		}
+		return replacementContext ?? ctx;
 	};
 
 	const ensureAutoresearchChildSession = async (
 		ctx: ExtensionCommandContext,
 		taskId: string,
-	): Promise<LoopSessionRef> => {
+	): Promise<AutoresearchChildSessionHandle> => {
 		const persisted = requireAutoresearchLoopState(readCanonicalLoopState(ctx.cwd, taskId));
 		if (persisted.lifecycle !== "active") {
 			throw new AutoresearchValidationError({
@@ -1294,9 +1522,52 @@ export default function initAutoresearch(
 			});
 		}
 		if (Option.isSome(persisted.ownership.child)) {
-			throw new AutoresearchValidationError({
-				reason: `Autoresearch task ${persisted.taskId} already has an active child session (${persisted.ownership.child.value.sessionId}).`,
-			});
+			const child = persisted.ownership.child.value;
+			if (
+				Option.isNone(persisted.autoresearch.pendingRunId) &&
+				!fs.existsSync(child.sessionFile)
+			) {
+				writeCanonicalLoopState(ctx.cwd, {
+					...persisted,
+					updatedAt: new Date().toISOString(),
+					ownership: {
+						controller: persisted.ownership.controller,
+						child: Option.none(),
+					},
+				});
+				return await ensureAutoresearchChildSession(ctx, taskId);
+			}
+
+			const currentSession = commandSessionRef(ctx);
+			if (Option.isNone(currentSession)) {
+				throw new AutoresearchValidationError({
+					reason: "Autoresearch commands require an interactive session file.",
+				});
+			}
+
+			let childContext = ctx;
+			if (!sessionRefMatches(child, currentSession.value)) {
+				const switchedContext = await switchSession(ctx, child.sessionFile);
+				if (switchedContext === null) {
+					throw new AutoresearchValidationError({
+						reason: `Could not switch to active child session ${child.sessionFile} for task ${persisted.taskId}.`,
+					});
+				}
+				childContext = switchedContext;
+			}
+
+			const applied = await applyExecutionProfileForSession(
+				child.sessionFile,
+				persisted.autoresearch.pinnedExecutionProfile,
+				childContext,
+			);
+			if (!applied.applied) {
+				throw new AutoresearchValidationError({
+					reason: `Could not apply pinned execution profile for task ${persisted.taskId}: ${applied.reason}`,
+				});
+			}
+
+			return { child, context: childContext };
 		}
 
 		const controller = Option.match(persisted.ownership.controller, {
@@ -1309,7 +1580,6 @@ export default function initAutoresearch(
 		});
 
 		const currentSession = commandSessionRef(ctx);
-		let activeContext = ctx;
 		if (Option.isNone(currentSession)) {
 			throw new AutoresearchValidationError({
 				reason: "Autoresearch commands require an interactive session file.",
@@ -1317,34 +1587,23 @@ export default function initAutoresearch(
 		}
 
 		if (!sessionRefMatches(controller, currentSession.value)) {
-			const switchedContext = await switchSession(activeContext, controller.sessionFile);
-			if (switchedContext === null) {
+			const controllerContext = await switchSession(ctx, controller.sessionFile);
+			if (controllerContext === null) {
 				throw new AutoresearchValidationError({
 					reason: `Could not switch to controller session ${controller.sessionFile} for task ${persisted.taskId}.`,
 				});
 			}
-			activeContext = switchedContext;
+			return await ensureAutoresearchChildSession(controllerContext, taskId);
 		}
 
-		const sessionAfterSwitch = commandSessionRef(activeContext);
-		if (
-			Option.isNone(sessionAfterSwitch) ||
-			!sessionRefMatches(controller, sessionAfterSwitch.value)
-		) {
-			throw new AutoresearchValidationError({
-				reason: `Current session does not match controller ownership for task ${persisted.taskId}.`,
-			});
-		}
-
-		const childContext = await createChildSession(activeContext, controller.sessionFile);
+		const childContext = await createChildSession(ctx, controller.sessionFile);
 		if (childContext === null) {
 			throw new AutoresearchValidationError({
 				reason: `Creating child session for task ${persisted.taskId} was cancelled.`,
 			});
 		}
-		activeContext = childContext;
 
-		const child = commandSessionRef(activeContext);
+		const child = commandSessionRef(childContext);
 		try {
 			if (Option.isNone(child)) {
 				throw new AutoresearchValidationError({
@@ -1357,9 +1616,10 @@ export default function initAutoresearch(
 				});
 			}
 
-			const applied = await applyExecutionProfileInSession(
+			const applied = await applyExecutionProfileForSession(
+				child.value.sessionFile,
 				persisted.autoresearch.pinnedExecutionProfile,
-				activeContext,
+				childContext,
 			);
 			if (!applied.applied) {
 				throw new AutoresearchValidationError({
@@ -1368,9 +1628,9 @@ export default function initAutoresearch(
 			}
 
 			await withLoopEngine((engine) =>
-				engine.attachChildSession(activeContext.cwd, taskId, child.value),
+				engine.attachChildSession(childContext.cwd, taskId, child.value),
 			);
-			return child.value;
+			return { child: child.value, context: childContext };
 		} catch (error) {
 			if (Option.isSome(child) && !sessionRefMatches(child.value, controller)) {
 				try {
@@ -1379,18 +1639,15 @@ export default function initAutoresearch(
 					// best-effort rollback only
 				}
 			}
-			const switchedBack = await switchSession(activeContext, controller.sessionFile);
-			if (switchedBack === null) {
-				const originalReason = error instanceof Error ? error.message : String(error);
-				throw new AutoresearchValidationError({
-					reason: `Autoresearch child-session rollback failed for task ${persisted.taskId}: could not switch back to controller session ${controller.sessionFile}. Original error: ${originalReason}`,
-				});
-			}
 			throw error;
 		}
 	};
 
-	const queueAutoresearchChildPrompt = (cwd: string, taskId: string): void => {
+	const queueAutoresearchChildPrompt = async (
+		cwd: string,
+		taskId: string,
+		ctx: ExtensionCommandContext,
+	): Promise<void> => {
 		const persisted = requireAutoresearchLoopState(readCanonicalLoopState(cwd, taskId));
 		const phaseSnapshotPath = Option.match(persisted.autoresearch.phaseId, {
 			onNone: () => null,
@@ -1409,17 +1666,39 @@ export default function initAutoresearch(
 			"",
 			"Do not start a second trial in this session. If you cannot safely run a trial, explain why and stop.",
 		];
-		pi.sendUserMessage(lines.join("\n"), { deliverAs: "followUp" });
+		const prompt = lines.join("\n");
+		const sessionFile = sessionFileFromContextIfLive(ctx);
+		if (sessionFile !== undefined) {
+			const dispatcher = getAutoresearchPromptDispatchers().get(sessionFile);
+			if (dispatcher !== undefined) {
+				try {
+					dispatcher(prompt);
+					return;
+				} catch (error) {
+					if (!isIgnorableSessionContextError(error)) {
+						throw error;
+					}
+					unregisterAutoresearchPromptDispatcher(sessionFile);
+				}
+			}
+		}
+		if (hasReplacementSender(ctx)) {
+			await ctx.sendUserMessage(prompt, { deliverAs: "followUp" });
+			return;
+		}
+		pi.sendUserMessage(prompt, { deliverAs: "followUp" });
 	};
 
 	const runAutoresearchLoop = (ctx: ExtensionCommandContext, taskId: string): void => {
-		const loopKey = `${ctx.cwd}:${taskId}`;
+		let activeContext = ctx;
+		const cwd = ctx.cwd;
+		const loopKey = `${cwd}:${taskId}`;
 
 		void withAutoresearchLoopRunner((runner) => {
 			const loopProgram = Effect.gen(function* () {
 				while (true) {
 					const persisted = requireAutoresearchLoopState(
-						readCanonicalLoopState(ctx.cwd, taskId),
+						readCanonicalLoopState(cwd, taskId),
 					);
 					if (persisted.lifecycle !== "active") {
 						return;
@@ -1434,28 +1713,35 @@ export default function initAutoresearch(
 						Option.isNone(persisted.autoresearch.pendingRunId)
 					) {
 						yield* Effect.promise(() =>
-							withLoopEngine((engine) => engine.stopLoop(ctx.cwd, taskId)),
+							withLoopEngine((engine) => engine.stopLoop(cwd, taskId)),
 						);
-						if (ctx.hasUI) {
-							yield* Effect.sync(() => {
-								ctx.ui.notify(
-									`Autoresearch task ${taskId} reached limits.max_iterations=${maxIterations}.`,
-									"info",
-								);
-							});
-						}
-						yield* Effect.promise(() => updateAutoresearchUI(ctx.cwd, ctx));
+						yield* Effect.sync(() => {
+							notifyAutoresearchSafely(
+								activeContext,
+								`Autoresearch task ${taskId} reached limits.max_iterations=${maxIterations}.`,
+								"info",
+							);
+						});
+						yield* Effect.promise(() =>
+							updateAutoresearchUISafely(cwd, activeContext),
+						);
 						return;
 					}
 
 					const currentChild = Option.getOrUndefined(persisted.ownership.child);
-					const child =
-						currentChild ??
-						(yield* Effect.promise(() => ensureAutoresearchChildSession(ctx, taskId)));
-					if (currentChild === undefined) {
-						yield* Effect.sync(() => {
-							queueAutoresearchChildPrompt(ctx.cwd, taskId);
-						});
+					let child = currentChild;
+					if (child === undefined) {
+						const handle = yield* Effect.promise(() =>
+							ensureAutoresearchChildSession(activeContext, taskId),
+						);
+						activeContext = handle.context;
+						child = handle.child;
+						yield* Effect.promise(() =>
+							queueAutoresearchChildPrompt(cwd, taskId, handle.context),
+						);
+						yield* Effect.promise(() =>
+							updateAutoresearchUIForSession(cwd, handle.context),
+						);
 					}
 
 					const waitResult = yield* runner.waitForAgentEnd(child.sessionFile);
@@ -1464,22 +1750,39 @@ export default function initAutoresearch(
 					}
 					if (waitResult._tag === "timed_out") {
 						yield* Effect.promise(() =>
-							withLoopEngine((engine) => engine.pauseLoop(ctx.cwd, taskId)),
+							withLoopEngine((engine) => engine.pauseLoop(cwd, taskId)),
 						);
-						if (ctx.hasUI) {
-							yield* Effect.sync(() => {
-								ctx.ui.notify(
-									`Autoresearch paused: timed out waiting for child session for ${taskId} to end.`,
-									"warning",
-								);
-							});
-						}
-						yield* Effect.promise(() => updateAutoresearchUI(ctx.cwd, ctx));
+						yield* Effect.sync(() => {
+							notifyAutoresearchSafely(
+								activeContext,
+								`Autoresearch paused: timed out waiting for child session for ${taskId} to end.`,
+								"warning",
+							);
+						});
+						yield* Effect.promise(() =>
+							updateAutoresearchUISafely(cwd, activeContext),
+						);
+						return;
+					}
+					if (isSessionShutdownEvent(waitResult.event)) {
+						yield* Effect.promise(() =>
+							withLoopEngine((engine) => engine.pauseLoop(cwd, taskId)),
+						);
+						yield* Effect.sync(() => {
+							notifyAutoresearchSafely(
+								activeContext,
+								`Autoresearch paused: child session for ${taskId} shut down before autoresearch_done.`,
+								"warning",
+							);
+						});
+						yield* Effect.promise(() =>
+							updateAutoresearchUISafely(cwd, activeContext),
+						);
 						return;
 					}
 
 					const afterTurn = requireAutoresearchLoopState(
-						readCanonicalLoopState(ctx.cwd, taskId),
+						readCanonicalLoopState(cwd, taskId),
 					);
 					if (afterTurn.lifecycle !== "active") {
 						return;
@@ -1487,17 +1790,18 @@ export default function initAutoresearch(
 
 					if (Option.isSome(afterTurn.autoresearch.pendingRunId)) {
 						yield* Effect.promise(() =>
-							withLoopEngine((engine) => engine.pauseLoop(ctx.cwd, taskId)),
+							withLoopEngine((engine) => engine.pauseLoop(cwd, taskId)),
 						);
-						if (ctx.hasUI) {
-							yield* Effect.sync(() => {
-								ctx.ui.notify(
-									`Autoresearch paused: child session for ${taskId} ended without autoresearch_done.`,
-									"warning",
-								);
-							});
-						}
-						yield* Effect.promise(() => updateAutoresearchUI(ctx.cwd, ctx));
+						yield* Effect.sync(() => {
+							notifyAutoresearchSafely(
+								activeContext,
+								`Autoresearch paused: child session for ${taskId} ended without autoresearch_done.`,
+								"warning",
+							);
+						});
+						yield* Effect.promise(() =>
+							updateAutoresearchUISafely(cwd, activeContext),
+						);
 						return;
 					}
 				}
@@ -1511,22 +1815,23 @@ export default function initAutoresearch(
 
 					const error = Cause.squash(cause);
 					return Effect.promise(async () => {
-						if (ctx.hasUI) {
-							ctx.ui.notify(
-								error instanceof Error ? error.message : String(error),
-								"error",
-							);
-						}
-						await updateAutoresearchUI(ctx.cwd, ctx);
+						notifyAutoresearchSafely(
+							activeContext,
+							error instanceof Error ? error.message : String(error),
+							"error",
+						);
+						await updateAutoresearchUISafely(cwd, activeContext);
 					});
 				}),
 			);
 
 			return runner.ensureLoopRunning(loopKey, guardedLoopProgram);
 		}).catch((error) => {
-			if (ctx.hasUI) {
-				ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
-			}
+			notifyAutoresearchSafely(
+				activeContext,
+				error instanceof Error ? error.message : String(error),
+				"error",
+			);
 		});
 	};
 
@@ -1598,6 +1903,47 @@ export default function initAutoresearch(
 			const width = process.stdout.columns ?? 120;
 			return new Text(renderWidget(viewData, width, widgetTheme, expanded), 0, 0);
 		});
+	};
+
+	const updateAutoresearchUISafely = async (
+		cwd: string,
+		ctx: ExtensionContext,
+	): Promise<void> => {
+		try {
+			await updateAutoresearchUI(cwd, ctx);
+		} catch (error) {
+			if (!isIgnorableSessionContextError(error)) {
+				throw error;
+			}
+		}
+	};
+
+	const syncUIUpdater = (ctx: ExtensionContext): void => {
+		registerAutoresearchUIUpdater(sessionFileFromContextIfLive(ctx), (cwd) =>
+			updateAutoresearchUI(cwd, ctx),
+		);
+	};
+
+	const updateAutoresearchUIForSession = async (
+		cwd: string,
+		ctx: ExtensionContext,
+	): Promise<void> => {
+		const sessionFile = sessionFileFromContextIfLive(ctx);
+		if (sessionFile !== undefined) {
+			const updater = getAutoresearchUIUpdaters().get(sessionFile);
+			if (updater !== undefined) {
+				try {
+					await updater(cwd);
+					return;
+				} catch (error) {
+					if (!isIgnorableSessionContextError(error)) {
+						throw error;
+					}
+					unregisterAutoresearchUIUpdater(sessionFile);
+				}
+			}
+		}
+		await updateAutoresearchUISafely(cwd, ctx);
 	};
 
 	const autoresearchHelp = () =>
@@ -1992,8 +2338,7 @@ export default function initAutoresearch(
 					content: [
 						{
 							type: "text",
-							text:
-								`Finalized run ${pendingRunId} as ${params.status}. Pending trial cleared for task ${persisted.taskId}. Child session ownership cleared. Next trial will start automatically if the task remains active. Workspace changes were left untouched.`,
+							text: `Finalized run ${pendingRunId} as ${params.status}. Pending trial cleared for task ${persisted.taskId}. Child session ownership cleared. Next trial will start automatically if the task remains active. Workspace changes were left untouched.`,
 						},
 					],
 					details: {
@@ -2169,14 +2514,15 @@ export default function initAutoresearch(
 						await withLoopEngine((engine) =>
 							engine.startLoop(ctx.cwd, taskId, session.value, executionProfile),
 						);
+						const cwd = ctx.cwd;
 						const child = await ensureAutoresearchChildSession(ctx, taskId);
-						queueAutoresearchChildPrompt(ctx.cwd, taskId);
-						ctx.ui.notify(
-							`Started autoresearch loop "${taskId}" in child session ${child.sessionId}.`,
+						await queueAutoresearchChildPrompt(cwd, taskId, child.context);
+						child.context.ui.notify(
+							`Started autoresearch loop "${taskId}" in child session ${child.child.sessionId}.`,
 							"info",
 						);
-						await updateAutoresearchUI(ctx.cwd, ctx);
-						runAutoresearchLoop(ctx, taskId);
+						await updateAutoresearchUIForSession(cwd, child.context);
+						runAutoresearchLoop(child.context, taskId);
 						return;
 					}
 
@@ -2187,24 +2533,24 @@ export default function initAutoresearch(
 						}
 						const persisted = readCanonicalLoopState(ctx.cwd, taskId);
 						const autoresearch = requireAutoresearchLoopState(persisted);
+						const session = commandSessionRef(ctx);
+						if (Option.isNone(session)) {
+							ctx.ui.notify(
+								"Autoresearch resume requires an interactive session file.",
+								"error",
+							);
+							return;
+						}
+						const executionProfile = await captureCurrentExecutionProfile(ctx);
+						if (executionProfile === null) {
+							ctx.ui.notify(
+								"Could not capture the current execution profile for this autoresearch phase.",
+								"error",
+							);
+							return;
+						}
 
 						if (autoresearch.lifecycle === "paused") {
-							const session = commandSessionRef(ctx);
-							if (Option.isNone(session)) {
-								ctx.ui.notify(
-									"Autoresearch resume requires an interactive session file.",
-									"error",
-								);
-								return;
-							}
-							const executionProfile = await captureCurrentExecutionProfile(ctx);
-							if (executionProfile === null) {
-								ctx.ui.notify(
-									"Could not capture the current execution profile for this autoresearch phase.",
-									"error",
-								);
-								return;
-							}
 							await withLoopEngine((engine) =>
 								engine.resumeLoop(ctx.cwd, taskId, session.value, executionProfile),
 							);
@@ -2214,16 +2560,38 @@ export default function initAutoresearch(
 								"warning",
 							);
 							return;
+						} else if (
+							Option.isNone(autoresearch.autoresearch.pendingRunId) &&
+							Option.isNone(autoresearch.ownership.child) &&
+							Option.match(autoresearch.ownership.controller, {
+								onNone: () => true,
+								onSome: (controller) =>
+									!sessionRefMatches(controller, session.value),
+							})
+						) {
+							writeCanonicalLoopState(ctx.cwd, {
+								...autoresearch,
+								updatedAt: new Date().toISOString(),
+								ownership: {
+									controller: Option.some(session.value),
+									child: Option.none(),
+								},
+								autoresearch: {
+									...autoresearch.autoresearch,
+									pinnedExecutionProfile: executionProfile,
+								},
+							});
 						}
 
+						const cwd = ctx.cwd;
 						const child = await ensureAutoresearchChildSession(ctx, taskId);
-						queueAutoresearchChildPrompt(ctx.cwd, taskId);
-						ctx.ui.notify(
-							`Resumed autoresearch loop "${taskId}" in child session ${child.sessionId}.`,
+						await queueAutoresearchChildPrompt(cwd, taskId, child.context);
+						child.context.ui.notify(
+							`Resumed autoresearch loop "${taskId}" in child session ${child.child.sessionId}.`,
 							"info",
 						);
-						await updateAutoresearchUI(ctx.cwd, ctx);
-						runAutoresearchLoop(ctx, taskId);
+						await updateAutoresearchUIForSession(cwd, child.context);
+						runAutoresearchLoop(child.context, taskId);
 						return;
 					}
 
@@ -2458,8 +2826,14 @@ export default function initAutoresearch(
 
 	pi.on("session_start", async (_event, ctx) => {
 		try {
+			syncPromptDispatcher(ctx);
+			syncExecutionProfileApplier(ctx);
+			syncUIUpdater(ctx);
 			await updateAutoresearchUI(ctx.cwd, ctx);
 		} catch (error) {
+			if (isIgnorableSessionContextError(error)) {
+				return;
+			}
 			if (
 				error instanceof LoopOwnershipValidationError ||
 				error instanceof LoopAmbiguousOwnershipError ||
@@ -2474,8 +2848,14 @@ export default function initAutoresearch(
 
 	pi.on("session_switch", async (_event, ctx) => {
 		try {
+			syncPromptDispatcher(ctx);
+			syncExecutionProfileApplier(ctx);
+			syncUIUpdater(ctx);
 			await updateAutoresearchUI(ctx.cwd, ctx);
 		} catch (error) {
+			if (isIgnorableSessionContextError(error)) {
+				return;
+			}
 			if (
 				error instanceof LoopOwnershipValidationError ||
 				error instanceof LoopAmbiguousOwnershipError ||
@@ -2490,8 +2870,14 @@ export default function initAutoresearch(
 
 	pi.on("session_fork", async (_event, ctx) => {
 		try {
+			syncPromptDispatcher(ctx);
+			syncExecutionProfileApplier(ctx);
+			syncUIUpdater(ctx);
 			await updateAutoresearchUI(ctx.cwd, ctx);
 		} catch (error) {
+			if (isIgnorableSessionContextError(error)) {
+				return;
+			}
 			if (
 				error instanceof LoopOwnershipValidationError ||
 				error instanceof LoopAmbiguousOwnershipError ||
@@ -2509,38 +2895,23 @@ export default function initAutoresearch(
 	});
 
 	pi.on("session_shutdown", async (event, ctx) => {
-		const sessionFile = ctx.sessionManager.getSessionFile?.();
-		if (sessionFile !== undefined) {
-			await withAutoresearchLoopRunner((runner) =>
-				runner.resolveAgentEnd(sessionFile, event),
-			);
+		try {
+			const sessionFile = ctx.sessionManager.getSessionFile?.();
+			if (sessionFile !== undefined) {
+				unregisterAutoresearchPromptDispatcher(sessionFile);
+				unregisterAutoresearchUIUpdater(sessionFile);
+				unregisterAutoresearchExecutionProfileApplier(sessionFile);
+				await withAutoresearchLoopRunner((runner) =>
+					runner.resolveAgentEnd(sessionFile, event),
+				);
+			}
 
-			const loops = await withLoopEngine((engine) => engine.listLoops(ctx.cwd, false));
-			for (const loop of loops) {
-				if (loop.kind !== "autoresearch") {
-					continue;
-				}
-				if (loop.lifecycle !== "active") {
-					continue;
-				}
-				const child = Option.getOrUndefined(loop.ownership.child);
-				if (child === undefined || child.sessionFile !== sessionFile) {
-					continue;
-				}
-
-				const nextState: AutoresearchLoopPersistedState = {
-					...loop,
-					updatedAt: new Date().toISOString(),
-					ownership: {
-						controller: loop.ownership.controller,
-						child: Option.none(),
-					},
-				};
-				writeCanonicalLoopState(ctx.cwd, nextState);
+			setToolEnabled(pi, AUTORESEARCH_RUN_TOOL_NAME, false);
+			setToolEnabled(pi, AUTORESEARCH_DONE_TOOL_NAME, false);
+		} catch (error) {
+			if (!isIgnorableSessionContextError(error)) {
+				throw error;
 			}
 		}
-
-		setToolEnabled(pi, AUTORESEARCH_RUN_TOOL_NAME, false);
-		setToolEnabled(pi, AUTORESEARCH_DONE_TOOL_NAME, false);
 	});
 }

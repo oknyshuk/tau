@@ -216,7 +216,6 @@ export const AgentManagerLive = Layer.effect(
 							parentModel: opts.parentModel,
 							approvalBroker: opts.approvalBroker,
 							modelRegistry: opts.modelRegistry,
-							resultSchema: opts.resultSchema,
 							runPromise: agentRuntime.runPromise,
 							runFork: agentRuntime.runFork,
 							...(opts.agentSummaries !== undefined
@@ -337,7 +336,10 @@ export const AgentManagerLive = Layer.effect(
 					for (const agent of HashMap.values(agents)) {
 						yield* agent.shutdown().pipe(
 							Effect.tapError((error) =>
-								Effect.logWarning("Agent shutdown failed during shutdownAll", error),
+								Effect.logWarning(
+									"Agent shutdown failed during shutdownAll",
+									error,
+								),
 							),
 							Effect.catch(() => Effect.void),
 						);

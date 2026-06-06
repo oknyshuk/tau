@@ -23,7 +23,9 @@ import initEditor from "./editor/index.js";
 import initAgent from "./agent/index.js";
 import initRequestUserInput from "./request-user-input/index.js";
 import initRalph from "./ralph/index.js";
-import initAutoresearch from "./autoresearch/index.js";
+// Tau's built-in autoresearch is intentionally disabled while the external
+// pi-autoresearch extension owns the /autoresearch command.
+// import initAutoresearch from "./autoresearch/index.js";
 import initGoal from "./goal/index.js";
 import initAgentsMenu from "./agents-menu/index.js";
 import { AgentConfig, AgentControl } from "./agent/services.js";
@@ -182,13 +184,15 @@ export const startTau = (pi: ExtensionAPI) => {
 		runPromise: <A, E>(effect: Effect.Effect<A, E, Goal>) => currentRuntime.runPromise(effect),
 		runFork: <A, E>(effect: Effect.Effect<A, E, Goal>) => currentRuntime.runFork(effect),
 	};
-	const runAutoresearch = <A, E>(
-		effect: Effect.Effect<
-			A,
-			E,
-			LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner
-		>,
-	) => currentRuntime.runPromise(effect);
+	// Tau's built-in autoresearch registration is disabled while the external
+	// pi-autoresearch extension is installed globally.
+	// const runAutoresearch = <A, E>(
+	// 	effect: Effect.Effect<
+	// 		A,
+	// 		E,
+	// 		LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner
+	// 	>,
+	// ) => currentRuntime.runPromise(effect);
 
 	const startup = Effect.gen(function* () {
 		const { default: initBacklog } = yield* Effect.promise(() => import("./backlog/tool.js"));
@@ -220,7 +224,7 @@ export const startTau = (pi: ExtensionAPI) => {
 			initNudge(pi);
 			initRequestUserInput(pi);
 			initRalph(pi, runRalph);
-			initAutoresearch(pi, runAutoresearch);
+			// initAutoresearch(pi, runAutoresearch);
 			initGoal(pi, goalRuntime);
 		});
 

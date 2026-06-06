@@ -26,7 +26,6 @@ export const Status = Schema.Union([
 	Schema.Struct({
 		state: Schema.Literal("completed"),
 		message: Schema.optional(Schema.String),
-		structured_output: Schema.optional(Schema.Unknown),
 		turns: Schema.optional(NonNegativeFiniteInt),
 		toolCalls: Schema.optional(NonNegativeFiniteInt),
 		workedMs: Schema.optional(NonNegativeFiniteInt),
@@ -47,4 +46,3 @@ export type Status = Schema.Schema.Type<typeof Status>;
 
 export const isFinal = (status: Status): boolean =>
 	status.state === "completed" || status.state === "failed" || status.state === "shutdown";
-

@@ -4,7 +4,7 @@ import * as path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { NodeFileSystem } from "@effect/platform-node";
-import { Effect, Layer, ManagedRuntime, Stream } from "effect";
+import { Effect, Layer, ManagedRuntime, Option, Stream } from "effect";
 import { Text } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 
@@ -21,6 +21,7 @@ import { LoopEngine } from "../src/services/loop-engine.js";
 import { LoopEngineLive } from "../src/services/loop-engine.js";
 import { ExecutionRuntime } from "../src/services/execution-runtime.js";
 import { Sandbox } from "../src/services/sandbox.js";
+import type { LoopPersistedState } from "../src/loops/schema.js";
 import {
 	AutoresearchLoopRunner,
 	AutoresearchLoopRunnerLive,
@@ -83,7 +84,11 @@ function renderWidgetUpdate(update: unknown): string {
 
 type RuntimeHarness = {
 	readonly run: <A, E>(
-		effect: Effect.Effect<A, E, LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner>,
+		effect: Effect.Effect<
+			A,
+			E,
+			LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner
+		>,
 	) => Promise<A>;
 	readonly dispose: () => Promise<void>;
 };
@@ -95,6 +100,28 @@ type NewSessionPlan = {
 
 function makeTempDir(): string {
 	return fs.mkdtempSync(path.join(os.tmpdir(), "tau-autoresearch-adapter-"));
+}
+
+async function waitForLoopState(
+	runtime: RuntimeHarness,
+	cwd: string,
+	taskId: string,
+	predicate: (state: LoopPersistedState | undefined) => boolean,
+): Promise<LoopPersistedState | undefined> {
+	for (let attempt = 0; attempt < 50; attempt += 1) {
+		const state = await runtime.run(
+			Effect.gen(function* () {
+				const engine = yield* LoopEngine;
+				const loops = yield* engine.listLoops(cwd, false);
+				return loops.find((loop) => loop.taskId === taskId);
+			}),
+		);
+		if (predicate(state)) {
+			return state;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	return undefined;
 }
 
 function sessionIdFromFile(sessionFile: string): string {
@@ -373,6 +400,179 @@ describe("autoresearch adapter", () => {
 		);
 		expect(renderWidgetUpdate(context.widgetUpdates.at(-1))).toContain("autoresearch 0 runs");
 		await command?.handler("stop improve-local-pdp-web-vitals", context.ctx);
+	});
+
+	it("reclaims an active autoresearch loop with no child from the current session", async () => {
+		const cwd = makeTempDir();
+		tempDirs.push(cwd);
+
+		const context = makeContext(cwd);
+		const piHarness = makePiHarness();
+		const runtime = makeRuntime();
+		runtimes.push(runtime);
+		initAutoresearch(piHarness.pi, runtime.run);
+
+		const command = piHarness.commands.get("autoresearch");
+		expect(command).toBeDefined();
+
+		await command?.handler("create improve-local-pdp-web-vitals", context.ctx);
+		await runtime.run(
+			Effect.gen(function* () {
+				const engine = yield* LoopEngine;
+				yield* engine.startLoop(cwd, "improve-local-pdp-web-vitals", {
+					sessionId: "stale-controller",
+					sessionFile: path.join(cwd, ".pi", "sessions", "stale.session.json"),
+				});
+			}),
+		);
+
+		const currentSession = path.join(cwd, ".pi", "sessions", "current.session.json");
+		context.setSessionFile(currentSession);
+		await command?.handler("resume improve-local-pdp-web-vitals", context.ctx);
+
+		expect(context.switchSessionCalls).toEqual([]);
+		expect(context.newSessionCalls).toHaveLength(1);
+
+		const state = await runtime.run(
+			Effect.gen(function* () {
+				const engine = yield* LoopEngine;
+				const owned = yield* engine.resolveOwnedLoop(cwd, {
+					sessionId: sessionIdFromFile(currentSession),
+					sessionFile: currentSession,
+				});
+				return Option.getOrUndefined(owned);
+			}),
+		);
+		expect(state?.kind).toBe("autoresearch");
+		expect(
+			Option.getOrUndefined(state?.ownership.controller ?? Option.none())?.sessionFile,
+		).toBe(currentSession);
+	});
+
+	it("pauses instead of leaving active childless state when a child session shuts down", async () => {
+		const cwd = makeTempDir();
+		tempDirs.push(cwd);
+
+		const context = makeContext(cwd);
+		const piHarness = makePiHarness();
+		const runtime = makeRuntime();
+		runtimes.push(runtime);
+		initAutoresearch(piHarness.pi, runtime.run);
+
+		const command = piHarness.commands.get("autoresearch");
+		expect(command).toBeDefined();
+
+		await command?.handler("create improve-local-pdp-web-vitals", context.ctx);
+		await command?.handler("start improve-local-pdp-web-vitals", context.ctx);
+
+		await piHarness.fire(
+			"session_shutdown",
+			{ type: "session_shutdown", reason: "quit" },
+			context.ctx,
+		);
+
+		const state = await waitForLoopState(
+			runtime,
+			cwd,
+			"improve-local-pdp-web-vitals",
+			(loop) => loop?.lifecycle === "paused",
+		);
+		expect(state?.kind).toBe("autoresearch");
+		expect(state?.lifecycle).toBe("paused");
+		expect(Option.isNone(state?.ownership.child ?? Option.none())).toBe(true);
+	});
+
+	it("reclaims an active autoresearch loop whose child session file is missing", async () => {
+		const cwd = makeTempDir();
+		tempDirs.push(cwd);
+
+		const context = makeContext(cwd);
+		const controllerSession = context.getSessionFile();
+		const piHarness = makePiHarness();
+		const runtime = makeRuntime();
+		runtimes.push(runtime);
+		initAutoresearch(piHarness.pi, runtime.run);
+
+		const command = piHarness.commands.get("autoresearch");
+		expect(command).toBeDefined();
+
+		await command?.handler("create improve-local-pdp-web-vitals", context.ctx);
+		await runtime.run(
+			Effect.gen(function* () {
+				const engine = yield* LoopEngine;
+				yield* engine.startLoop(cwd, "improve-local-pdp-web-vitals", {
+					sessionId: sessionIdFromFile(controllerSession),
+					sessionFile: controllerSession,
+				});
+				yield* engine.attachChildSession(cwd, "improve-local-pdp-web-vitals", {
+					sessionId: "missing-child",
+					sessionFile: path.join(cwd, ".pi", "sessions", "missing-child.jsonl"),
+				});
+			}),
+		);
+
+		await command?.handler("resume improve-local-pdp-web-vitals", context.ctx);
+
+		expect(context.newSessionCalls).toHaveLength(1);
+		const state = await runtime.run(
+			Effect.gen(function* () {
+				const engine = yield* LoopEngine;
+				const owned = yield* engine.resolveOwnedLoop(cwd, {
+					sessionId: context.ctx.sessionManager.getSessionId(),
+					sessionFile: context.getSessionFile(),
+				});
+				return Option.getOrUndefined(owned);
+			}),
+		);
+		expect(state?.kind).toBe("autoresearch");
+		expect(
+			Option.getOrUndefined(state?.ownership.child ?? Option.none())?.sessionFile,
+		).toBe(context.getSessionFile());
+	});
+
+	it("resumes an active autoresearch loop by reusing its existing child session", async () => {
+		const cwd = makeTempDir();
+		tempDirs.push(cwd);
+
+		const context = makeContext(cwd);
+		const controllerSession = context.getSessionFile();
+		const childSession = path.join(cwd, ".pi", "sessions", "existing-child.jsonl");
+		fs.mkdirSync(path.dirname(childSession), { recursive: true });
+		fs.writeFileSync(childSession, "");
+		const piHarness = makePiHarness();
+		const runtime = makeRuntime();
+		runtimes.push(runtime);
+		initAutoresearch(piHarness.pi, runtime.run);
+
+		const command = piHarness.commands.get("autoresearch");
+		expect(command).toBeDefined();
+
+		await command?.handler("create improve-local-pdp-web-vitals", context.ctx);
+		await runtime.run(
+			Effect.gen(function* () {
+				const engine = yield* LoopEngine;
+				yield* engine.startLoop(cwd, "improve-local-pdp-web-vitals", {
+					sessionId: sessionIdFromFile(controllerSession),
+					sessionFile: controllerSession,
+				});
+				yield* engine.attachChildSession(cwd, "improve-local-pdp-web-vitals", {
+					sessionId: sessionIdFromFile(childSession),
+					sessionFile: childSession,
+				});
+			}),
+		);
+
+		await command?.handler("resume improve-local-pdp-web-vitals", context.ctx);
+
+		expect(context.newSessionCalls).toHaveLength(0);
+		expect(context.switchSessionCalls).toEqual([childSession]);
+		expect(context.getSessionFile()).toBe(childSession);
+		expect(piHarness.sentUserMessages.at(-1)?.options?.deliverAs).toBe("followUp");
+		expect(
+			context.notifications.some((notification) =>
+				notification.message.includes("already has an active child session"),
+			),
+		).toBe(false);
 	});
 
 	it("restores the autoresearch widget on session switch for an owned child session", async () => {
