@@ -254,6 +254,37 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(5);
 	});
 
+	it("starts model-created goal accounting from the next turn", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null, null, {
+					accountFromNextTurn: true,
+				});
+				const createTurn = yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(100, true),
+					1_000,
+				);
+				const nextTurn = yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(25, false),
+					2_500,
+				);
+				return { createTurn, nextTurn };
+			}),
+		);
+
+		expect(result.createTurn.snapshot?.status).toBe("active");
+		expect(result.createTurn.snapshot?.tokensUsed).toBe(0);
+		expect(result.createTurn.snapshot?.timeUsedSeconds).toBe(0);
+		expect(result.nextTurn.snapshot?.tokensUsed).toBe(25);
+		expect(result.nextTurn.snapshot?.timeUsedSeconds).toBe(1);
+	});
+
 	it("accounts the terminal turn after update_goal completes the goal", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

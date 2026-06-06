@@ -866,6 +866,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						null,
 						{
 							failIfExists: true,
+							accountFromNextTurn: true,
 						},
 					),
 				);

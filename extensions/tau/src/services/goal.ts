@@ -18,6 +18,7 @@ type GoalRuntime = {
 	readonly activeTurnStartedAtMs: number | null;
 	readonly continuationInFlight: boolean;
 	readonly terminalTurnAccountingPending: boolean;
+	readonly skipNextTurnAccounting: boolean;
 };
 
 type GoalAgentEndResult = {
@@ -40,7 +41,10 @@ export interface GoalService {
 		objective: string,
 		tokenBudget: number | null,
 		timeBudgetSeconds?: number | null,
-		options?: { readonly failIfExists?: boolean },
+		options?: {
+			readonly failIfExists?: boolean;
+			readonly accountFromNextTurn?: boolean;
+		},
 	) => Effect.Effect<GoalSnapshot, GoalError, never>;
 	readonly setStatus: (
 		sessionId: string,
@@ -77,6 +81,7 @@ const emptyRuntime: GoalRuntime = {
 	activeTurnStartedAtMs: null,
 	continuationInFlight: false,
 	terminalTurnAccountingPending: false,
+	skipNextTurnAccounting: false,
 };
 
 function runtimeWithSnapshot(snapshot: GoalSnapshot | null): GoalRuntime {
@@ -85,6 +90,7 @@ function runtimeWithSnapshot(snapshot: GoalSnapshot | null): GoalRuntime {
 		activeTurnStartedAtMs: null,
 		continuationInFlight: false,
 		terminalTurnAccountingPending: false,
+		skipNextTurnAccounting: false,
 	};
 }
 
@@ -295,13 +301,19 @@ export const GoalLive = Layer.effect(
 						budgetLimitPromptSent: false,
 					});
 					yield* Ref.update(runtimes, (state) =>
-						withRuntime(state, sessionId, () => runtimeWithSnapshot(nextSnapshot)),
+						withRuntime(state, sessionId, () => ({
+							...runtimeWithSnapshot(nextSnapshot),
+							skipNextTurnAccounting: options?.accountFromNextTurn === true,
+						})),
 					);
 					yield* saveSnapshot(nextSnapshot);
 					return nextSnapshot;
 				}
 				yield* Ref.update(runtimes, (state) =>
-					withRuntime(state, sessionId, () => runtimeWithSnapshot(snapshot)),
+					withRuntime(state, sessionId, () => ({
+						...runtimeWithSnapshot(snapshot),
+						skipNextTurnAccounting: options?.accountFromNextTurn === true,
+					})),
 				);
 				yield* saveSnapshot(snapshot);
 				return snapshot;
@@ -384,6 +396,17 @@ export const GoalLive = Layer.effect(
 									: runtime.activeTurnStartedAtMs,
 								continuationInFlight: false,
 								terminalTurnAccountingPending: false,
+								skipNextTurnAccounting: false,
+							};
+						}
+						if (runtime.skipNextTurnAccounting) {
+							nextSnapshot = runtime.snapshot;
+							return {
+								...runtime,
+								activeTurnStartedAtMs: options.finishActiveAccounting ? null : nowMs,
+								continuationInFlight: false,
+								terminalTurnAccountingPending: false,
+								skipNextTurnAccounting: false,
 							};
 						}
 						if (!runtimeCanAccountActiveTurn(runtime)) {
@@ -396,6 +419,9 @@ export const GoalLive = Layer.effect(
 								terminalTurnAccountingPending: options.finishActiveAccounting
 									? false
 									: runtime.terminalTurnAccountingPending,
+								skipNextTurnAccounting: options.finishActiveAccounting
+									? false
+									: runtime.skipNextTurnAccounting,
 							};
 						}
 
@@ -436,6 +462,7 @@ export const GoalLive = Layer.effect(
 								options.finishActiveAccounting || stopActiveTurn ? null : nowMs,
 							continuationInFlight: false,
 							terminalTurnAccountingPending: false,
+							skipNextTurnAccounting: false,
 						};
 					}),
 				);

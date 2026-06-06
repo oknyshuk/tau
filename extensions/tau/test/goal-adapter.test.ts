@@ -139,9 +139,9 @@ function makeAssistantMessage(
 	};
 }
 
-function makeAssistantToolCallMessage(): AssistantMessage {
+function makeAssistantToolCallMessage(tokens = 0): AssistantMessage {
 	return {
-		...makeAssistantMessage(0),
+		...makeAssistantMessage(tokens),
 		content: [{ type: "toolCall", id: "call-1", name: "read", arguments: {} }],
 		stopReason: "toolUse",
 	};
@@ -271,6 +271,41 @@ describe("goal adapter", () => {
 			throw new Error("expected create_goal to return text content");
 		}
 		expect(item.text).toContain("time_budget_seconds is not supported by create_goal");
+	});
+
+	it("starts model-created goal accounting after the create_goal caller turn", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("create_goal");
+		if (tool === undefined) {
+			throw new Error("create_goal tool was not registered");
+		}
+
+		await tool.execute(
+			"call-create-goal",
+			{ objective: "ship the feature" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantToolCallMessage(100),
+		});
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(25),
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.tokensUsed).toBe(25);
 	});
 
 	it("sends the budget-limit prompt when the time budget is reached", async () => {
