@@ -50,7 +50,7 @@ type CreateGoalParams = {
 };
 
 type UpdateGoalParams = {
-	readonly status: "complete";
+	readonly status: "complete" | "blocked";
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -114,10 +114,10 @@ function decodeUpdateGoalParams(raw: unknown): UpdateGoalParams {
 	if (!isRecord(raw)) {
 		throw new Error("expected an object");
 	}
-	if (raw["status"] !== "complete") {
-		throw new Error('status must be "complete"');
+	if (raw["status"] !== "complete" && raw["status"] !== "blocked") {
+		throw new Error('status must be "complete" or "blocked"');
 	}
-	return { status: "complete" };
+	return { status: raw["status"] };
 }
 
 function sessionIdFromContext(ctx: Pick<ExtensionContext, "sessionManager">): string {
@@ -818,27 +818,31 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			name: "update_goal",
 			label: "update goal",
 			description:
-				"Mark the current thread goal complete. The only accepted status is complete.",
+				"Update the current thread goal. Use only to mark the goal complete or blocked.",
 			promptGuidelines: [
 				"Call update_goal with status complete only when the objective is actually achieved.",
+				"Call update_goal with status blocked only when the strict blocked audit is satisfied.",
 				"Do not use update_goal to pause, resume, clear, or budget-limit a goal.",
 			],
 			parameters: Type.Object({
-				status: Type.Literal("complete"),
+				status: Type.Union([Type.Literal("complete"), Type.Literal("blocked")]),
 			}),
 			decodeParams: decodeUpdateGoalParams,
 			formatInvalidParamsResult: (message) =>
 				goalToolResult(message, null, { isError: true }),
 			formatExecuteErrorResult: (error) =>
 				goalToolResult(errorText(error), null, { isError: true }),
-			execute: async (_params, { ctx }) => {
+			execute: async (params, { ctx }) => {
 				const snapshot = await withGoal(runtime, (goal) =>
-					goal.setStatus(sessionIdFromContext(ctx), "complete"),
+					goal.setStatus(sessionIdFromContext(ctx), params.status),
 				);
 				if (snapshot === null) {
 					return goalToolResult("No thread goal is set.", snapshot, { isError: true });
 				}
 				await updateGoalUi(ctx);
+				if (params.status === "blocked") {
+					return goalToolResult("Goal blocked.", snapshot);
+				}
 				return goalToolResult(
 					`Goal complete. Final usage: ${formatTokenCount(snapshot.tokensUsed)} tokens, ${formatDuration(snapshot.timeUsedSeconds * 1_000)}.`,
 					snapshot,

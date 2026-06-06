@@ -6,6 +6,7 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
+	ToolDefinition,
 } from "@mariozechner/pi-coding-agent";
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 
@@ -34,6 +35,7 @@ type EventHandler = (event: unknown, ctx: ExtensionContext) => Promise<unknown> 
 
 type GoalAdapterHarness = {
 	readonly commands: Map<string, RegisteredCommand>;
+	readonly tools: Map<string, ToolDefinition>;
 	readonly events: Map<string, EventHandler[]>;
 	readonly sentMessages: SentMessage[];
 	readonly notifications: ReadonlyArray<{ readonly message: string; readonly type: string }>;
@@ -45,6 +47,7 @@ type GoalAdapterHarness = {
 
 function makeGoalAdapterHarness(): GoalAdapterHarness {
 	const commands = new Map<string, RegisteredCommand>();
+	const tools = new Map<string, ToolDefinition>();
 	const events = new Map<string, EventHandler[]>();
 	const sentMessages: SentMessage[] = [];
 	const notifications: Array<{ readonly message: string; readonly type: string }> = [];
@@ -55,7 +58,9 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 			handlers.push(handler);
 			events.set(name, handlers);
 		},
-		registerTool: () => undefined,
+		registerTool: (tool: ToolDefinition) => {
+			tools.set(tool.name, tool);
+		},
 		registerCommand: (name: string, command: RegisteredCommand) => {
 			commands.set(name, command);
 		},
@@ -94,6 +99,7 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 
 	return {
 		commands,
+		tools,
 		events,
 		sentMessages,
 		notifications,
@@ -260,7 +266,7 @@ describe("goal adapter", () => {
 
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
-		expect(harness.sentMessages[0]?.message.content).toContain("reached its budget");
+		expect(harness.sentMessages[0]?.message.content).toContain("reached its token budget");
 	});
 
 	it("does not start a turn when the session is not idle", async () => {
@@ -342,8 +348,40 @@ describe("goal adapter", () => {
 			systemPrompt: expect.stringContaining("Active thread goal context."),
 		});
 		expect(result).toMatchObject({
-			systemPrompt: expect.stringContaining("<untrusted_objective>\nship the feature"),
+			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
 		});
+	});
+
+	it("allows the model to mark a goal blocked through update_goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		const result = await tool.execute(
+			"call-update-goal",
+			{ status: "blocked" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("blocked");
+		const item = result.content[0];
+		if (item?.type !== "text") {
+			throw new Error("expected update_goal to return text content");
+		}
+		expect(item.text).toBe("Goal blocked.");
 	});
 
 	it("pauses the goal when pi reports an interrupted turn", async () => {

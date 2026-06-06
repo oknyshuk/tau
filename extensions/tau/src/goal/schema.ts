@@ -8,7 +8,13 @@ export const GOAL_ENTRY_TYPE = "tau:goal";
 const NonNegativeIntSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const PositiveIntSchema = Schema.Int.check(Schema.isGreaterThan(0));
 
-export const GoalStatusSchema = Schema.Literals(["active", "paused", "budget_limited", "complete"]);
+export const GoalStatusSchema = Schema.Literals([
+	"active",
+	"paused",
+	"blocked",
+	"budget_limited",
+	"complete",
+]);
 export type GoalStatus = Schema.Schema.Type<typeof GoalStatusSchema>;
 
 export const GoalSnapshotSchema = Schema.Struct({
