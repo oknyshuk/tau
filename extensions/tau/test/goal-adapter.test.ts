@@ -377,11 +377,47 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.status).toBe("blocked");
+		expect(result.details).toMatchObject({
+			remainingTokens: null,
+			completionBudgetReport: null,
+		});
 		const item = result.content[0];
 		if (item?.type !== "text") {
 			throw new Error("expected update_goal to return text content");
 		}
 		expect(item.text).toBe("Goal blocked.");
+	});
+
+	it("returns codex-style completion budget details from update_goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 100 ship the feature");
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(25),
+		});
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		const result = await tool.execute(
+			"call-update-goal",
+			{ status: "complete" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect(result.details).toMatchObject({
+			remainingTokens: 75,
+			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			goal: {
+				status: "complete",
+				tokenBudget: 100,
+				tokensUsed: 25,
+			},
+		});
 	});
 
 	it("pauses the goal when pi reports an interrupted turn", async () => {

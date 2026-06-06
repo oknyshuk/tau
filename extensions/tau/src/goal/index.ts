@@ -41,6 +41,9 @@ const GOAL_ERROR_RETRY_BUSY_DELAY_MS = 1_000;
 
 type GoalToolDetails = {
 	readonly snapshot: GoalSnapshot | null;
+	readonly goal: GoalSnapshot | null;
+	readonly remainingTokens: number | null;
+	readonly completionBudgetReport: string | null;
 };
 
 type CreateGoalParams = {
@@ -351,9 +354,24 @@ function errorText(error: unknown): string {
 function goalToolResult(
 	text: string,
 	snapshot: GoalSnapshot | null,
-	options?: { readonly isError?: boolean },
+	options?: { readonly isError?: boolean; readonly includeCompletionBudgetReport?: boolean },
 ) {
-	return textToolResult<GoalToolDetails>(text, { snapshot }, options);
+	const remainingTokens =
+		snapshot?.tokenBudget === null || snapshot === null
+			? null
+			: Math.max(0, snapshot.tokenBudget - snapshot.tokensUsed);
+	const completionBudgetReport =
+		options?.includeCompletionBudgetReport === true &&
+		snapshot !== null &&
+		snapshot.status === "complete" &&
+		(snapshot.tokenBudget !== null || snapshot.timeUsedSeconds > 0)
+			? "Goal achieved. Report final usage from this tool result's structured goal fields. If `goal.tokenBudget` is present, include token usage from `goal.tokensUsed` and `goal.tokenBudget`. If `goal.timeUsedSeconds` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
+			: null;
+	return textToolResult<GoalToolDetails>(
+		text,
+		{ snapshot, goal: snapshot, remainingTokens, completionBudgetReport },
+		options,
+	);
 }
 
 function parseGoalCommand(args: string): {
@@ -846,6 +864,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				return goalToolResult(
 					`Goal complete. Final usage: ${formatTokenCount(snapshot.tokensUsed)} tokens, ${formatDuration(snapshot.timeUsedSeconds * 1_000)}.`,
 					snapshot,
+					{ includeCompletionBudgetReport: true },
 				);
 			},
 			renderCall: (_args, theme) =>
