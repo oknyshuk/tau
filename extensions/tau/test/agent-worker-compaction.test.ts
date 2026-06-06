@@ -16,6 +16,11 @@ type AssistantEventMessage = {
 	readonly errorMessage?: string;
 };
 
+interface PromptCall {
+	readonly message: unknown;
+	readonly options: unknown;
+}
+
 const waitForTimers = async (): Promise<void> => {
 	await new Promise<void>((resolve) => {
 		setTimeout(resolve, 0);
@@ -35,6 +40,7 @@ const assistantMessage = (options: {
 
 class FakeAgentSession {
 	readonly listeners: SessionListener[] = [];
+	readonly promptCalls: PromptCall[] = [];
 	messages: readonly AssistantEventMessage[] = [];
 	isStreaming = false;
 	isCompacting = false;
@@ -54,7 +60,8 @@ class FakeAgentSession {
 		};
 	}
 
-	async prompt(): Promise<void> {
+	async prompt(message?: unknown, options?: unknown): Promise<void> {
+		this.promptCalls.push({ message, options });
 		if (this.onPrompt) {
 			await this.onPrompt(this);
 		}
@@ -192,6 +199,27 @@ afterEach(async () => {
 });
 
 describe("AgentWorker overflow compaction handling", () => {
+	it("steers a running worker when prompted again", async () => {
+		const session = new FakeAgentSession();
+		session.isStreaming = true;
+		const { worker, statusRef } = await makeWorker(session);
+
+		const submissionId = await Effect.runPromise(worker.prompt("take this nudge"));
+		await waitForTimers();
+
+		expect(submissionId).toMatch(/^sub-/);
+		expect(session.promptCalls).toEqual([
+			{
+				message: "take this nudge",
+				options: {
+					source: "extension",
+					streamingBehavior: "steer",
+				},
+			},
+		]);
+		expect(Effect.runSync(SubscriptionRef.get(statusRef)).state).toBe("running");
+	});
+
 	it("keeps worker status running when overflow compaction starts after agent_end", async () => {
 		const session = new FakeAgentSession();
 		const { statusRef } = await makeWorker(session);

@@ -48,6 +48,15 @@ function freshState(): NudgeState {
 	};
 }
 
+function hasUserMessage(messages: readonly { readonly role: string }[]): boolean {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i]?.role === "user") {
+			return true;
+		}
+	}
+	return false;
+}
+
 export default function initNudge(pi: ExtensionAPI): void {
 	let state = freshState();
 
@@ -89,6 +98,7 @@ export default function initNudge(pi: ExtensionAPI): void {
 		});
 
 		if (dueTools.length === 0) return;
+		if (!hasUserMessage(event.messages)) return;
 
 		for (const tool of dueTools) {
 			state.lastNudgedTurn[tool] = state.turn;

@@ -99,6 +99,37 @@ function makeContextEvent(text = "test message"): ContextEvent {
 	};
 }
 
+function makeAssistantOnlyContextEvent(): ContextEvent {
+	return {
+		type: "context",
+		messages: [
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "previous response" }],
+				api: "openai-responses",
+				provider: "openai",
+				model: "gpt-5",
+				usage: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+					totalTokens: 0,
+					cost: {
+						input: 0,
+						output: 0,
+						cacheRead: 0,
+						cacheWrite: 0,
+						total: 0,
+					},
+				},
+				stopReason: "stop",
+				timestamp: Date.now(),
+			},
+		],
+	};
+}
+
 function makeToolResultEvent(toolName: string): ToolResultEvent {
 	return {
 		type: "tool_result",
@@ -220,6 +251,20 @@ describe("nudge module", () => {
 		await advanceTurns(fire, 15);
 		const result = await fire("context", makeContextEvent());
 		expect(result).toBeUndefined();
+	});
+
+	it("does not consume cooldown when no user message can receive the nudge", async () => {
+		const { pi, fire } = makePiStub(["memory"]);
+		initNudge(pi);
+
+		await advanceTurns(fire, 8);
+		const skipped = await fire("context", makeAssistantOnlyContextEvent());
+		expect(skipped).toBeUndefined();
+
+		const delivered = await fire("context", makeContextEvent());
+		expect(delivered).toBeDefined();
+		const content = getFirstUserText(delivered);
+		expect(content.type).toBe("text");
 	});
 
 	it("resets full state on session_start — re-nudges after threshold in new session", async () => {
