@@ -17,6 +17,7 @@ type GoalRuntime = {
 	readonly snapshot: GoalSnapshot | null;
 	readonly activeTurnStartedAtMs: number | null;
 	readonly continuationInFlight: boolean;
+	readonly terminalTurnAccountingPending: boolean;
 };
 
 type GoalAgentEndResult = {
@@ -44,6 +45,7 @@ export interface GoalService {
 	readonly setStatus: (
 		sessionId: string,
 		status: GoalStatus,
+		options?: { readonly accountCurrentTurn?: boolean },
 	) => Effect.Effect<GoalSnapshot | null, GoalError, never>;
 	readonly clear: (sessionId: string) => Effect.Effect<void, never, never>;
 	readonly markAgentStart: (
@@ -74,6 +76,7 @@ const emptyRuntime: GoalRuntime = {
 	snapshot: null,
 	activeTurnStartedAtMs: null,
 	continuationInFlight: false,
+	terminalTurnAccountingPending: false,
 };
 
 function runtimeWithSnapshot(snapshot: GoalSnapshot | null): GoalRuntime {
@@ -81,6 +84,7 @@ function runtimeWithSnapshot(snapshot: GoalSnapshot | null): GoalRuntime {
 		snapshot,
 		activeTurnStartedAtMs: null,
 		continuationInFlight: false,
+		terminalTurnAccountingPending: false,
 	};
 }
 
@@ -170,6 +174,20 @@ function hasAssistantError(event: AgentEndEvent): boolean {
 		}
 	}
 	return false;
+}
+
+function runtimeCanAccountActiveTurn(runtime: GoalRuntime): boolean {
+	const status = runtime.snapshot?.status;
+	return (
+		status === "active" ||
+		status === "budget_limited" ||
+		((status === "complete" || status === "blocked") &&
+			runtime.terminalTurnAccountingPending)
+	);
+}
+
+function statusStopsActiveTurn(status: GoalStatus): boolean {
+	return status === "complete" || status === "blocked";
 }
 
 function elapsedSeconds(runtime: GoalRuntime, nowMs: number): number {
@@ -291,7 +309,7 @@ export const GoalLive = Layer.effect(
 		);
 
 		const setStatus: GoalService["setStatus"] = Effect.fn("Goal.setStatus")(
-			function* (sessionId, status) {
+			function* (sessionId, status, options) {
 				const nowIso = new Date().toISOString();
 				let nextSnapshot: GoalSnapshot | null = null;
 				yield* Ref.update(runtimes, (state) =>
@@ -310,6 +328,9 @@ export const GoalLive = Layer.effect(
 							...runtime,
 							snapshot: nextSnapshot,
 							continuationInFlight: false,
+							terminalTurnAccountingPending:
+								(status === "complete" || status === "blocked") &&
+								options?.accountCurrentTurn === true,
 						};
 					}),
 				);
@@ -362,18 +383,19 @@ export const GoalLive = Layer.effect(
 									? null
 									: runtime.activeTurnStartedAtMs,
 								continuationInFlight: false,
+								terminalTurnAccountingPending: false,
 							};
 						}
-						if (
-							runtime.snapshot.status !== "active" &&
-							runtime.snapshot.status !== "budget_limited"
-						) {
+						if (!runtimeCanAccountActiveTurn(runtime)) {
 							return {
 								...runtime,
 								activeTurnStartedAtMs: options.finishActiveAccounting
 									? null
 									: runtime.activeTurnStartedAtMs,
 								continuationInFlight: false,
+								terminalTurnAccountingPending: options.finishActiveAccounting
+									? false
+									: runtime.terminalTurnAccountingPending,
 							};
 						}
 
@@ -401,6 +423,7 @@ export const GoalLive = Layer.effect(
 							});
 							budgetLimitReached = !snapshot.budgetLimitPromptSent;
 						}
+						const stopActiveTurn = statusStopsActiveTurn(snapshot.status);
 						nextSnapshot = snapshot;
 						shouldPersist =
 							tokens > 0 ||
@@ -409,8 +432,10 @@ export const GoalLive = Layer.effect(
 							budgetLimitReached;
 						return {
 							snapshot,
-							activeTurnStartedAtMs: options.finishActiveAccounting ? null : nowMs,
+							activeTurnStartedAtMs:
+								options.finishActiveAccounting || stopActiveTurn ? null : nowMs,
 							continuationInFlight: false,
+							terminalTurnAccountingPending: false,
 						};
 					}),
 				);

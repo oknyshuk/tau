@@ -455,6 +455,42 @@ describe("goal adapter", () => {
 		expect(item.text).toBe("Goal blocked.");
 	});
 
+	it("accounts the update_goal caller turn after marking the goal blocked", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		await tool.execute(
+			"call-update-goal",
+			{ status: "blocked" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(23),
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("blocked");
+		expect(snapshot?.tokensUsed).toBe(23);
+	});
+
 	it("returns codex-style completion budget details from update_goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

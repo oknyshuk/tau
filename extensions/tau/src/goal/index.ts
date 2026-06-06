@@ -884,7 +884,9 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				goalToolResult(errorText(error), null, { isError: true }),
 			execute: async (params, { ctx }) => {
 				const snapshot = await withGoal(runtime, (goal) =>
-					goal.setStatus(sessionIdFromContext(ctx), params.status),
+					goal.setStatus(sessionIdFromContext(ctx), params.status, {
+						accountCurrentTurn: true,
+					}),
 				);
 				if (snapshot === null) {
 					return goalToolResult("No thread goal is set.", snapshot, { isError: true });

@@ -254,6 +254,101 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(5);
 	});
 
+	it("accounts the terminal turn after update_goal completes the goal", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.markAgentStart("session-1", 0);
+				yield* goal.setStatus("session-1", "complete", {
+					accountCurrentTurn: true,
+				});
+				const turnResult = yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(40, true),
+					2_500,
+				);
+				const endResult = yield* goal.accountAgentEnd(
+					"session-1",
+					makeAgentEnd(0),
+					5_000,
+				);
+				return { turnResult, endResult };
+			}),
+		);
+
+		expect(result.turnResult.snapshot?.status).toBe("complete");
+		expect(result.turnResult.snapshot?.tokensUsed).toBe(40);
+		expect(result.turnResult.snapshot?.timeUsedSeconds).toBe(2);
+		expect(result.endResult.snapshot).toBeNull();
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.status).toBe("complete");
+		expect(snapshot?.tokensUsed).toBe(40);
+		expect(snapshot?.timeUsedSeconds).toBe(2);
+	});
+
+	it("accounts the terminal turn after update_goal blocks the goal", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.markAgentStart("session-1", 0);
+				yield* goal.setStatus("session-1", "blocked", {
+					accountCurrentTurn: true,
+				});
+				return yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(23, true),
+					1_000,
+				);
+			}),
+		);
+
+		expect(result.snapshot?.status).toBe("blocked");
+		expect(result.snapshot?.tokensUsed).toBe(23);
+		expect(result.snapshot?.timeUsedSeconds).toBe(1);
+	});
+
+	it("does not account later turns after a manual terminal status update", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.setStatus("session-1", "complete");
+				return yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(40, false),
+					2_000,
+				);
+			}),
+		);
+
+		expect(result.snapshot).toBeNull();
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.status).toBe("complete");
+		expect(snapshot?.tokensUsed).toBe(0);
+		expect(snapshot?.timeUsedSeconds).toBe(0);
+	});
+
 	it("returns a live snapshot while a goal turn is running", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
