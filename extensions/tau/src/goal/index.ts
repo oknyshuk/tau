@@ -51,7 +51,6 @@ type GoalToolDetails = {
 type CreateGoalParams = {
 	readonly objective: string;
 	readonly token_budget?: number;
-	readonly time_budget_seconds?: number;
 };
 
 type UpdateGoalParams = {
@@ -78,41 +77,23 @@ function decodeCreateGoalParams(raw: unknown): CreateGoalParams {
 		throw new Error("objective must be a non-empty string");
 	}
 	const tokenBudget = raw["token_budget"];
-	const timeBudgetSeconds = raw["time_budget_seconds"];
+	if (raw["time_budget_seconds"] !== undefined) {
+		throw new Error("time_budget_seconds is not supported by create_goal");
+	}
 	if (
 		tokenBudget !== undefined &&
 		(typeof tokenBudget !== "number" || !Number.isInteger(tokenBudget) || tokenBudget <= 0)
 	) {
 		throw new Error("token_budget must be a positive integer");
 	}
-	if (
-		timeBudgetSeconds !== undefined &&
-		(typeof timeBudgetSeconds !== "number" ||
-			!Number.isInteger(timeBudgetSeconds) ||
-			timeBudgetSeconds <= 0)
-	) {
-		throw new Error("time_budget_seconds must be a positive integer");
-	}
 	const parsedTokenBudget = typeof tokenBudget === "number" ? tokenBudget : undefined;
-	const parsedTimeBudgetSeconds =
-		typeof timeBudgetSeconds === "number" ? timeBudgetSeconds : undefined;
-	if (tokenBudget === undefined && timeBudgetSeconds === undefined) {
+	if (tokenBudget === undefined) {
 		return { objective };
 	}
-	if (parsedTokenBudget === undefined && parsedTimeBudgetSeconds !== undefined) {
-		return { objective, time_budget_seconds: parsedTimeBudgetSeconds };
-	}
-	if (parsedTokenBudget !== undefined && parsedTimeBudgetSeconds === undefined) {
+	if (parsedTokenBudget !== undefined) {
 		return { objective, token_budget: parsedTokenBudget };
 	}
-	if (parsedTokenBudget !== undefined && parsedTimeBudgetSeconds !== undefined) {
-		return {
-			objective,
-			token_budget: parsedTokenBudget,
-			time_budget_seconds: parsedTimeBudgetSeconds,
-		};
-	}
-	throw new Error("invalid goal budgets");
+	throw new Error("invalid goal budget");
 }
 
 function decodeUpdateGoalParams(raw: unknown): UpdateGoalParams {
@@ -848,12 +829,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				token_budget: Type.Optional(
 					Type.Integer({ description: "Optional positive token budget.", minimum: 1 }),
 				),
-				time_budget_seconds: Type.Optional(
-					Type.Integer({
-						description: "Optional positive time budget in seconds.",
-						minimum: 1,
-					}),
-				),
 			}),
 			decodeParams: decodeCreateGoalParams,
 			formatInvalidParamsResult: (message) =>
@@ -866,7 +841,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						sessionIdFromContext(ctx),
 						params.objective,
 						params.token_budget ?? null,
-						params.time_budget_seconds ?? null,
+						null,
 						{
 							failIfExists: true,
 						},

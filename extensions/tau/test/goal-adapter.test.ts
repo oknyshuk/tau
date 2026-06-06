@@ -246,6 +246,33 @@ describe("goal adapter", () => {
 		expect(snapshot?.timeBudgetSeconds).toBe(300);
 	});
 
+	it("rejects time budgets from the model-facing create_goal tool", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("create_goal");
+		if (tool === undefined) {
+			throw new Error("create_goal tool was not registered");
+		}
+
+		const result = await tool.execute(
+			"call-create-goal",
+			{
+				objective: "ship the feature",
+				time_budget_seconds: 300,
+			},
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect("isError" in result && result.isError === true).toBe(true);
+		const item = result.content[0];
+		if (item?.type !== "text") {
+			throw new Error("expected create_goal to return text content");
+		}
+		expect(item.text).toContain("time_budget_seconds is not supported by create_goal");
+	});
+
 	it("sends the budget-limit prompt when the time budget is reached", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
