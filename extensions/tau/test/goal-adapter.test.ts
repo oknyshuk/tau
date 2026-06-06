@@ -294,6 +294,40 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
 		expect(harness.sentMessages[0]?.message.content).toContain("reached its token budget");
+		expect(harness.sentMessages[0]?.options).toEqual({
+			triggerTurn: true,
+			deliverAs: "followUp",
+		});
+	});
+
+	it("steers the budget-limit prompt during an active turn", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const runningCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+		} as ExtensionContext;
+
+		await runGoalCommand(harness, "--budget 100 finish");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		await fireEvent(
+			harness,
+			"turn_end",
+			{
+				type: "turn_end",
+				message: makeAssistantMessage(150),
+			},
+			runningCtx,
+		);
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
+		expect(harness.sentMessages[0]?.message.content).toContain("reached its token budget");
+		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
 	it("does not start a turn when the session is not idle", async () => {

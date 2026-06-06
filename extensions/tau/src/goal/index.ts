@@ -517,6 +517,25 @@ async function dispatchGoalObjectiveUpdated(
 	);
 }
 
+async function dispatchGoalBudgetLimit(
+	pi: ExtensionAPI,
+	runtime: GoalRuntime,
+	ctx: ExtensionContext,
+	snapshot: GoalSnapshot,
+	options: { readonly activeTurn: boolean },
+): Promise<void> {
+	await withGoal(runtime, (goal) => goal.markBudgetLimitPromptSent(sessionIdFromContext(ctx)));
+	pi.sendMessage(
+		{
+			customType: GOAL_BUDGET_MESSAGE_TYPE,
+			content: budgetLimitPrompt(snapshot),
+			display: false,
+			details: { objective: snapshot.objective },
+		},
+		options.activeTurn ? { deliverAs: "steer" } : { triggerTurn: true, deliverAs: "followUp" },
+	);
+}
+
 export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	let tickerFiber: Fiber.Fiber<void, never> | undefined;
 	let tickerCtx: ExtensionContext | undefined;
@@ -1027,16 +1046,9 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		}
 		await updateGoalUi(ctx);
 		if (result.budgetLimitReached && result.snapshot !== null) {
-			await withGoal(runtime, (goal) => goal.markBudgetLimitPromptSent(sessionId));
-			pi.sendMessage(
-				{
-					customType: GOAL_BUDGET_MESSAGE_TYPE,
-					content: budgetLimitPrompt(result.snapshot),
-					display: false,
-					details: { objective: result.snapshot.objective },
-				},
-				{ triggerTurn: true, deliverAs: "followUp" },
-			);
+			await dispatchGoalBudgetLimit(pi, runtime, ctx, result.snapshot, {
+				activeTurn: !ctx.isIdle(),
+			});
 		}
 	});
 
@@ -1068,16 +1080,9 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			clearGoalErrorRetry(sessionId);
 
 			if (result.budgetLimitReached && result.snapshot !== null) {
-				await withGoal(runtime, (goal) => goal.markBudgetLimitPromptSent(sessionId));
-				pi.sendMessage(
-					{
-						customType: GOAL_BUDGET_MESSAGE_TYPE,
-						content: budgetLimitPrompt(result.snapshot),
-						display: false,
-						details: { objective: result.snapshot.objective },
-					},
-					{ triggerTurn: true, deliverAs: "followUp" },
-				);
+				await dispatchGoalBudgetLimit(pi, runtime, ctx, result.snapshot, {
+					activeTurn: false,
+				});
 				return;
 			}
 
