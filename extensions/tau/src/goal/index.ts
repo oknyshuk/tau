@@ -1024,6 +1024,9 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		try {
 			clearAllGoalErrorRetries();
 			await rehydrateAndUpdate(runtime, ctx, goalUiState);
+			await withGoal(runtime, (goal) =>
+				goal.restoreAfterResume(sessionIdFromContext(ctx), Date.now()),
+			);
 			await updateGoalUi(ctx);
 		} catch (error) {
 			ctx.ui.notify(errorText(error), "error");

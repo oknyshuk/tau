@@ -184,6 +184,63 @@ describe("goal service", () => {
 		expect(snapshot?.tokenBudget).toBe(100);
 	});
 
+	it("restores idle accounting for an active rehydrated goal", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship goal support",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.rehydrate("session-1", [
+					makeCustomEntry("a", { version: 2, snapshot: restored }),
+				]);
+				yield* goal.restoreAfterResume("session-1", 1_000);
+				const live = yield* goal.liveSnapshot("session-1", 2_600);
+				const prepared = yield* goal.prepareExternalMutation("session-1", 2_600);
+				return { live, prepared };
+			}),
+		);
+
+		expect(result.live?.timeUsedSeconds).toBe(1);
+		expect(result.prepared.snapshot?.timeUsedSeconds).toBe(1);
+	});
+
+	it("keeps restored idle accounting when an agent turn starts", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship goal support",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.rehydrate("session-1", [
+					makeCustomEntry("a", { version: 2, snapshot: restored }),
+				]);
+				yield* goal.restoreAfterResume("session-1", 1_000);
+				yield* goal.markAgentStart("session-1", 2_000);
+				return yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(10, false),
+					3_500,
+				);
+			}),
+		);
+
+		expect(result.snapshot?.tokensUsed).toBe(10);
+		expect(result.snapshot?.timeUsedSeconds).toBe(2);
+	});
+
 	it("rejects old goal entry versions with a clear error", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

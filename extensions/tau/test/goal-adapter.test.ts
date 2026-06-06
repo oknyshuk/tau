@@ -6,12 +6,14 @@ import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
 	ExtensionContext,
+	SessionEntry,
 	ToolDefinition,
 } from "@mariozechner/pi-coding-agent";
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 
 import { PiAPILive } from "../src/effect/pi.js";
 import initGoal from "../src/goal/index.js";
+import { GOAL_ENTRY_TYPE, makeGoalSnapshot } from "../src/goal/schema.js";
 import { Goal, GoalLive } from "../src/services/goal.js";
 
 type RegisteredCommand = {
@@ -172,6 +174,17 @@ function makePiSignalContext(
 		...ctx,
 		signal: controller.signal,
 	} as ExtensionContext;
+}
+
+function makeCustomEntry(id: string, data: unknown): SessionEntry {
+	return {
+		type: "custom",
+		id,
+		parentId: null,
+		timestamp: "2026-05-01T00:00:00.000Z",
+		customType: GOAL_ENTRY_TYPE,
+		data,
+	};
 }
 
 function flushPromises(): Promise<void> {
@@ -389,6 +402,50 @@ describe("goal adapter", () => {
 
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+	});
+
+	it("restores idle accounting for an active goal on session start", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(1_000);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await fireEvent(harness, "session_start", { type: "session_start" }, ctx);
+		vi.setSystemTime(2_000);
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		}, ctx);
+		vi.setSystemTime(3_500);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(10),
+		}, ctx);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.tokensUsed).toBe(10);
+		expect(snapshot?.timeUsedSeconds).toBe(2);
 	});
 
 	it("sets a new command goal without replacement confirmation after completion", async () => {

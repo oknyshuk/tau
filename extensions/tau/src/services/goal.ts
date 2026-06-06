@@ -59,6 +59,10 @@ export interface GoalService {
 		sessionId: string,
 		nowMs: number,
 	) => Effect.Effect<GoalAgentEndResult, never, never>;
+	readonly restoreAfterResume: (
+		sessionId: string,
+		nowMs: number,
+	) => Effect.Effect<GoalSnapshot | null, never, never>;
 	readonly clear: (sessionId: string) => Effect.Effect<void, never, never>;
 	readonly markAgentStart: (
 		sessionId: string,
@@ -372,6 +376,22 @@ export const GoalLive = Layer.effect(
 				withRuntime(state, sessionId, () => runtimeWithSnapshot(null)),
 			).pipe(Effect.andThen(saveSnapshot(null)));
 
+		const restoreAfterResume: GoalService["restoreAfterResume"] = (sessionId, nowMs) =>
+			Ref.modify(runtimes, (state) => {
+				let snapshot: GoalSnapshot | null = null;
+				const next = withRuntime(state, sessionId, (runtime) => {
+					snapshot = runtime.snapshot;
+					if (runtime.snapshot?.status !== "active") {
+						return { ...runtime, activeTurnStartedAtMs: null };
+					}
+					return {
+						...runtime,
+						activeTurnStartedAtMs: runtime.activeTurnStartedAtMs ?? nowMs,
+					};
+				});
+				return [snapshot, next];
+			});
+
 		const markAgentStart: GoalService["markAgentStart"] = (sessionId, nowMs) =>
 			Ref.update(runtimes, (state) =>
 				withRuntime(state, sessionId, (runtime) => {
@@ -381,7 +401,7 @@ export const GoalLive = Layer.effect(
 					) {
 						return runtime;
 					}
-					return { ...runtime, activeTurnStartedAtMs: nowMs };
+					return { ...runtime, activeTurnStartedAtMs: runtime.activeTurnStartedAtMs ?? nowMs };
 				}),
 			);
 
@@ -548,6 +568,7 @@ export const GoalLive = Layer.effect(
 			create,
 			setStatus,
 			prepareExternalMutation,
+			restoreAfterResume,
 			clear,
 			markAgentStart,
 			accountAgentEnd,
