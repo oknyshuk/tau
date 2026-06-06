@@ -499,10 +499,13 @@ async function dispatchGoalObjectiveUpdated(
 	ctx: ExtensionContext,
 	snapshot: GoalSnapshot | null,
 ): Promise<void> {
-	if (!shouldAutoContinue(snapshot, ctx)) {
+	if (snapshot === null || snapshot.status !== "active") {
 		return;
 	}
-	await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionIdFromContext(ctx)));
+	if (ctx.isIdle()) {
+		await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
+		return;
+	}
 	pi.sendMessage(
 		{
 			customType: GOAL_OBJECTIVE_UPDATED_MESSAGE_TYPE,
@@ -510,7 +513,7 @@ async function dispatchGoalObjectiveUpdated(
 			display: false,
 			details: { objective: snapshot.objective },
 		},
-		{ triggerTurn: true, deliverAs: "followUp" },
+		{ deliverAs: "steer" },
 	);
 }
 

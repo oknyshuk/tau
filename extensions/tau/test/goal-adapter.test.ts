@@ -336,7 +336,7 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.content).toContain("second goal");
 	});
 
-	it("sends objective-updated steering when replacing an active command goal", async () => {
+	it("starts normal continuation when replacing an active command goal while idle", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 
@@ -346,11 +346,34 @@ describe("goal adapter", () => {
 
 		expect(harness.confirmations).toHaveLength(1);
 		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+		expect(harness.sentMessages[0]?.message.content).toContain("second goal");
+		expect(harness.sentMessages[0]?.options).toEqual({
+			triggerTurn: true,
+			deliverAs: "followUp",
+		});
+	});
+
+	it("steers the active turn when replacing an active command goal while running", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const runningCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "first goal");
+		harness.sentMessages.length = 0;
+		await runGoalCommand(harness, "second goal", runningCtx);
+
+		expect(harness.confirmations).toHaveLength(1);
+		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-objective-updated");
 		expect(harness.sentMessages[0]?.message.content).toContain(
 			"The active thread goal objective was edited by the user.",
 		);
 		expect(harness.sentMessages[0]?.message.content).toContain("second goal");
+		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
 	it("accounts assistant token usage on turn_end", async () => {
