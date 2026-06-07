@@ -318,10 +318,13 @@ describe("goal adapter", () => {
 			"Set token_budget only when an explicit token budget is requested.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
-			"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations.",
+			"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
 			"Do not use blocked merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
+		);
+		expect(updateGoal.promptGuidelines).toContain(
+			"Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
 			"When marking a budgeted goal achieved with status complete, report the final token usage from the tool result to the user.",
