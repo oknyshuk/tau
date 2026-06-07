@@ -1133,6 +1133,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				goalToolErrorResult(errorText(error)),
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
+				const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+				if (existing === null) {
+					await rehydrateAndUpdate(runtime, ctx, goalUiState);
+				}
 				const snapshot = await withGoal(runtime, (goal) =>
 					goal.create(
 						sessionId,
@@ -1184,7 +1188,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
 				const nowMs = Date.now();
-				const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+				let existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+				if (existing === null) {
+					existing = await rehydrateAndUpdate(runtime, ctx, goalUiState);
+				}
 				if (existing?.status === "complete") {
 					if (params.status === "complete") {
 						return goalToolSuccessResult(

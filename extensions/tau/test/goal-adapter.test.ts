@@ -591,6 +591,52 @@ describe("goal adapter", () => {
 		);
 	});
 
+	it("rejects model-created goals when a branch-persisted goal exists", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("create_goal");
+		if (tool === undefined) {
+			throw new Error("create_goal tool was not registered");
+		}
+		const restored = makeGoalSnapshot(
+			"first goal",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		const result = await tool.execute(
+			"call-create-goal",
+			{ objective: "second goal" },
+			undefined,
+			undefined,
+			ctx,
+		);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("first goal");
+		expect(snapshot?.status).toBe("active");
+		expect("isError" in result && result.isError === true).toBe(true);
+		expectTextResultContains(
+			result,
+			"cannot create a new goal because this thread already has a goal; use update_goal only for status",
+		);
+	});
+
 	it("returns codex-style structured result from create_goal with a token budget", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(1_780_786_975_999);
@@ -1781,6 +1827,63 @@ describe("goal adapter", () => {
 			}),
 		);
 
+		expect(snapshot?.status).toBe("blocked");
+		expect(result.details).toMatchObject({
+			displayText: "Goal blocked.",
+			remainingTokens: null,
+			completionBudgetReport: null,
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			goal: {
+				threadId: "session-1",
+				objective: "ship the feature",
+				status: "blocked",
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+			},
+			remainingTokens: null,
+			completionBudgetReport: null,
+		});
+	});
+
+	it("allows the model to mark a branch-persisted goal blocked through update_goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		const result = await tool.execute(
+			"call-update-goal",
+			{ status: "blocked" },
+			undefined,
+			undefined,
+			ctx,
+		);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
 		expect(snapshot?.status).toBe("blocked");
 		expect(result.details).toMatchObject({
 			displayText: "Goal blocked.",
