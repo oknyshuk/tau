@@ -920,6 +920,17 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		return state?.generation === generation ? state : undefined;
 	};
 
+	const pauseActiveGoalFromInterrupt = async (
+		ctx: ExtensionContext,
+	): Promise<void> => {
+		const sessionId = sessionIdFromContext(ctx);
+		const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+		if (snapshot?.status !== "active") {
+			return;
+		}
+		await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+	};
+
 	const accountGoalInterrupt = async (ctx: ExtensionContext): Promise<void> => {
 		const sessionId = sessionIdFromContext(ctx);
 		clearGoalErrorRetry(sessionId);
@@ -929,6 +940,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				goal.prepareExternalMutation(sessionId, Date.now()),
 			);
 		}
+		await pauseActiveGoalFromInterrupt(ctx);
 		await updateGoalUi(ctx);
 	};
 
@@ -1679,6 +1691,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			goal.accountTurnEnd(sessionId, event.message, Date.now()),
 		);
 		if (wasGoalInterrupted(sessionId, ctx)) {
+			await pauseActiveGoalFromInterrupt(ctx);
 			await updateGoalUi(ctx);
 			return;
 		}
@@ -1709,6 +1722,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			interruptedSessions.delete(sessionId);
 			if (interrupted) {
 				clearGoalErrorRetry(sessionId);
+				await pauseActiveGoalFromInterrupt(ctx);
 				await updateGoalUi(ctx);
 				return;
 			}
