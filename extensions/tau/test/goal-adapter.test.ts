@@ -617,6 +617,33 @@ describe("goal adapter", () => {
 		expect("timeBudgetSeconds" in goal).toBe(false);
 	});
 
+	it("returns codex-style epoch-second timestamps from get_goal", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(1_780_786_975_999);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("get_goal");
+		if (tool === undefined) {
+			throw new Error("get_goal tool was not registered");
+		}
+
+		await runGoalCommand(harness, "ship the feature");
+		const result = await tool.execute(
+			"call-get-goal",
+			{},
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect(parseToolJsonResult(result)).toMatchObject({
+			goal: {
+				createdAt: 1_780_786_975,
+				updatedAt: 1_780_786_975,
+			},
+		});
+	});
+
 	it("returns snake_case limited statuses from get_goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
