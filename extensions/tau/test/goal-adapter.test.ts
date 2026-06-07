@@ -2221,6 +2221,39 @@ describe("goal adapter", () => {
 		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
+	it("does not resume a paused goal after extension input", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.setStatus("session-1", "paused");
+			}),
+		);
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "input", {
+			type: "input",
+			text: "automatic follow-up",
+			source: "extension",
+		});
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		const results = await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "base prompt",
+		});
+
+		expect(snapshot?.status).toBe("paused");
+		expect(results).toEqual([undefined]);
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("injects active goal context after an interactive nudge resumes a paused goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
