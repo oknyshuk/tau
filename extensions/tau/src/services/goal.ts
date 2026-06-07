@@ -359,9 +359,18 @@ export const GoalLive = Layer.effect(
 				}
 				const nowIso = new Date().toISOString();
 				let nextSnapshot: GoalSnapshot | null = null;
+				let shouldPersist = false;
 				yield* Ref.update(runtimes, (state) =>
 					withRuntime(state, sessionId, (runtime) => {
 						if (runtime.snapshot === null) {
+							return runtime;
+						}
+						if (
+							runtime.snapshot.status === status &&
+							status !== "active" &&
+							status !== "complete"
+						) {
+							nextSnapshot = runtime.snapshot;
 							return runtime;
 						}
 						const patch: Partial<GoalSnapshot> = {
@@ -371,6 +380,7 @@ export const GoalLive = Layer.effect(
 								: {}),
 						};
 						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, patch);
+						shouldPersist = true;
 						return {
 							...runtime,
 							snapshot: nextSnapshot,
@@ -385,7 +395,7 @@ export const GoalLive = Layer.effect(
 						};
 					}),
 				);
-				if (nextSnapshot !== null) {
+				if (shouldPersist) {
 					yield* saveSnapshot(nextSnapshot);
 				}
 				return nextSnapshot;

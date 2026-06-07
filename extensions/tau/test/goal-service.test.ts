@@ -504,6 +504,23 @@ describe("goal service", () => {
 		expect(harness.appended).toHaveLength(2);
 	});
 
+	it("does not append a new event when setting the same paused status", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.setStatus("session-1", "paused");
+				return yield* goal.setStatus("session-1", "paused");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.appended).toHaveLength(2);
+	});
+
 	it("does not append a new event when clearing a missing goal", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
