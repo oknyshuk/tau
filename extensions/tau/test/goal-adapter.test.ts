@@ -635,6 +635,32 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("returns a structured error from update_goal when no goal is set", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+
+		const result = await tool.execute(
+			"call-update-goal",
+			{ status: "complete" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect("isError" in result && result.isError === true).toBe(true);
+		expectTextResultContains(result, "No thread goal is set.");
+		expect(result.details).toMatchObject({
+			displayText: "No thread goal is set.",
+			goal: null,
+			remainingTokens: null,
+			completionBudgetReport: null,
+		});
+	});
+
 	it("omits absent budget fields from unbudgeted get_goal results", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
