@@ -1551,7 +1551,11 @@ describe("goal adapter", () => {
 
 		expect(snapshot).toBeNull();
 		expect(harness.inputs).toHaveLength(0);
-		expect(harness.notifications.at(-1)?.message).toBe("No goal is currently set.");
+		expect(harness.notifications.at(-1)).toEqual({
+			message:
+				"No goal is currently set.\nUsage: /goal <objective>\nCreate a goal before editing it.",
+			type: "info",
+		});
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 

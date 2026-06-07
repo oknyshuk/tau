@@ -1304,7 +1304,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				if (parsed.command === "edit") {
 					const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 					if (existing === null) {
-						ctx.ui.notify("No goal is currently set.", "info");
+						ctx.ui.notify(
+							"No goal is currently set.\nUsage: /goal <objective>\nCreate a goal before editing it.",
+							"info",
+						);
 						return;
 					}
 					const objective = await ctx.ui.input("Edit goal", existing.objective);
