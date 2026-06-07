@@ -1426,10 +1426,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	});
 
 	pi.on("before_agent_start", async (event: BeforeAgentStartEvent, ctx) => {
+		const sessionId = sessionIdFromContext(ctx);
+		await getOrRehydrateGoal(runtime, ctx, goalUiState);
 		const snapshot = await withGoal(runtime, (goal) =>
 			goal
-				.markAgentStart(sessionIdFromContext(ctx), Date.now())
-				.pipe(Effect.andThen(goal.get(sessionIdFromContext(ctx)))),
+				.markAgentStart(sessionId, Date.now())
+				.pipe(Effect.andThen(goal.get(sessionId))),
 		);
 		await updateGoalUi(ctx);
 		if (snapshot?.status !== "active" && snapshot?.status !== "budget_limited") {
