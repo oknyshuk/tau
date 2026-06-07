@@ -317,13 +317,21 @@ export const GoalLive = Layer.effect(
 					existing.objective === objective &&
 					existing.status !== "complete"
 				) {
-					const nextSnapshot = withUpdatedSnapshot(existing, nowIso, {
-						status: "active",
-						tokenBudget,
-						timeBudgetSeconds,
-						continuationSuppressed: false,
-						budgetLimitPromptSent: false,
-					});
+					const unchangedActiveGoal =
+						existing.status === "active" &&
+						existing.tokenBudget === tokenBudget &&
+						existing.timeBudgetSeconds === timeBudgetSeconds &&
+						existing.continuationSuppressed === false &&
+						existing.budgetLimitPromptSent === false;
+					const nextSnapshot = unchangedActiveGoal
+						? existing
+						: withUpdatedSnapshot(existing, nowIso, {
+								status: "active",
+								tokenBudget,
+								timeBudgetSeconds,
+								continuationSuppressed: false,
+								budgetLimitPromptSent: false,
+							});
 					yield* Ref.update(runtimes, (state) =>
 						withRuntime(state, sessionId, () => ({
 							...runtimeWithSnapshot(nextSnapshot),
@@ -331,7 +339,9 @@ export const GoalLive = Layer.effect(
 							skipNextTurnAccounting: options?.accountFromNextTurn === true,
 						})),
 					);
-					yield* saveSnapshot(nextSnapshot);
+					if (!unchangedActiveGoal) {
+						yield* saveSnapshot(nextSnapshot);
+					}
 					return nextSnapshot;
 				}
 				yield* Ref.update(runtimes, (state) =>

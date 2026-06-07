@@ -595,6 +595,26 @@ describe("goal service", () => {
 		expect(snapshot?.timeUsedSeconds).toBe(5);
 	});
 
+	it("does not append a new event when creating the same unchanged active goal", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", 100);
+				return yield* goal.create("session-1", "finish", 100);
+			}),
+		);
+
+		expect(snapshot.status).toBe("active");
+		expect(snapshot.objective).toBe("finish");
+		expect(snapshot.tokenBudget).toBe(100);
+		expect(snapshot.continuationSuppressed).toBe(false);
+		expect(snapshot.budgetLimitPromptSent).toBe(false);
+		expect(harness.appended).toHaveLength(1);
+	});
+
 	it("updates the same non-complete command goal without replacing accounting", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
@@ -613,6 +633,7 @@ describe("goal service", () => {
 		expect(snapshot.tokenBudget).toBe(200);
 		expect(snapshot.tokensUsed).toBe(25);
 		expect(snapshot.timeUsedSeconds).toBe(1);
+		expect(harness.appended).toHaveLength(3);
 	});
 
 	it("accounts active progress before an external goal replacement", async () => {
