@@ -3,6 +3,7 @@ import type {
 	BeforeAgentStartEvent,
 	ExtensionAPI,
 	ExtensionContext,
+	InputSource,
 	SessionEntry,
 	Theme,
 	TurnEndEvent,
@@ -255,6 +256,16 @@ function isUserInputResumableStatus(status: GoalStatus): boolean {
 		status === "usage_limited" ||
 		status === "budget_limited"
 	);
+}
+
+function isUserInputSource(source: InputSource): boolean {
+	switch (source) {
+		case "interactive":
+		case "rpc":
+			return true;
+		case "extension":
+			return false;
+	}
 }
 
 function signalFromContext(ctx: ExtensionContext): AbortSignal | undefined {
@@ -1400,7 +1411,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	pi.on("session_tree", onSessionReady);
 
 	pi.on("input", async (event, ctx) => {
-		if (event.source !== "extension") {
+		if (isUserInputSource(event.source)) {
 			const sessionId = sessionIdFromContext(ctx);
 			const nowMs = Date.now();
 			clearGoalPendingAutomation(sessionId);
