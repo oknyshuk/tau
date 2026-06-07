@@ -84,6 +84,22 @@ Budget:
 
 Adjust the current turn to pursue the updated objective. Avoid continuing work that only served the previous objective unless it also helps the updated objective.
 
+Continuation behavior:
+- This updated goal persists across turns. Ending this turn does not require shrinking the objective to what fits now.
+- Keep the full updated objective intact. If it cannot be finished now, make concrete progress toward the real requested end state, leave the goal active, and do not redefine success around a smaller or easier task.
+- Temporary rough edges are acceptable while the work is moving in the right direction. Completion still requires the requested end state to be true and verified.
+
+Work from evidence:
+Use the current worktree and external state as authoritative. Previous conversation context can help locate relevant work, but inspect the current state before relying on it. Improve, replace, or remove existing work as needed to satisfy the updated objective.
+
+Progress visibility:
+If update_plan is available and the next work is meaningfully multi-step, use it to show a concise plan tied to the updated objective. Keep the plan current as steps complete or the next best action changes. Skip planning overhead for trivial one-step progress, and do not treat a plan update as a substitute for doing the work.
+
+Fidelity:
+- Optimize each turn for movement toward the updated requested end state, not for the smallest stable-looking subset or easiest passing change.
+- Do not substitute a narrower, safer, smaller, merely compatible, or easier-to-test solution because it is more likely to pass current tests.
+- Treat alignment as movement toward the updated requested end state. An edit is aligned only if it makes the updated requested final state more true; useful-looking behavior that preserves a different end state is misaligned.
+
 Completion audit:
 Before deciding that the updated goal is achieved, treat completion as unproven and verify it against the actual current state:
 - Derive concrete requirements from the updated objective and any referenced files, plans, specifications, issues, or user instructions.
