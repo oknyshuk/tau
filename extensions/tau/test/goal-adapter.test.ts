@@ -308,6 +308,20 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("shows codex-style summary when /goal has a current goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 80 ship the feature");
+		await runGoalCommand(harness, "");
+
+		expect(harness.notifications.at(-1)).toEqual({
+			message:
+				"Goal\nStatus: active\nObjective: ship the feature\nTime used: 0s\nTokens used: 0\nToken budget: 80\n\nCommands: /goal edit, /goal pause, /goal clear",
+			type: "info",
+		});
+	});
+
 	it("shows codex-style message when clearing with no current goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

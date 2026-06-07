@@ -218,6 +218,52 @@ function describeGoal(goal: GoalSnapshot | null): string {
 	].join("\n");
 }
 
+function goalStatusLabel(status: GoalStatus): string {
+	switch (status) {
+		case "active":
+			return "active";
+		case "paused":
+			return "paused";
+		case "blocked":
+			return "blocked";
+		case "usage_limited":
+			return "usage limited";
+		case "budget_limited":
+			return "limited by budget";
+		case "complete":
+			return "complete";
+	}
+}
+
+function goalCommandHint(status: GoalStatus): string {
+	switch (status) {
+		case "active":
+			return "Commands: /goal edit, /goal pause, /goal clear";
+		case "paused":
+		case "blocked":
+		case "usage_limited":
+			return "Commands: /goal edit, /goal resume, /goal clear";
+		case "budget_limited":
+		case "complete":
+			return "Commands: /goal edit, /goal clear";
+	}
+}
+
+function describeGoalSummary(goal: GoalSnapshot): string {
+	const lines = [
+		"Goal",
+		`Status: ${goalStatusLabel(goal.status)}`,
+		`Objective: ${goal.objective}`,
+		`Time used: ${formatDuration(goal.timeUsedSeconds * 1_000)}`,
+		`Tokens used: ${formatTokenCount(goal.tokensUsed)}`,
+	];
+	if (goal.tokenBudget !== null) {
+		lines.push(`Token budget: ${formatTokenCount(goal.tokenBudget)}`);
+	}
+	lines.push("", goalCommandHint(goal.status));
+	return lines.join("\n");
+}
+
 function goalTokenUsageText(goal: GoalSnapshot): string {
 	const tokens =
 		goal.tokenBudget === null
@@ -1277,7 +1323,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					ctx.ui.notify(
 						snapshot === null
 							? "Usage: /goal <objective>\nNo goal is currently set."
-							: describeGoal(snapshot),
+							: describeGoalSummary(snapshot),
 						"info",
 					);
 					return;
