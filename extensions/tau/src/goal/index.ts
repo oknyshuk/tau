@@ -1357,8 +1357,15 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					const status: GoalStatus =
 						parsed.command === "resume" ? "active" : "paused";
 					const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
+					if (existing === null) {
+						ctx.ui.notify(
+							"Failed to update thread goal: cannot update goal because this thread has no goal",
+							"error",
+						);
+						return;
+					}
 					if (parsed.command === "pause" || parsed.command === "resume") {
-						if (existing?.status === "complete") {
+						if (existing.status === "complete") {
 							ctx.ui.notify(
 								"Thread goal is already complete. Set a new thread goal to continue.",
 								"info",

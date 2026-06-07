@@ -341,6 +341,22 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("shows codex-style update error when changing status with no current goal", async () => {
+		for (const command of ["pause", "resume"]) {
+			const harness = makeGoalAdapterHarness();
+			harnesses.push(harness);
+
+			await runGoalCommand(harness, command);
+
+			expect(harness.notifications.at(-1)).toEqual({
+				message:
+					"Failed to update thread goal: cannot update goal because this thread has no goal",
+				type: "error",
+			});
+			expect(harness.sentMessages).toHaveLength(0);
+		}
+	});
+
 	it("starts an idle agent turn after setting a goal from /goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
