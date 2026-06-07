@@ -884,6 +884,8 @@ describe("goal adapter", () => {
 	});
 
 	it("starts model-created goal accounting after the create_goal caller turn", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const tool = harness.tools.get("create_goal");
@@ -898,10 +900,22 @@ describe("goal adapter", () => {
 			undefined,
 			harness.ctx,
 		);
+		vi.setSystemTime(1_000);
 		await fireEvent(harness, "turn_end", {
 			type: "turn_end",
 			message: makeAssistantToolCallMessage(100),
 		});
+		vi.setSystemTime(2_500);
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantToolCallMessage()],
+		});
+		vi.setSystemTime(3_000);
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(4_500);
 		await fireEvent(harness, "turn_end", {
 			type: "turn_end",
 			message: makeAssistantMessage(25),
@@ -916,6 +930,7 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.tokensUsed).toBe(25);
+		expect(snapshot?.timeUsedSeconds).toBe(1);
 	});
 
 	it("sends the budget-limit prompt when the time budget is reached", async () => {

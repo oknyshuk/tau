@@ -501,7 +501,11 @@ export const GoalLive = Layer.effect(
 					) {
 						return runtime;
 					}
-					return { ...runtime, activeTurnStartedAtMs: runtime.activeTurnStartedAtMs ?? nowMs };
+					return {
+						...runtime,
+						activeTurnStartedAtMs: runtime.activeTurnStartedAtMs ?? nowMs,
+						skipNextTurnAccounting: false,
+					};
 				}),
 			);
 
@@ -537,10 +541,12 @@ export const GoalLive = Layer.effect(
 							nextSnapshot = runtime.snapshot;
 							return {
 								...runtime,
-								activeTurnStartedAtMs: options.finishActiveAccounting ? null : nowMs,
+								activeTurnStartedAtMs: options.finishActiveAccounting
+									? null
+									: runtime.activeTurnStartedAtMs,
 								continuationInFlight: false,
 								terminalTurnAccountingPending: false,
-								skipNextTurnAccounting: false,
+								skipNextTurnAccounting: !options.finishActiveAccounting,
 							};
 						}
 						if (!runtimeCanAccountActiveTurn(runtime)) {

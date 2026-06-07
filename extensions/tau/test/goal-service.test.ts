@@ -403,18 +403,27 @@ describe("goal service", () => {
 					makeAssistantMessage(100, true),
 					1_000,
 				);
+				const createAgentEnd = yield* goal.accountAgentEnd(
+					"session-1",
+					makeAgentEnd(0, true),
+					2_500,
+				);
+				yield* goal.markAgentStart("session-1", 3_000);
 				const nextTurn = yield* goal.accountTurnEnd(
 					"session-1",
 					makeAssistantMessage(25, false),
-					2_500,
+					4_500,
 				);
-				return { createTurn, nextTurn };
+				return { createTurn, createAgentEnd, nextTurn };
 			}),
 		);
 
 		expect(result.createTurn.snapshot?.status).toBe("active");
 		expect(result.createTurn.snapshot?.tokensUsed).toBe(0);
 		expect(result.createTurn.snapshot?.timeUsedSeconds).toBe(0);
+		expect(result.createAgentEnd.snapshot?.status).toBe("active");
+		expect(result.createAgentEnd.snapshot?.tokensUsed).toBe(0);
+		expect(result.createAgentEnd.snapshot?.timeUsedSeconds).toBe(0);
 		expect(result.nextTurn.snapshot?.tokensUsed).toBe(25);
 		expect(result.nextTurn.snapshot?.timeUsedSeconds).toBe(1);
 	});
