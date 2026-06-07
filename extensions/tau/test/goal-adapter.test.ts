@@ -302,6 +302,32 @@ describe("goal adapter", () => {
 		}
 	});
 
+	it("uses codex-style prompt guidance for model-facing goal tools", () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const createGoal = harness.tools.get("create_goal");
+		const updateGoal = harness.tools.get("update_goal");
+		if (createGoal === undefined || updateGoal === undefined) {
+			throw new Error("goal tools were not registered");
+		}
+
+		expect(createGoal.promptGuidelines).toContain(
+			"Use create_goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
+		);
+		expect(createGoal.promptGuidelines).toContain(
+			"Set token_budget only when an explicit token budget is requested.",
+		);
+		expect(updateGoal.promptGuidelines).toContain(
+			"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations.",
+		);
+		expect(updateGoal.promptGuidelines).toContain(
+			"Do not use blocked merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
+		);
+		expect(updateGoal.promptGuidelines).toContain(
+			"When marking a budgeted goal achieved with status complete, report the final token usage from the tool result to the user.",
+		);
+	});
+
 	it("rejects unknown model-facing goal tool parameters", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

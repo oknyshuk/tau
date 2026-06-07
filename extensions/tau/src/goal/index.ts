@@ -1011,10 +1011,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			name: "create_goal",
 			label: "create goal",
 			description:
-				"Create a thread goal. Use only when the user explicitly asks to start or track a goal. Fails if a goal already exists.",
+				"Create a thread goal only when explicitly requested by the user or system/developer instructions. Fails if a goal already exists.",
 			promptGuidelines: [
-				"Use create_goal only when the user explicitly requests a thread goal.",
-				"Do not replace an existing goal with create_goal; report the existing goal instead.",
+				"Use create_goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
+				"Set token_budget only when an explicit token budget is requested.",
+				"Fails if a goal exists; use update_goal only for status.",
 			],
 			parameters: Type.Object(
 				{
@@ -1062,11 +1063,15 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			name: "update_goal",
 			label: "update goal",
 			description:
-				"Update the current thread goal. Use only to mark the goal complete or blocked.",
+				"Update the current thread goal. Use only to mark the goal complete or genuinely blocked.",
 			promptGuidelines: [
-				"Call update_goal with status complete only when the objective is actually achieved.",
-				"Call update_goal with status blocked only when the strict blocked audit is satisfied.",
-				"Do not use update_goal to pause, resume, clear, or budget-limit a goal.",
+				"Set status to complete only when the objective is achieved and no required work remains.",
+				"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations.",
+				"If the user resumes a goal that was previously marked blocked, treat the resumed run as a fresh blocked audit.",
+				"Once the blocked threshold is satisfied, use status blocked instead of continuing to report that the goal is still blocked while leaving it active.",
+				"Do not use blocked merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
+				"Do not use update_goal to pause, resume, clear, budget-limit, or usage-limit a goal.",
+				"When marking a budgeted goal achieved with status complete, report the final token usage from the tool result to the user.",
 			],
 			parameters: Type.Object(
 				{
