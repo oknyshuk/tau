@@ -1136,6 +1136,52 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("sends a missing budget-limit prompt for a restored budget-limited goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = {
+			...makeGoalSnapshot(
+				"ship the feature",
+				100,
+				null,
+				"2026-05-01T00:00:00.000Z",
+			),
+			status: "budget_limited" as const,
+			tokensUsed: 100,
+			budgetLimitPromptSent: false,
+		};
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await fireEvent(harness, "session_start", { type: "session_start" }, ctx);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.budgetLimitPromptSent).toBe(true);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
+		expect(harness.sentMessages[0]?.message.content).toContain(
+			"The active thread goal has reached its token budget.",
+		);
+		expect(harness.sentMessages[0]?.options).toEqual({
+			triggerTurn: true,
+			deliverAs: "followUp",
+		});
+	});
+
 	it("does not continue an active restored goal on session tree refresh", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
