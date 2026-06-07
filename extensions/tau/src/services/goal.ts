@@ -386,6 +386,12 @@ export const GoalLive = Layer.effect(
 								status !== "active" &&
 								status !== "complete")
 						) {
+							const terminalTurnAccountingPending =
+								status === "active"
+									? false
+									: status === "blocked" && options?.accountCurrentTurn === true
+										? true
+										: runtime.terminalTurnAccountingPending;
 							nextSnapshot = runtime.snapshot;
 							return {
 								...runtime,
@@ -395,7 +401,7 @@ export const GoalLive = Layer.effect(
 										: runtime.activeTurnStartedAtMs,
 								continuationInFlight:
 									status === "active" ? false : runtime.continuationInFlight,
-								terminalTurnAccountingPending: false,
+								terminalTurnAccountingPending,
 							};
 						}
 						const patch: Partial<GoalSnapshot> = {

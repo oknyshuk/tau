@@ -433,6 +433,35 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(1);
 	});
 
+	it("preserves terminal accounting when blocked status is repeated before turn end", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.markAgentStart("session-1", 0);
+				yield* goal.setStatus("session-1", "blocked", {
+					accountCurrentTurn: true,
+				});
+				yield* goal.setStatus("session-1", "blocked", {
+					accountCurrentTurn: true,
+				});
+				return yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(23, false),
+					1_500,
+				);
+			}),
+		);
+
+		expect(result.snapshot?.status).toBe("blocked");
+		expect(result.snapshot?.tokensUsed).toBe(23);
+		expect(result.snapshot?.timeUsedSeconds).toBe(1);
+		expect(harness.appended).toHaveLength(3);
+	});
+
 	it("does not account later turns after a manual terminal status update", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
