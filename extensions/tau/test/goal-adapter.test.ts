@@ -2221,6 +2221,36 @@ describe("goal adapter", () => {
 		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
+	it("injects active goal context after an interactive nudge resumes a paused goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.setStatus("session-1", "paused");
+			}),
+		);
+		await fireEvent(harness, "input", {
+			type: "input",
+			text: "continue",
+			source: "interactive",
+		});
+		const results = await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "base prompt",
+		});
+
+		expect(results).toHaveLength(1);
+		expect(results[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("Active thread goal context."),
+		});
+		expect(results[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
+		});
+	});
+
 	it("resumes a blocked goal after interactive user input", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
