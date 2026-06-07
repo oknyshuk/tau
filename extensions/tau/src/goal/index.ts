@@ -936,7 +936,9 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		if (previous?.timeout !== undefined) {
 			clearTimeout(previous.timeout);
 		}
-		const consecutiveErrors = previous === undefined ? 1 : previous.consecutiveErrors + 1;
+		const consecutiveErrors = previous?.fingerprint === fingerprint
+			? previous.consecutiveErrors + 1
+			: 1;
 		const generation = (previous?.generation ?? 0) + 1;
 		if (consecutiveErrors >= MAX_CONSECUTIVE_GOAL_ERRORS) {
 			await pauseGoalFromError(

@@ -1207,6 +1207,41 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
+	it("resets retryable assistant error counting when the error changes", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		for (const error of [
+			"provider returned error: 503",
+			"network error: connection lost",
+			"provider returned error: 504",
+		]) {
+			await fireEvent(harness, "agent_end", {
+				type: "agent_end",
+				messages: [
+					makeAssistantToolCallMessage(),
+					makeErrorAssistantMessage(error),
+				],
+			});
+		}
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(0);
+		expect(harness.notifications.at(-1)?.message ?? "").not.toContain(
+			"3 consecutive errors",
+		);
+	});
+
 	it("pauses after three consecutive retryable assistant errors", async () => {
 		vi.useFakeTimers();
 		const harness = makeGoalAdapterHarness();
