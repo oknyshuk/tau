@@ -1061,11 +1061,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		);
 	};
 
-	pi.registerTool(
-		defineDecodedTool({
-			name: "get_goal",
-			label: "get goal",
-			description: "Get the current thread goal, including status, budgets, and usage.",
+		pi.registerTool(
+			defineDecodedTool({
+				name: "get_goal",
+				label: "get goal",
+				description:
+					"Get the current goal for this thread, including status, budgets, token and elapsed-time usage, and remaining token budget.",
 			parameters: Type.Object({}, { additionalProperties: false }),
 			decodeParams: decodeNoParams,
 			formatInvalidParamsResult: (message) =>
@@ -1083,12 +1084,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		}),
 	);
 
-	pi.registerTool(
-		defineDecodedTool({
-			name: "create_goal",
-			label: "create goal",
-			description:
-				"Create a thread goal only when explicitly requested by the user or system/developer instructions. Fails if a goal already exists.",
+		pi.registerTool(
+			defineDecodedTool({
+				name: "create_goal",
+				label: "create goal",
+				description:
+					"Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
 			promptGuidelines: [
 				"Use create_goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
 				"Set token_budget only when an explicit token budget is requested.",
@@ -1135,12 +1136,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		}),
 	);
 
-	pi.registerTool(
-		defineDecodedTool({
-			name: "update_goal",
-			label: "update goal",
-			description:
-				"Update the current thread goal. Use only to mark the goal complete or genuinely blocked.",
+		pi.registerTool(
+			defineDecodedTool({
+				name: "update_goal",
+				label: "update goal",
+				description:
+					"Update the existing goal. Use this tool only to mark the goal achieved or genuinely blocked.",
 			promptGuidelines: [
 				"Set status to complete only when the objective is achieved and no required work remains.",
 				"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.",

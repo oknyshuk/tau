@@ -305,12 +305,22 @@ describe("goal adapter", () => {
 	it("uses codex-style prompt guidance for model-facing goal tools", () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
+		const getGoal = harness.tools.get("get_goal");
 		const createGoal = harness.tools.get("create_goal");
 		const updateGoal = harness.tools.get("update_goal");
-		if (createGoal === undefined || updateGoal === undefined) {
+		if (getGoal === undefined || createGoal === undefined || updateGoal === undefined) {
 			throw new Error("goal tools were not registered");
 		}
 
+		expect(getGoal.description).toBe(
+			"Get the current goal for this thread, including status, budgets, token and elapsed-time usage, and remaining token budget.",
+		);
+		expect(createGoal.description).toBe(
+			"Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
+		);
+		expect(updateGoal.description).toBe(
+			"Update the existing goal. Use this tool only to mark the goal achieved or genuinely blocked.",
+		);
 		expect(createGoal.promptGuidelines).toContain(
 			"Use create_goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
 		);
