@@ -252,6 +252,14 @@ function withUpdatedSnapshot(
 	};
 }
 
+function goalBudgetLimitReached(snapshot: GoalSnapshot): boolean {
+	return (
+		(snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget) ||
+		(snapshot.timeBudgetSeconds !== null &&
+			snapshot.timeUsedSeconds >= snapshot.timeBudgetSeconds)
+	);
+}
+
 export const GoalLive = Layer.effect(
 	Goal,
 	Effect.gen(function* () {
@@ -323,7 +331,7 @@ export const GoalLive = Layer.effect(
 						existing.timeBudgetSeconds === timeBudgetSeconds &&
 						existing.continuationSuppressed === false &&
 						existing.budgetLimitPromptSent === false;
-					const nextSnapshot = unchangedActiveGoal
+					const activeSnapshot = unchangedActiveGoal
 						? existing
 						: withUpdatedSnapshot(existing, nowIso, {
 								status: "active",
@@ -332,6 +340,11 @@ export const GoalLive = Layer.effect(
 								continuationSuppressed: false,
 								budgetLimitPromptSent: false,
 							});
+					const budgetLimitStatusChanged =
+						activeSnapshot.status === "active" && goalBudgetLimitReached(activeSnapshot);
+					const nextSnapshot = budgetLimitStatusChanged
+						? withUpdatedSnapshot(activeSnapshot, nowIso, { status: "budget_limited" })
+						: activeSnapshot;
 					yield* Ref.update(runtimes, (state) =>
 						withRuntime(state, sessionId, () => ({
 							...runtimeWithSnapshot(nextSnapshot),
@@ -339,7 +352,7 @@ export const GoalLive = Layer.effect(
 							skipNextTurnAccounting: options?.accountFromNextTurn === true,
 						})),
 					);
-					if (!unchangedActiveGoal) {
+					if (!unchangedActiveGoal || budgetLimitStatusChanged) {
 						yield* saveSnapshot(nextSnapshot);
 					}
 					return nextSnapshot;
@@ -543,12 +556,7 @@ export const GoalLive = Layer.effect(
 								continuationSuppressed: true,
 							});
 						}
-						const tokenBudgetReached =
-							snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget;
-						const timeBudgetReached =
-							snapshot.timeBudgetSeconds !== null &&
-							snapshot.timeUsedSeconds >= snapshot.timeBudgetSeconds;
-						if (snapshot.status === "active" && (tokenBudgetReached || timeBudgetReached)) {
+						if (snapshot.status === "active" && goalBudgetLimitReached(snapshot)) {
 							snapshot = withUpdatedSnapshot(snapshot, nowIso, {
 								status: "budget_limited",
 							});

@@ -665,6 +665,27 @@ describe("goal service", () => {
 		expect(harness.appended).toHaveLength(3);
 	});
 
+	it("budget-limits the same command goal when an updated token budget is already spent", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", 100);
+				yield* goal.markAgentStart("session-1", 0);
+				yield* goal.accountTurnEnd("session-1", makeAssistantMessage(25, false), 1_500);
+				return yield* goal.create("session-1", "finish", 10);
+			}),
+		);
+
+		expect(snapshot.status).toBe("budget_limited");
+		expect(snapshot.tokenBudget).toBe(10);
+		expect(snapshot.tokensUsed).toBe(25);
+		expect(snapshot.budgetLimitPromptSent).toBe(false);
+		expect(harness.appended).toHaveLength(3);
+	});
+
 	it("accounts active progress before an external goal replacement", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

@@ -317,6 +317,40 @@ describe("goal adapter", () => {
 		);
 	});
 
+	it("sends a budget-limit prompt when /goal lowers the token budget below spent usage", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 100 ship the feature");
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(25),
+		});
+		harness.sentMessages.length = 0;
+		await runGoalCommand(harness, "--budget 10 ship the feature");
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.tokenBudget).toBe(10);
+		expect(snapshot?.tokensUsed).toBe(25);
+		expect(snapshot?.budgetLimitPromptSent).toBe(true);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
+		expect(harness.sentMessages[0]?.message.content).toContain(
+			"The active thread goal has reached its token budget.",
+		);
+		expect(harness.sentMessages[0]?.options).toEqual({
+			triggerTurn: true,
+			deliverAs: "followUp",
+		});
+	});
+
 	it("uses codex-style closed schemas for goal tool parameters", () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

@@ -1314,6 +1314,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				);
 				await updateGoalUi(ctx);
 				ctx.ui.notify(`Set thread goal.\n${describeGoal(snapshot)}`, "info");
+				if (snapshot.status === "budget_limited") {
+					await dispatchGoalBudgetLimit(pi, runtime, ctx, snapshot, {
+						activeTurn: !ctx.isIdle(),
+					});
+					return;
+				}
 				if (replacesActiveGoal) {
 					await dispatchGoalObjectiveUpdated(pi, runtime, ctx, snapshot);
 				} else {
