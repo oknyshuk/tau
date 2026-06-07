@@ -1031,7 +1031,7 @@ describe("goal adapter", () => {
 		}
 	});
 
-	it("starts model-created goal accounting after the create_goal caller turn", async () => {
+	it("starts model-created goal accounting in the create_goal caller turn", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
@@ -1077,8 +1077,8 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.tokensUsed).toBe(25);
-		expect(snapshot?.timeUsedSeconds).toBe(1);
+		expect(snapshot?.tokensUsed).toBe(125);
+		expect(snapshot?.timeUsedSeconds).toBe(3);
 	});
 
 	it("sends the budget-limit prompt when the time budget is reached", async () => {

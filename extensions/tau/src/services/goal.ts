@@ -18,7 +18,6 @@ type GoalRuntime = {
 	readonly activeTurnStartedAtMs: number | null;
 	readonly continuationInFlight: boolean;
 	readonly terminalTurnAccountingPending: boolean;
-	readonly skipNextTurnAccounting: boolean;
 };
 
 type GoalAgentEndResult = {
@@ -43,7 +42,6 @@ export interface GoalService {
 		timeBudgetSeconds?: number | null,
 		options?: {
 			readonly failIfExists?: boolean;
-			readonly accountFromNextTurn?: boolean;
 			readonly startActiveAccountingAtMs?: number;
 		},
 	) => Effect.Effect<GoalSnapshot, GoalError, never>;
@@ -101,7 +99,6 @@ const emptyRuntime: GoalRuntime = {
 	activeTurnStartedAtMs: null,
 	continuationInFlight: false,
 	terminalTurnAccountingPending: false,
-	skipNextTurnAccounting: false,
 };
 
 function runtimeWithSnapshot(snapshot: GoalSnapshot | null): GoalRuntime {
@@ -110,7 +107,6 @@ function runtimeWithSnapshot(snapshot: GoalSnapshot | null): GoalRuntime {
 		activeTurnStartedAtMs: null,
 		continuationInFlight: false,
 		terminalTurnAccountingPending: false,
-		skipNextTurnAccounting: false,
 	};
 }
 
@@ -173,7 +169,7 @@ function assistantUsageTokens(message: AgentMessage): number {
 		return 0;
 	}
 	const { usage } = message;
-	return usage.totalTokens || usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+	return usage.input + usage.cacheWrite + usage.output;
 }
 
 function assistantMessageUsageTokens(message: AgentMessage): number {
@@ -355,7 +351,6 @@ export const GoalLive = Layer.effect(
 						withRuntime(state, sessionId, () => ({
 							...runtimeWithSnapshot(nextSnapshot),
 							activeTurnStartedAtMs: options?.startActiveAccountingAtMs ?? null,
-							skipNextTurnAccounting: options?.accountFromNextTurn === true,
 						})),
 					);
 					if (!unchangedActiveGoal || budgetLimitStatusChanged) {
@@ -367,7 +362,6 @@ export const GoalLive = Layer.effect(
 					withRuntime(state, sessionId, () => ({
 						...runtimeWithSnapshot(snapshot),
 						activeTurnStartedAtMs: options?.startActiveAccountingAtMs ?? null,
-						skipNextTurnAccounting: options?.accountFromNextTurn === true,
 					})),
 				);
 				yield* saveSnapshot(snapshot);
@@ -504,7 +498,6 @@ export const GoalLive = Layer.effect(
 					return {
 						...runtime,
 						activeTurnStartedAtMs: runtime.activeTurnStartedAtMs ?? nowMs,
-						skipNextTurnAccounting: false,
 					};
 				}),
 			);
@@ -534,19 +527,6 @@ export const GoalLive = Layer.effect(
 									: runtime.activeTurnStartedAtMs,
 								continuationInFlight: false,
 								terminalTurnAccountingPending: false,
-								skipNextTurnAccounting: false,
-							};
-						}
-						if (runtime.skipNextTurnAccounting) {
-							nextSnapshot = runtime.snapshot;
-							return {
-								...runtime,
-								activeTurnStartedAtMs: options.finishActiveAccounting
-									? null
-									: runtime.activeTurnStartedAtMs,
-								continuationInFlight: false,
-								terminalTurnAccountingPending: false,
-								skipNextTurnAccounting: !options.finishActiveAccounting,
 							};
 						}
 						if (!runtimeCanAccountActiveTurn(runtime)) {
@@ -559,9 +539,6 @@ export const GoalLive = Layer.effect(
 								terminalTurnAccountingPending: options.finishActiveAccounting
 									? false
 									: runtime.terminalTurnAccountingPending,
-								skipNextTurnAccounting: options.finishActiveAccounting
-									? false
-									: runtime.skipNextTurnAccounting,
 							};
 						}
 
@@ -597,7 +574,6 @@ export const GoalLive = Layer.effect(
 								options.finishActiveAccounting || stopActiveTurn ? null : nowMs,
 							continuationInFlight: false,
 							terminalTurnAccountingPending: false,
-							skipNextTurnAccounting: false,
 						};
 					}),
 				);

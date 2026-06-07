@@ -320,6 +320,38 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(2);
 	});
 
+	it("excludes cached reads and total tokens from goal token accounting", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", 700);
+				yield* goal.markAgentStart("session-1", 0);
+				const message = makeAssistantMessage(0, false);
+				return yield* goal.accountTurnEnd(
+					"session-1",
+					{
+						...message,
+						usage: {
+							...message.usage,
+							input: 500,
+							output: 80,
+							cacheRead: 400,
+							cacheWrite: 30,
+							totalTokens: 1_010,
+						},
+					},
+					1_000,
+				);
+			}),
+		);
+
+		expect(result.snapshot?.tokensUsed).toBe(610);
+		expect(result.snapshot?.status).toBe("active");
+	});
+
 	it("budget-limits the goal when time budget is reached", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
@@ -397,7 +429,7 @@ describe("goal service", () => {
 		expect(harness.appended).toHaveLength(3);
 	});
 
-	it("starts model-created goal accounting from the next turn", async () => {
+	it("starts model-created goal accounting from the creating turn", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
 
@@ -405,7 +437,7 @@ describe("goal service", () => {
 			Effect.gen(function* () {
 				const goal = yield* Goal;
 				yield* goal.create("session-1", "finish", null, null, {
-					accountFromNextTurn: true,
+					startActiveAccountingAtMs: 0,
 				});
 				const createTurn = yield* goal.accountTurnEnd(
 					"session-1",
@@ -428,13 +460,13 @@ describe("goal service", () => {
 		);
 
 		expect(result.createTurn.snapshot?.status).toBe("active");
-		expect(result.createTurn.snapshot?.tokensUsed).toBe(0);
-		expect(result.createTurn.snapshot?.timeUsedSeconds).toBe(0);
+		expect(result.createTurn.snapshot?.tokensUsed).toBe(100);
+		expect(result.createTurn.snapshot?.timeUsedSeconds).toBe(1);
 		expect(result.createAgentEnd.snapshot?.status).toBe("active");
-		expect(result.createAgentEnd.snapshot?.tokensUsed).toBe(0);
-		expect(result.createAgentEnd.snapshot?.timeUsedSeconds).toBe(0);
-		expect(result.nextTurn.snapshot?.tokensUsed).toBe(25);
-		expect(result.nextTurn.snapshot?.timeUsedSeconds).toBe(1);
+		expect(result.createAgentEnd.snapshot?.tokensUsed).toBe(100);
+		expect(result.createAgentEnd.snapshot?.timeUsedSeconds).toBe(2);
+		expect(result.nextTurn.snapshot?.tokensUsed).toBe(125);
+		expect(result.nextTurn.snapshot?.timeUsedSeconds).toBe(3);
 	});
 
 	it("accounts the terminal turn after update_goal completes the goal", async () => {
