@@ -393,9 +393,18 @@ export const GoalLive = Layer.effect(
 		);
 
 		const clear: GoalService["clear"] = (sessionId) =>
-			Ref.update(runtimes, (state) =>
-				withRuntime(state, sessionId, () => runtimeWithSnapshot(null)),
-			).pipe(Effect.andThen(saveSnapshot(null)));
+			Effect.gen(function* () {
+				let shouldPersist = false;
+				yield* Ref.update(runtimes, (state) =>
+					withRuntime(state, sessionId, (runtime) => {
+						shouldPersist = runtime.snapshot !== null;
+						return runtimeWithSnapshot(null);
+					}),
+				);
+				if (shouldPersist) {
+					yield* saveSnapshot(null);
+				}
+			});
 
 		const restoreAfterResume: GoalService["restoreAfterResume"] = (sessionId, nowMs) =>
 			Ref.modify(runtimes, (state) => {
