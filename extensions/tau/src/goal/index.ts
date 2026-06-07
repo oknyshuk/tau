@@ -1396,18 +1396,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
 				const nowMs = Date.now();
-				const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
-				if (existing?.status === "complete") {
-					if (params.status === "complete") {
-						return goalToolSuccessResult(
-							`Goal already complete. Final usage: ${formatTokenCount(existing.tokensUsed)} tokens, ${formatGoalElapsedSeconds(existing.timeUsedSeconds)}.`,
-							sessionId,
-							existing,
-							{ includeCompletionBudgetReport: true },
-						);
-					}
-					return goalToolErrorResult("Thread goal is already complete.");
-				}
+				await getOrRehydrateGoal(runtime, ctx, goalUiState);
 				clearGoalTerminalAutomation(sessionId);
 				await withGoal(runtime, (goal) =>
 					goal.prepareExternalMutation(sessionId, nowMs),
@@ -1545,15 +1534,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 							"error",
 						);
 						return;
-					}
-					if (parsed.command === "pause" || parsed.command === "resume") {
-						if (existing.status === "complete") {
-							ctx.ui.notify(
-								"Thread goal is already complete. Set a new thread goal to continue.",
-								"info",
-							);
-							return;
-						}
 					}
 					if (status === "active") {
 						clearGoalPendingAutomation(sessionId);

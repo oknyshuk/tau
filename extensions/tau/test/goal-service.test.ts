@@ -685,32 +685,24 @@ describe("goal service", () => {
 		expect(snapshot?.timeUsedSeconds).toBe(0);
 	});
 
-	it("does not reopen a completed goal through setStatus", async () => {
+	it("updates a completed goal status explicitly like codex", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
-
-		await expect(
-			harness.run(
-				Effect.gen(function* () {
-					const goal = yield* Goal;
-					yield* goal.create("session-1", "finish", null);
-					yield* goal.setStatus("session-1", "complete");
-					return yield* goal.setStatus("session-1", "paused");
-				}),
-			),
-		).rejects.toMatchObject({ reason: "Thread goal is already complete." });
 
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
 				const goal = yield* Goal;
-				return yield* goal.get("session-1");
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.setStatus("session-1", "complete");
+				return yield* goal.setStatus("session-1", "paused");
 			}),
 		);
 
-		expect(snapshot?.status).toBe("complete");
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.appended).toHaveLength(3);
 	});
 
-	it("does not append a new event when completing an already completed goal", async () => {
+	it("persists repeated complete status updates like codex", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
 
@@ -724,7 +716,7 @@ describe("goal service", () => {
 		);
 
 		expect(snapshot?.status).toBe("complete");
-		expect(harness.appended).toHaveLength(2);
+		expect(harness.appended).toHaveLength(3);
 	});
 
 	it("does not append a new event when setting the same paused status", async () => {

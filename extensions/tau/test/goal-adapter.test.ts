@@ -1819,7 +1819,7 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
-	it("does not resume a completed goal from /goal resume", async () => {
+	it("resumes a completed goal from /goal resume like codex", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 
@@ -1835,12 +1835,13 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("complete");
-		expect(harness.sentMessages).toHaveLength(0);
-		expect(harness.notifications.at(-1)?.message).toContain("already complete");
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+		expect(harness.notifications.at(-1)?.message).toContain("Goal active");
 	});
 
-	it("does not pause a completed goal from /goal pause", async () => {
+	it("pauses a completed goal from /goal pause like codex", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 
@@ -1856,9 +1857,9 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("complete");
+		expect(snapshot?.status).toBe("paused");
 		expect(harness.sentMessages).toHaveLength(0);
-		expect(harness.notifications.at(-1)?.message).toContain("already complete");
+		expect(harness.notifications.at(-1)?.message).toContain("Goal paused");
 	});
 
 	it("restores idle accounting for an active goal on session start", async () => {
@@ -2594,7 +2595,7 @@ describe("goal adapter", () => {
 		});
 	});
 
-	it("does not reopen a completed goal through update_goal", async () => {
+	it("updates a completed goal through update_goal like codex", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 
@@ -2625,9 +2626,9 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("complete");
-		expect("isError" in result && result.isError === true).toBe(true);
-		expectTextResultContains(result, "Thread goal is already complete");
+		expect(snapshot?.status).toBe("blocked");
+		expect("isError" in result && result.isError === true).toBe(false);
+		expect(result.details).toMatchObject({ displayText: "Goal blocked." });
 	});
 
 	it("accounts the update_goal caller turn after marking the goal blocked", async () => {
@@ -2814,7 +2815,7 @@ describe("goal adapter", () => {
 		expect("timeBudgetSeconds" in goal).toBe(false);
 	});
 
-	it("returns codex-style structured result when update_goal completes an already complete goal", async () => {
+	it("returns structured result when update_goal completes an already complete goal", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(1_780_786_975_999);
 		const harness = makeGoalAdapterHarness();
@@ -2847,7 +2848,7 @@ describe("goal adapter", () => {
 		);
 
 		expect(result.details).toMatchObject({
-			displayText: expect.stringContaining("Goal already complete."),
+			displayText: expect.stringContaining("Goal complete."),
 			remainingTokens: 75,
 			completionBudgetReport: expect.stringContaining("goal.tokenBudget"),
 			goal: {
@@ -2858,7 +2859,7 @@ describe("goal adapter", () => {
 				tokensUsed: 25,
 				timeUsedSeconds: 1,
 				createdAt: 1_780_786_975,
-				updatedAt: 1_780_786_977,
+				updatedAt: 1_780_786_979,
 			},
 		});
 		expect(parseToolJsonResult(result)).toMatchObject({
@@ -2872,7 +2873,7 @@ describe("goal adapter", () => {
 				tokensUsed: 25,
 				timeUsedSeconds: 1,
 				createdAt: 1_780_786_975,
-				updatedAt: 1_780_786_977,
+				updatedAt: 1_780_786_979,
 			},
 		});
 	});
