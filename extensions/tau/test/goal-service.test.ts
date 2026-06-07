@@ -437,6 +437,31 @@ describe("goal service", () => {
 		expect(snapshot?.timeUsedSeconds).toBe(0);
 	});
 
+	it("does not reopen a completed goal through setStatus", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		await expect(
+			harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					yield* goal.create("session-1", "finish", null);
+					yield* goal.setStatus("session-1", "complete");
+					return yield* goal.setStatus("session-1", "paused");
+				}),
+			),
+		).rejects.toMatchObject({ reason: "Thread goal is already complete." });
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("complete");
+	});
+
 	it("returns a live snapshot while a goal turn is running", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

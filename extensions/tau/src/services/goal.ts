@@ -348,6 +348,12 @@ export const GoalLive = Layer.effect(
 
 		const setStatus: GoalService["setStatus"] = Effect.fn("Goal.setStatus")(
 			function* (sessionId, status, options) {
+				const existing = yield* get(sessionId);
+				if (existing?.status === "complete" && status !== "complete") {
+					return yield* Effect.fail(
+						new GoalConflictError({ reason: "Thread goal is already complete." }),
+					);
+				}
 				const nowIso = new Date().toISOString();
 				let nextSnapshot: GoalSnapshot | null = null;
 				yield* Ref.update(runtimes, (state) =>
