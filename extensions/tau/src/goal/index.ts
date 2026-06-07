@@ -226,6 +226,10 @@ function shouldAutoContinue(
 	);
 }
 
+function isUserInputResumableStatus(status: GoalStatus): boolean {
+	return status === "paused" || status === "blocked";
+}
+
 function signalFromContext(ctx: ExtensionContext): AbortSignal | undefined {
 	if (!("signal" in ctx)) {
 		return undefined;
@@ -1323,7 +1327,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			const nowMs = Date.now();
 			clearGoalPendingAutomation(sessionId);
 			const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
-			if (snapshot?.status === "paused") {
+			if (
+				snapshot !== null &&
+				isUserInputResumableStatus(snapshot.status)
+			) {
 				await withGoal(runtime, (goal) =>
 					goal.prepareExternalMutation(sessionId, nowMs),
 				);
