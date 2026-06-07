@@ -451,6 +451,51 @@ describe("goal adapter", () => {
 		expectTextResultContains(updateResult, "unknown parameter: reason");
 	});
 
+	it("rejects invalid model-facing goal tool parameter values", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const createGoal = harness.tools.get("create_goal");
+		const updateGoal = harness.tools.get("update_goal");
+		if (createGoal === undefined || updateGoal === undefined) {
+			throw new Error("goal tools were not registered");
+		}
+
+		const emptyObjectiveResult = await createGoal.execute(
+			"call-create-goal-empty",
+			{ objective: "   " },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		const invalidBudgetResult = await createGoal.execute(
+			"call-create-goal-budget",
+			{ objective: "ship the feature", token_budget: 0 },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		const invalidStatusResult = await updateGoal.execute(
+			"call-update-goal-status",
+			{ status: "paused" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect("isError" in emptyObjectiveResult && emptyObjectiveResult.isError === true).toBe(
+			true,
+		);
+		expect("isError" in invalidBudgetResult && invalidBudgetResult.isError === true).toBe(
+			true,
+		);
+		expect("isError" in invalidStatusResult && invalidStatusResult.isError === true).toBe(
+			true,
+		);
+		expectTextResultContains(emptyObjectiveResult, "objective must be a non-empty string");
+		expectTextResultContains(invalidBudgetResult, "token_budget must be a positive integer");
+		expectTextResultContains(invalidStatusResult, 'status must be "complete" or "blocked"');
+	});
+
 	it("rejects time budgets from the model-facing create_goal tool", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
