@@ -1541,6 +1541,69 @@ describe("goal adapter", () => {
 		expect("timeBudgetSeconds" in goal).toBe(false);
 	});
 
+	it("returns codex-style structured result when update_goal completes an already complete goal", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(1_780_786_975_999);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 100 ship the feature");
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(25),
+		});
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		vi.setSystemTime(1_780_786_977_001);
+		await tool.execute(
+			"call-update-goal-complete",
+			{ status: "complete" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		vi.setSystemTime(1_780_786_979_001);
+		const result = await tool.execute(
+			"call-update-goal-complete-again",
+			{ status: "complete" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect(result.details).toMatchObject({
+			displayText: expect.stringContaining("Goal already complete."),
+			remainingTokens: 75,
+			completionBudgetReport: expect.stringContaining("goal.tokenBudget"),
+			goal: {
+				threadId: "session-1",
+				objective: "ship the feature",
+				status: "complete",
+				tokenBudget: 100,
+				tokensUsed: 25,
+				timeUsedSeconds: 1,
+				createdAt: 1_780_786_975,
+				updatedAt: 1_780_786_977,
+			},
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			remainingTokens: 75,
+			completionBudgetReport: expect.stringContaining("goal.tokenBudget"),
+			goal: {
+				threadId: "session-1",
+				objective: "ship the feature",
+				status: "complete",
+				tokenBudget: 100,
+				tokensUsed: 25,
+				timeUsedSeconds: 1,
+				createdAt: 1_780_786_975,
+				updatedAt: 1_780_786_977,
+			},
+		});
+	});
+
 	it("returns active-turn elapsed time when update_goal completes a running goal", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
