@@ -398,6 +398,40 @@ describe("goal adapter", () => {
 		expect(item.text).toContain("time_budget_seconds is not supported by create_goal");
 	});
 
+	it("rejects model-created goals when a completed goal exists", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("create_goal");
+		if (tool === undefined) {
+			throw new Error("create_goal tool was not registered");
+		}
+
+		await runGoalCommand(harness, "first goal");
+		await runGoalCommand(harness, "complete");
+		const result = await tool.execute(
+			"call-create-goal",
+			{ objective: "second goal" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("first goal");
+		expect(snapshot?.status).toBe("complete");
+		expect("isError" in result && result.isError === true).toBe(true);
+		expectTextResultContains(
+			result,
+			"cannot create a new goal because this thread already has a goal; use update_goal only for status",
+		);
+	});
+
 	it("returns live elapsed time from get_goal during an active turn", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);

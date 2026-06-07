@@ -122,7 +122,7 @@ describe("goal service", () => {
 			),
 		).rejects.toMatchObject({
 			reason:
-				"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
+				"cannot create a new goal because this thread already has a goal; use update_goal only for status",
 		});
 	});
 
@@ -143,7 +143,7 @@ describe("goal service", () => {
 			),
 		).rejects.toMatchObject({
 			reason:
-				"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
+				"cannot create a new goal because this thread already has a goal; use update_goal only for status",
 		});
 	});
 
