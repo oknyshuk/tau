@@ -1109,6 +1109,51 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("keeps a time-budget-limited goal limited after interactive user input", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--time-budget 1 finish");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_000);
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantMessage(0)],
+		});
+		const inputResults = await fireEvent(harness, "input", {
+			type: "input",
+			text: "continue",
+			source: "interactive",
+		});
+		const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "base prompt",
+		});
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(inputResults).toEqual([{ action: "continue" }]);
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.timeUsedSeconds).toBe(1);
+		expect(beforeAgentStartResults).toHaveLength(1);
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("marked the goal as budget_limited"),
+		});
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("<objective>\nfinish"),
+		});
+	});
+
 	it("sends the budget-limit prompt when an error crosses the time budget", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);

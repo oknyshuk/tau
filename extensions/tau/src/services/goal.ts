@@ -217,8 +217,13 @@ function statusStopsActiveTurn(status: GoalStatus): boolean {
 }
 
 function statusAfterBudgetLimit(snapshot: GoalSnapshot, status: GoalStatus): GoalStatus {
+	const tokenBudgetReached =
+		snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget;
+	const timeBudgetReached =
+		snapshot.timeBudgetSeconds !== null &&
+		snapshot.timeUsedSeconds >= snapshot.timeBudgetSeconds;
 	if (
-		(snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget) &&
+		(tokenBudgetReached || timeBudgetReached) &&
 		(status === "active" || status === "paused" || status === "blocked")
 	) {
 		return "budget_limited";

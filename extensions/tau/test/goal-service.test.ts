@@ -407,6 +407,33 @@ describe("goal service", () => {
 		});
 	}
 
+	for (const status of ["active", "paused", "blocked"] as const) {
+		it(`keeps a time-over-budget goal budget-limited when setting ${status}`, async () => {
+			const harness = makeGoalRuntime();
+			runtimes.push(harness);
+
+			const result = await harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					yield* goal.create("session-1", "finish", null, 5);
+					yield* goal.markAgentStart("session-1", 0);
+					const limited = yield* goal.accountAgentEnd(
+						"session-1",
+						makeAgentEnd(0),
+						5_000,
+					);
+					const updated = yield* goal.setStatus("session-1", status);
+					return { limited, updated };
+				}),
+			);
+
+			expect(result.limited.snapshot?.status).toBe("budget_limited");
+			expect(result.updated?.status).toBe("budget_limited");
+			expect(result.updated?.timeUsedSeconds).toBe(5);
+			expect(harness.appended).toHaveLength(3);
+		});
+	}
+
 	it("keeps timing a budget-limited wrap-up turn until agent end", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
