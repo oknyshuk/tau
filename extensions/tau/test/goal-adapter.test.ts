@@ -1166,6 +1166,44 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
+	it("preserves interrupt tracking after steering an active goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const controller = new AbortController();
+		const signalCtx = makePiSignalContext(harness.ctx, controller);
+		const runningCtx = {
+			...signalCtx,
+			isIdle: () => false,
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "first goal");
+		harness.sentMessages.length = 0;
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			signalCtx,
+		);
+		await runGoalCommand(harness, "second goal", runningCtx);
+		controller.abort();
+		await flushPromises();
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantToolCallMessage()],
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-objective-updated");
+	});
+
 	it("does not pause the goal from an aborted assistant event without a pi interrupt signal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

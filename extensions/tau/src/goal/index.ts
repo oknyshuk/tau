@@ -767,13 +767,26 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		interruptListeners.delete(sessionId);
 	};
 
-	const clearGoalInterruptState = (sessionId: string): void => {
+	const clearGoalInterruptTracking = (sessionId: string): void => {
 		clearGoalInterruptListener(sessionId);
 		interruptedSessions.delete(sessionId);
 	};
 
+	const clearStaleGoalInterruptState = (sessionId: string): void => {
+		const listener = interruptListeners.get(sessionId);
+		if (listener?.signal.aborted === true) {
+			clearGoalInterruptListener(sessionId);
+		}
+		interruptedSessions.delete(sessionId);
+	};
+
 	const clearGoalPendingAutomation = (sessionId: string): void => {
-		clearGoalInterruptState(sessionId);
+		clearStaleGoalInterruptState(sessionId);
+		clearGoalErrorRetry(sessionId);
+	};
+
+	const clearGoalTerminalAutomation = (sessionId: string): void => {
+		clearGoalInterruptTracking(sessionId);
 		clearGoalErrorRetry(sessionId);
 	};
 
@@ -1101,7 +1114,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
 				const nowMs = Date.now();
-				clearGoalPendingAutomation(sessionId);
+				clearGoalTerminalAutomation(sessionId);
 				await withGoal(runtime, (goal) =>
 					goal.prepareExternalMutation(sessionId, nowMs),
 				);
@@ -1146,7 +1159,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						goal.prepareExternalMutation(sessionId, Date.now()),
 					);
 					await withGoal(runtime, (goal) => goal.clear(sessionId));
-					clearGoalPendingAutomation(sessionId);
+					clearGoalTerminalAutomation(sessionId);
 					clearGoalUi(ctx, goalUiState);
 					stopGoalTicker();
 					ctx.ui.notify("Cleared thread goal.", "info");
@@ -1164,7 +1177,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 							: parsed.command === "pause"
 								? "paused"
 								: "complete";
-					clearGoalPendingAutomation(sessionId);
+					if (status === "active") {
+						clearGoalPendingAutomation(sessionId);
+					} else {
+						clearGoalTerminalAutomation(sessionId);
+					}
 					await withGoal(runtime, (goal) =>
 						goal.prepareExternalMutation(sessionId, nowMs),
 					);
