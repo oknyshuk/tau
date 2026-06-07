@@ -602,6 +602,31 @@ describe("goal service", () => {
 		expect(harness.appended).toHaveLength(2);
 	});
 
+	it("starts resumed accounting from the next agent start after a direct pause", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.markAgentStart("session-1", 0);
+				yield* goal.setStatus("session-1", "paused");
+				yield* goal.setStatus("session-1", "active");
+				yield* goal.markAgentStart("session-1", 5_000);
+				return yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(10, false),
+					7_000,
+				);
+			}),
+		);
+
+		expect(result.snapshot?.status).toBe("active");
+		expect(result.snapshot?.timeUsedSeconds).toBe(2);
+		expect(result.snapshot?.tokensUsed).toBe(10);
+	});
+
 	it("does not append a new event when setting unchanged active status", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

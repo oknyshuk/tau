@@ -411,13 +411,16 @@ export const GoalLive = Layer.effect(
 									: status === "blocked" && options?.accountCurrentTurn === true
 										? true
 										: runtime.terminalTurnAccountingPending;
+							const activeTurnStartedAtMs =
+								status === "active"
+									? (options?.startActiveAccountingAtMs ?? runtime.activeTurnStartedAtMs)
+									: status === "blocked" && options?.accountCurrentTurn === true
+										? runtime.activeTurnStartedAtMs
+										: null;
 							nextSnapshot = runtime.snapshot;
 							return {
 								...runtime,
-								activeTurnStartedAtMs:
-									status === "active"
-										? (options?.startActiveAccountingAtMs ?? runtime.activeTurnStartedAtMs)
-										: runtime.activeTurnStartedAtMs,
+								activeTurnStartedAtMs,
 								continuationInFlight:
 									status === "active" ? false : runtime.continuationInFlight,
 								terminalTurnAccountingPending,
@@ -431,13 +434,20 @@ export const GoalLive = Layer.effect(
 						};
 						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, patch);
 						shouldPersist = true;
+						const activeTurnStartedAtMs =
+							status === "active"
+								? (options?.startActiveAccountingAtMs ??
+									(runtime.snapshot.status === "active"
+										? runtime.activeTurnStartedAtMs
+										: null))
+								: (status === "complete" || status === "blocked") &&
+										options?.accountCurrentTurn === true
+									? runtime.activeTurnStartedAtMs
+									: null;
 						return {
 							...runtime,
 							snapshot: nextSnapshot,
-							activeTurnStartedAtMs:
-								status === "active"
-									? (options?.startActiveAccountingAtMs ?? runtime.activeTurnStartedAtMs)
-									: runtime.activeTurnStartedAtMs,
+							activeTurnStartedAtMs,
 							continuationInFlight: false,
 							terminalTurnAccountingPending:
 								(status === "complete" || status === "blocked") &&
