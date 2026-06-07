@@ -227,7 +227,12 @@ function shouldAutoContinue(
 }
 
 function isUserInputResumableStatus(status: GoalStatus): boolean {
-	return status === "paused" || status === "blocked" || status === "usage_limited";
+	return (
+		status === "paused" ||
+		status === "blocked" ||
+		status === "usage_limited" ||
+		status === "budget_limited"
+	);
 }
 
 function signalFromContext(ctx: ExtensionContext): AbortSignal | undefined {

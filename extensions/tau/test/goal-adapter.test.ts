@@ -1961,6 +1961,35 @@ describe("goal adapter", () => {
 		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
+	it("resumes a budget-limited goal after interactive user input", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 10 ship the feature");
+		await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.setStatus("session-1", "budget_limited");
+			}),
+		);
+		await fireEvent(harness, "input", {
+			type: "input",
+			text: "continue",
+			source: "interactive",
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.budgetLimitPromptSent).toBe(false);
+		expect(snapshot?.continuationSuppressed).toBe(false);
+	});
+
 	it("clears continuation suppression after interactive user input", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
