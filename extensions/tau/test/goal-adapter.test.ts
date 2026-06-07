@@ -1244,14 +1244,58 @@ describe("goal adapter", () => {
 				status: "complete",
 				timeUsedSeconds: 2,
 			},
-			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			completionBudgetReport: null,
 		});
 		expect(parseToolJsonResult(result)).toMatchObject({
 			goal: {
 				status: "complete",
 				timeUsedSeconds: 2,
 			},
+			completionBudgetReport: null,
+		});
+	});
+
+	it("returns completion budget details for a time-budgeted goal", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--time-budget 5m ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(2_500);
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		const result = await tool.execute(
+			"call-update-goal",
+			{ status: "complete" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect(result.details).toMatchObject({
+			remainingTokens: null,
 			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			goal: {
+				status: "complete",
+				timeBudgetSeconds: 300,
+				timeUsedSeconds: 2,
+			},
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			remainingTokens: null,
+			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			goal: {
+				status: "complete",
+				timeBudgetSeconds: 300,
+				timeUsedSeconds: 2,
+			},
 		});
 	});
 

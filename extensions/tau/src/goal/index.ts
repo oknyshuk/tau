@@ -432,7 +432,7 @@ function goalCompletionBudgetReport(
 		includeCompletionBudgetReport !== true ||
 		snapshot === null ||
 		snapshot.status !== "complete" ||
-		(snapshot.tokenBudget === null && snapshot.timeUsedSeconds <= 0)
+		(snapshot.tokenBudget === null && snapshot.timeBudgetSeconds === null)
 	) {
 		return null;
 	}
