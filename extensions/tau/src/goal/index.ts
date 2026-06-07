@@ -1010,7 +1010,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			execute: async (_params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
 				const snapshot = await withGoal(runtime, (goal) =>
-					goal.get(sessionId),
+					goal.liveSnapshot(sessionId, Date.now()),
 				);
 				return goalToolSuccessResult(describeGoal(snapshot), sessionId, snapshot);
 			},

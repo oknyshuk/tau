@@ -395,6 +395,42 @@ describe("goal adapter", () => {
 		expect(item.text).toContain("time_budget_seconds is not supported by create_goal");
 	});
 
+	it("returns live elapsed time from get_goal during an active turn", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("get_goal");
+		if (tool === undefined) {
+			throw new Error("get_goal tool was not registered");
+		}
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(2_500);
+		const result = await tool.execute(
+			"call-get-goal",
+			{},
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect(result.details).toMatchObject({
+			goal: {
+				timeUsedSeconds: 2,
+			},
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			goal: {
+				timeUsedSeconds: 2,
+			},
+		});
+	});
+
 	it("starts model-created goal accounting after the create_goal caller turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
