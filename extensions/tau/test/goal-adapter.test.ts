@@ -477,6 +477,31 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
+	it("suppresses a repeated continuation after an active goal steer does no tool work", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const runningCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "ship the feature", runningCtx);
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantMessage(10)],
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.continuationSuppressed).toBe(true);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
+	});
+
 	it("starts an idle agent turn after /goal resume", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

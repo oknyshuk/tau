@@ -629,7 +629,13 @@ async function dispatchGoalContinuation(
 	);
 }
 
-function steerActiveGoal(pi: ExtensionAPI, snapshot: GoalSnapshot): void {
+async function steerActiveGoal(
+	pi: ExtensionAPI,
+	runtime: GoalRuntime,
+	ctx: ExtensionContext,
+	snapshot: GoalSnapshot,
+): Promise<void> {
+	await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionIdFromContext(ctx)));
 	pi.sendMessage(
 		{
 			customType: GOAL_CONTINUATION_MESSAGE_TYPE,
@@ -654,7 +660,7 @@ async function dispatchActivatedGoal(
 		await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
 		return;
 	}
-	steerActiveGoal(pi, snapshot);
+	await steerActiveGoal(pi, runtime, ctx, snapshot);
 }
 
 async function dispatchGoalObjectiveUpdated(
