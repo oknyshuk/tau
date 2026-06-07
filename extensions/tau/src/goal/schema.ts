@@ -7,6 +7,19 @@ export const GOAL_ENTRY_TYPE = "tau:goal";
 
 const NonNegativeIntSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const PositiveIntSchema = Schema.Int.check(Schema.isGreaterThan(0));
+export const MAX_GOAL_OBJECTIVE_CHARS = 4_000;
+
+export function goalObjectiveCharCount(objective: string): number {
+	return [...objective].length;
+}
+
+const GoalObjectiveSchema = Schema.NonEmptyString.check(
+	Schema.makeFilter(
+		(value) =>
+			goalObjectiveCharCount(value) <= MAX_GOAL_OBJECTIVE_CHARS ||
+			`goal objective must be at most ${MAX_GOAL_OBJECTIVE_CHARS} characters`,
+	),
+);
 
 export const GoalStatusSchema = Schema.Literals([
 	"active",
@@ -19,7 +32,7 @@ export const GoalStatusSchema = Schema.Literals([
 export type GoalStatus = Schema.Schema.Type<typeof GoalStatusSchema>;
 
 export const GoalSnapshotSchema = Schema.Struct({
-	objective: Schema.NonEmptyString.check(Schema.isMaxLength(4_000)),
+	objective: GoalObjectiveSchema,
 	status: GoalStatusSchema,
 	tokenBudget: Schema.NullOr(PositiveIntSchema),
 	timeBudgetSeconds: Schema.NullOr(PositiveIntSchema),

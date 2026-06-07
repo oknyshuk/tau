@@ -126,6 +126,34 @@ describe("goal service", () => {
 		});
 	});
 
+	it("accepts and rehydrates a 4000 code point objective like codex", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+		const objective = "😀".repeat(4_000);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.create("session-1", objective, null);
+			}),
+		);
+		const entryData = harness.appended[0]?.data;
+		if (entryData === undefined) {
+			throw new Error("expected goal snapshot to be persisted");
+		}
+		const restored = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.rehydrate("session-2", [
+					makeCustomEntry("goal", entryData),
+				]);
+			}),
+		);
+
+		expect(snapshot.objective).toBe(objective);
+		expect(restored?.objective).toBe(objective);
+	});
+
 	it("refuses a model-created goal after the previous goal is complete", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

@@ -2214,6 +2214,30 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("rejects oversized replacement objectives before confirmation", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "first goal");
+		harness.sentMessages.length = 0;
+		await runGoalCommand(harness, "x".repeat(4_001));
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(harness.confirmations).toHaveLength(0);
+		expect(harness.notifications.at(-1)).toEqual({
+			message: "goal objective must be at most 4000 characters",
+			type: "error",
+		});
+		expect(snapshot?.objective).toBe("first goal");
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("asks before replacing an unchanged unfinished command goal", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);

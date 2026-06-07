@@ -7,7 +7,9 @@ import { PiAPI } from "../effect/pi.js";
 import { GoalConflictError, type GoalError } from "../goal/errors.js";
 import {
 	GOAL_ENTRY_TYPE,
+	MAX_GOAL_OBJECTIVE_CHARS,
 	goalFromBranch,
+	goalObjectiveCharCount,
 	makeGoalSnapshot,
 	type GoalSnapshot,
 	type GoalStatus,
@@ -146,21 +148,40 @@ function normalizeObjective(objective: string): string {
 	return objective.trim();
 }
 
-function validateObjective(objectiveInput: string): Effect.Effect<string, GoalConflictError, never> {
+type GoalObjectiveValidationResult =
+	| { readonly valid: true; readonly objective: string }
+	| { readonly valid: false; readonly error: GoalConflictError };
+
+function validateGoalObjectiveResult(objectiveInput: string): GoalObjectiveValidationResult {
 	const objective = normalizeObjective(objectiveInput);
 	if (objective.length === 0) {
-		return Effect.fail(
-			new GoalConflictError({ reason: "goal objective must not be empty" }),
-		);
+		return {
+			valid: false,
+			error: new GoalConflictError({ reason: "goal objective must not be empty" }),
+		};
 	}
-	if (objective.length > 4_000) {
-		return Effect.fail(
-			new GoalConflictError({
+	if (goalObjectiveCharCount(objective) > MAX_GOAL_OBJECTIVE_CHARS) {
+		return {
+			valid: false,
+			error: new GoalConflictError({
 				reason: "goal objective must be at most 4000 characters",
 			}),
-		);
+		};
 	}
-	return Effect.succeed(objective);
+	return { valid: true, objective };
+}
+
+export function validateGoalObjective(objectiveInput: string): string {
+	const result = validateGoalObjectiveResult(objectiveInput);
+	if (!result.valid) {
+		throw result.error;
+	}
+	return result.objective;
+}
+
+function validateObjective(objectiveInput: string): Effect.Effect<string, GoalConflictError, never> {
+	const result = validateGoalObjectiveResult(objectiveInput);
+	return result.valid ? Effect.succeed(result.objective) : Effect.fail(result.error);
 }
 
 function validateTokenBudget(

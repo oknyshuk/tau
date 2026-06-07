@@ -13,7 +13,7 @@ import { Type } from "@sinclair/typebox";
 import { Text, truncateToWidth, type Component, type TUI } from "@mariozechner/pi-tui";
 import { Effect, Fiber } from "effect";
 
-import { Goal, type GoalService } from "../services/goal.js";
+import { Goal, validateGoalObjective, type GoalService } from "../services/goal.js";
 import { defineDecodedTool, textToolResult } from "../shared/decoded-tool.js";
 import { formatTokenCount } from "../shared/format-tokens.js";
 import { GoalConflictError, GoalValidationError } from "./errors.js";
@@ -1583,7 +1583,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					return;
 				}
 
-				const objective = parsed.objective ?? "";
+				const objective = validateGoalObjective(parsed.objective ?? "");
 				const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 				const objectiveChanged = existing !== null && existing.objective !== objective;
 				const sameObjectiveBudgetEdit =
