@@ -103,6 +103,29 @@ Do not call update_goal unless the goal is complete or the strict blocked audit 
 		);
 	});
 
+	it("includes codex work guidance in active goal system context", () => {
+		const goal = {
+			...makeGoalSnapshot("finish", null, null, "2026-05-02T00:00:00.000Z"),
+			tokensUsed: 10,
+			timeUsedSeconds: 2,
+		};
+
+		const prompt = goalSystemPrompt(goal);
+
+		expect(prompt).toContain("Work from evidence:");
+		expect(prompt).toContain("Progress visibility:");
+		expect(prompt).toContain("Fidelity:");
+		expect(prompt).toContain(
+			"Use the current worktree and external state as authoritative.",
+		);
+		expect(prompt).toContain(
+			"If update_plan is available and the next work is meaningfully multi-step",
+		);
+		expect(prompt).toContain(
+			"Treat alignment as movement toward the requested end state.",
+		);
+	});
+
 	it("matches the codex budget-limit prompt shape", () => {
 		const goal = {
 			...makeGoalSnapshot("finish", 100, 30, "2026-05-02T00:00:00.000Z"),
