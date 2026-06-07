@@ -184,6 +184,33 @@ describe("goal service", () => {
 		expect(snapshot?.tokenBudget).toBe(100);
 	});
 
+	it("budget-limits an over-budget active goal during rehydration", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+		const restored = {
+			...makeGoalSnapshot(
+				"ship goal support",
+				100,
+				null,
+				"2026-05-01T00:00:00.000Z",
+			),
+			tokensUsed: 100,
+		};
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.rehydrate("session-1", [
+					makeCustomEntry("a", { version: 2, snapshot: restored }),
+				]);
+			}),
+		);
+
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.tokensUsed).toBe(100);
+		expect(snapshot?.budgetLimitPromptSent).toBe(false);
+	});
+
 	it("restores idle accounting for an active rehydrated goal", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

@@ -271,7 +271,13 @@ export const GoalLive = Layer.effect(
 
 		const rehydrate: GoalService["rehydrate"] = Effect.fn("Goal.rehydrate")(
 			function* (sessionId, entries) {
-				const snapshot = yield* goalFromBranch(entries);
+				const branchSnapshot = yield* goalFromBranch(entries);
+				const snapshot =
+					branchSnapshot?.status === "active" && goalBudgetLimitReached(branchSnapshot)
+						? withUpdatedSnapshot(branchSnapshot, new Date().toISOString(), {
+								status: "budget_limited",
+							})
+						: branchSnapshot;
 				yield* Ref.update(runtimes, (state) =>
 					withRuntime(state, sessionId, () => runtimeWithSnapshot(snapshot)),
 				);
