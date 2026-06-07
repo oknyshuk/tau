@@ -308,6 +308,39 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("shows codex-style message when clearing with no current goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "clear");
+
+		expect(harness.notifications.at(-1)).toEqual({
+			message: "No goal to clear\nThis thread does not currently have a goal.",
+			type: "info",
+		});
+	});
+
+	it("shows codex-style message after clearing an existing goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await runGoalCommand(harness, "clear");
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot).toBeNull();
+		expect(harness.notifications.at(-1)).toEqual({
+			message: "Goal cleared",
+			type: "info",
+		});
+	});
+
 	it("starts an idle agent turn after setting a goal from /goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

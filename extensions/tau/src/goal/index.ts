@@ -1283,7 +1283,14 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					return;
 				}
 				if (parsed.command === "clear") {
-					await getOrRehydrateGoal(runtime, ctx, goalUiState);
+					const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
+					if (existing === null) {
+						ctx.ui.notify(
+							"No goal to clear\nThis thread does not currently have a goal.",
+							"info",
+						);
+						return;
+					}
 					await withGoal(runtime, (goal) =>
 						goal.prepareExternalMutation(sessionId, Date.now()),
 					);
@@ -1291,7 +1298,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					clearGoalTerminalAutomation(sessionId);
 					clearGoalUi(ctx, goalUiState);
 					stopGoalTicker();
-					ctx.ui.notify("Cleared thread goal.", "info");
+					ctx.ui.notify("Goal cleared", "info");
 					return;
 				}
 				if (parsed.command === "edit") {
