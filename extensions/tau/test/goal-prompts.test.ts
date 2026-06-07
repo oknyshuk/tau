@@ -272,7 +272,7 @@ Do not call update_goal unless the goal is actually complete.`);
 		const prompt = objectiveUpdatedPrompt(goal);
 
 		expect(prompt).toContain("- Token budget: none");
-		expect(prompt).toContain("- Tokens remaining: unknown");
+		expect(prompt).toContain("- Tokens remaining: unbounded");
 	});
 
 	it("matches the codex objective-updated prompt shape", () => {

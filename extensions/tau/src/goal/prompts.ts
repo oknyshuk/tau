@@ -16,7 +16,7 @@ function remainingTokensText(goal: GoalSnapshot): string {
 
 function objectiveUpdatedRemainingTokensText(goal: GoalSnapshot): string {
 	return goal.tokenBudget === null
-		? "unknown"
+		? "unbounded"
 		: Math.max(0, goal.tokenBudget - goal.tokensUsed).toString();
 }
 
