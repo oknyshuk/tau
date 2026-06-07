@@ -2370,6 +2370,46 @@ describe("goal adapter", () => {
 		expect(snapshot?.status).toBe("paused");
 	});
 
+	it("pauses a branch-persisted goal when pi reports an interrupted turn", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const branchCtx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+		const interruptedCtx = makeAbortedPiContext(branchCtx);
+
+		await fireEvent(
+			harness,
+			"turn_end",
+			{
+				type: "turn_end",
+				message: makeAssistantMessage(0),
+			},
+			interruptedCtx,
+		);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.status).toBe("paused");
+	});
+
 	it("preserves a completed goal when pi reports an interrupted turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
@@ -2434,6 +2474,44 @@ describe("goal adapter", () => {
 			signalCtx,
 		);
 
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("pauses a branch-persisted goal when pi reports an interrupted agent end", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const branchCtx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+		const interruptedCtx = makeAbortedPiContext(branchCtx);
+
+		await fireEvent(
+			harness,
+			"agent_end",
+			{ type: "agent_end", messages: [makeAssistantToolCallMessage()] },
+			interruptedCtx,
+		);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.status).toBe("paused");
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 

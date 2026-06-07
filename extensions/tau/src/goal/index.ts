@@ -1452,7 +1452,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			goal.accountTurnEnd(sessionId, event.message, Date.now()),
 		);
 		if (wasGoalInterrupted(sessionId, ctx)) {
-			const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+			const snapshot = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 			if (snapshot?.status !== "complete") {
 				await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 			}
@@ -1485,7 +1485,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			interruptedSessions.delete(sessionId);
 			if (interrupted) {
 				clearGoalErrorRetry(sessionId);
-				const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+				const snapshot = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 				if (snapshot?.status !== "complete") {
 					await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 				}
