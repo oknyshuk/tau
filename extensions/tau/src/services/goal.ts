@@ -217,7 +217,7 @@ function runtimeCanAccountActiveTurn(runtime: GoalRuntime): boolean {
 }
 
 function statusStopsActiveTurn(status: GoalStatus): boolean {
-	return status === "complete" || status === "blocked" || status === "budget_limited";
+	return status === "complete" || status === "blocked";
 }
 
 function elapsedSeconds(runtime: GoalRuntime, nowMs: number): number {

@@ -338,7 +338,7 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(5);
 	});
 
-	it("stops timing after a budget-limited wrap-up turn ends", async () => {
+	it("keeps timing a budget-limited wrap-up turn until agent end", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
 
@@ -352,15 +352,24 @@ describe("goal service", () => {
 					makeAssistantMessage(1, false),
 					1_000,
 				);
-				const live = yield* goal.liveSnapshot("session-1", 6_000);
-				return { limited, live };
+				const liveDuringWrapUp = yield* goal.liveSnapshot("session-1", 2_500);
+				const stopped = yield* goal.accountAgentEnd(
+					"session-1",
+					makeAgentEnd(0),
+					2_500,
+				);
+				const liveAfterStop = yield* goal.liveSnapshot("session-1", 6_000);
+				return { limited, liveDuringWrapUp, stopped, liveAfterStop };
 			}),
 		);
 
 		expect(result.limited.snapshot?.status).toBe("budget_limited");
 		expect(result.limited.snapshot?.timeUsedSeconds).toBe(1);
-		expect(result.live?.status).toBe("budget_limited");
-		expect(result.live?.timeUsedSeconds).toBe(1);
+		expect(result.liveDuringWrapUp?.status).toBe("budget_limited");
+		expect(result.liveDuringWrapUp?.timeUsedSeconds).toBe(2);
+		expect(result.stopped.snapshot?.timeUsedSeconds).toBe(2);
+		expect(result.liveAfterStop?.status).toBe("budget_limited");
+		expect(result.liveAfterStop?.timeUsedSeconds).toBe(2);
 	});
 
 	it("does not append a new event when the budget-limit prompt is already marked sent", async () => {

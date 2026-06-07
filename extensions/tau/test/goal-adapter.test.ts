@@ -809,6 +809,10 @@ describe("goal adapter", () => {
 			type: "turn_end",
 			message: makeAssistantMessage(1),
 		});
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantMessage(0)],
+		});
 		vi.setSystemTime(6_000);
 		const result = await tool.execute(
 			"call-get-goal",
@@ -1102,6 +1106,8 @@ describe("goal adapter", () => {
 	});
 
 	it("steers the budget-limit prompt during an active turn", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const runningCtx = {
@@ -1115,6 +1121,7 @@ describe("goal adapter", () => {
 			type: "before_agent_start",
 			systemPrompt: "system",
 		});
+		vi.setSystemTime(1_000);
 		await fireEvent(
 			harness,
 			"turn_end",
@@ -1129,6 +1136,17 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
 		expect(harness.sentMessages[0]?.message.content).toContain("reached its token budget");
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
+		vi.setSystemTime(2_500);
+		await fireEvent(
+			harness,
+			"turn_end",
+			{
+				type: "turn_end",
+				message: makeAssistantMessage(25),
+			},
+			runningCtx,
+		);
+		vi.setSystemTime(4_000);
 		await fireEvent(harness, "agent_end", {
 			type: "agent_end",
 			messages: [makeAssistantMessage(0)],
@@ -1142,6 +1160,8 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.status).toBe("budget_limited");
 		expect(snapshot?.budgetLimitPromptSent).toBe(true);
+		expect(snapshot?.tokensUsed).toBe(175);
+		expect(snapshot?.timeUsedSeconds).toBe(3);
 		expect(harness.sentMessages).toHaveLength(1);
 	});
 
