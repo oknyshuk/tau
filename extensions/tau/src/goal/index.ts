@@ -629,6 +629,34 @@ async function dispatchGoalContinuation(
 	);
 }
 
+function steerActiveGoal(pi: ExtensionAPI, snapshot: GoalSnapshot): void {
+	pi.sendMessage(
+		{
+			customType: GOAL_CONTINUATION_MESSAGE_TYPE,
+			content: continuationPrompt(snapshot),
+			display: false,
+			details: { objective: snapshot.objective },
+		},
+		{ deliverAs: "steer" },
+	);
+}
+
+async function dispatchActivatedGoal(
+	pi: ExtensionAPI,
+	runtime: GoalRuntime,
+	ctx: ExtensionContext,
+	snapshot: GoalSnapshot | null,
+): Promise<void> {
+	if (snapshot === null || snapshot.status !== "active") {
+		return;
+	}
+	if (ctx.isIdle()) {
+		await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
+		return;
+	}
+	steerActiveGoal(pi, snapshot);
+}
+
 async function dispatchGoalObjectiveUpdated(
 	pi: ExtensionAPI,
 	runtime: GoalRuntime,
@@ -1118,7 +1146,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					await updateGoalUi(ctx);
 					ctx.ui.notify(describeGoal(snapshot), "info");
 					if (status === "active") {
-						await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
+						await dispatchActivatedGoal(pi, runtime, ctx, snapshot);
 					}
 					return;
 				}
@@ -1153,7 +1181,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				if (replacesActiveGoal) {
 					await dispatchGoalObjectiveUpdated(pi, runtime, ctx, snapshot);
 				} else {
-					await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
+					await dispatchActivatedGoal(pi, runtime, ctx, snapshot);
 				}
 			} catch (error) {
 				ctx.ui.notify(errorText(error), "error");
