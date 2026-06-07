@@ -311,6 +311,31 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(5);
 	});
 
+	it("does not append a new event when the budget-limit prompt is already marked sent", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", 100);
+				yield* goal.markAgentStart("session-1", 0);
+				yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(150, false),
+					0,
+				);
+				const first = yield* goal.markBudgetLimitPromptSent("session-1");
+				const second = yield* goal.markBudgetLimitPromptSent("session-1");
+				return { first, second };
+			}),
+		);
+
+		expect(result.first?.budgetLimitPromptSent).toBe(true);
+		expect(result.second?.budgetLimitPromptSent).toBe(true);
+		expect(harness.appended).toHaveLength(3);
+	});
+
 	it("starts model-created goal accounting from the next turn", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);

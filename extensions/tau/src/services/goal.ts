@@ -575,18 +575,24 @@ export const GoalLive = Layer.effect(
 			Effect.gen(function* () {
 				const nowIso = new Date().toISOString();
 				let nextSnapshot: GoalSnapshot | null = null;
+				let shouldPersist = false;
 				yield* Ref.update(runtimes, (state) =>
 					withRuntime(state, sessionId, (runtime) => {
 						if (runtime.snapshot === null) {
 							return runtime;
 						}
+						if (runtime.snapshot.budgetLimitPromptSent) {
+							nextSnapshot = runtime.snapshot;
+							return runtime;
+						}
 						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, {
 							budgetLimitPromptSent: true,
 						});
+						shouldPersist = true;
 						return { ...runtime, snapshot: nextSnapshot };
 					}),
 				);
-				if (nextSnapshot !== null) {
+				if (shouldPersist) {
 					yield* saveSnapshot(nextSnapshot);
 				}
 				return nextSnapshot;
