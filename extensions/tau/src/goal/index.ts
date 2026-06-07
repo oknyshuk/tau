@@ -1165,6 +1165,18 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
 				const nowMs = Date.now();
+				const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+				if (existing?.status === "complete") {
+					if (params.status === "complete") {
+						return goalToolSuccessResult(
+							`Goal already complete. Final usage: ${formatTokenCount(existing.tokensUsed)} tokens, ${formatDuration(existing.timeUsedSeconds * 1_000)}.`,
+							sessionId,
+							existing,
+							{ includeCompletionBudgetReport: true },
+						);
+					}
+					return goalToolErrorResult("Thread goal is already complete.");
+				}
 				clearGoalTerminalAutomation(sessionId);
 				await withGoal(runtime, (goal) =>
 					goal.prepareExternalMutation(sessionId, nowMs),

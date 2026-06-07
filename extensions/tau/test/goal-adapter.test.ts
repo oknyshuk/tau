@@ -1003,6 +1003,42 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("does not reopen a completed goal through update_goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		await tool.execute(
+			"call-update-goal-complete",
+			{ status: "complete" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		const result = await tool.execute(
+			"call-update-goal-blocked",
+			{ status: "blocked" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("complete");
+		expect("isError" in result && result.isError === true).toBe(true);
+		expectTextResultContains(result, "Thread goal is already complete");
+	});
+
 	it("accounts the update_goal caller turn after marking the goal blocked", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
