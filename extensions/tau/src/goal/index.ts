@@ -324,8 +324,36 @@ function goalTimeUsageText(goal: GoalSnapshot): string {
 		: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
 }
 
+function activeGoalStatusUsage(goal: GoalSnapshot): string {
+	if (goal.tokenBudget !== null) {
+		return `${formatGoalTokensCompact(goal.tokensUsed)} / ${formatGoalTokensCompact(goal.tokenBudget)}`;
+	}
+	return formatDuration(goal.timeUsedSeconds * 1_000);
+}
+
+function compactGoalStatus(goal: GoalSnapshot): string {
+	switch (goal.status) {
+		case "active":
+			return `Pursuing goal (${activeGoalStatusUsage(goal)})`;
+		case "paused":
+			return "Goal paused (/goal resume)";
+		case "blocked":
+			return "Goal blocked (/goal resume)";
+		case "usage_limited":
+			return "Goal hit usage limits (/goal resume)";
+		case "budget_limited":
+			return goal.tokenBudget === null
+				? "Goal abandoned"
+				: `Goal unmet (${formatGoalTokensCompact(goal.tokensUsed)} / ${formatGoalTokensCompact(goal.tokenBudget)} tokens)`;
+		case "complete":
+			return goal.tokenBudget === null
+				? `Goal achieved (${formatDuration(goal.timeUsedSeconds * 1_000)})`
+				: `Goal achieved (${formatGoalTokensCompact(goal.tokensUsed)} tokens)`;
+	}
+}
+
 function describeGoalInline(goal: GoalSnapshot): string {
-	return `goal ${goal.status} ${goalTokenUsageText(goal)} ${goalTimeUsageText(goal)}`;
+	return compactGoalStatus(goal);
 }
 
 function shouldAutoContinue(

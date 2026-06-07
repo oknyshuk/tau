@@ -43,6 +43,7 @@ type GoalAdapterHarness = {
 	readonly notifications: ReadonlyArray<{ readonly message: string; readonly type: string }>;
 	readonly confirmations: ReadonlyArray<{ readonly title: string; readonly message: string }>;
 	readonly inputs: ReadonlyArray<{ readonly title: string; readonly placeholder?: string }>;
+	readonly statuses: ReadonlyArray<{ readonly key: string; readonly value: string | undefined }>;
 	readonly inputResponses: Array<string | undefined>;
 	readonly ctx: ExtensionCommandContext;
 	readonly run: <A, E>(effect: Effect.Effect<A, E, Goal>) => Promise<A>;
@@ -57,6 +58,7 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 	const notifications: Array<{ readonly message: string; readonly type: string }> = [];
 	const confirmations: Array<{ readonly title: string; readonly message: string }> = [];
 	const inputs: Array<{ readonly title: string; readonly placeholder?: string }> = [];
+	const statuses: Array<{ readonly key: string; readonly value: string | undefined }> = [];
 	const inputResponses: Array<string | undefined> = [];
 	const piBase = {
 		on: (name: string, handler: EventHandler) => {
@@ -102,7 +104,9 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 				);
 				return inputResponses.shift();
 			},
-			setStatus: () => undefined,
+			setStatus: (key: string, value: string | undefined) => {
+				statuses.push({ key, value });
+			},
 			setWidget: () => undefined,
 		},
 		isIdle: () => true,
@@ -117,6 +121,7 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 		notifications,
 		confirmations,
 		inputs,
+		statuses,
 		inputResponses,
 		ctx,
 		run: (effect) => runtime.runPromise(effect),
@@ -341,6 +346,22 @@ describe("goal adapter", () => {
 		);
 	});
 
+	it("renders codex-style compact active goal status", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 80000 ship the feature");
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(12_500),
+		});
+
+		expect(harness.statuses.at(-1)).toEqual({
+			key: "goal",
+			value: "Pursuing goal (12.5K / 80K)",
+		});
+	});
+
 	it("shows codex-style message when clearing with no current goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
@@ -509,6 +530,10 @@ describe("goal adapter", () => {
 		expect(snapshot?.tokenBudget).toBe(10);
 		expect(snapshot?.tokensUsed).toBe(25);
 		expect(snapshot?.budgetLimitPromptSent).toBe(true);
+		expect(harness.statuses.at(-1)).toEqual({
+			key: "goal",
+			value: "Goal unmet (25 / 10 tokens)",
+		});
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
 		expect(harness.sentMessages[0]?.message.content).toContain(
