@@ -1834,6 +1834,9 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.content).toContain(
 			"The active thread goal objective was edited by the user.",
 		);
+		expect(harness.sentMessages[0]?.message.content).toContain(
+			"<untrusted_objective>\nsecond goal",
+		);
 		expect(harness.sentMessages[0]?.message.content).toContain("second goal");
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
