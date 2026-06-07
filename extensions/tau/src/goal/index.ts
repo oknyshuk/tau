@@ -1189,22 +1189,35 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		},
 	});
 
+	const restoreSessionGoal = async (ctx: ExtensionContext): Promise<GoalSnapshot | null> => {
+		clearAllGoalErrorRetries();
+		await rehydrateAndUpdate(runtime, ctx, goalUiState);
+		await withGoal(runtime, (goal) =>
+			goal.restoreAfterResume(sessionIdFromContext(ctx), Date.now()),
+		);
+		return await updateGoalUi(ctx);
+	};
+
 	const onSessionReady = async (_event: unknown, ctx: ExtensionContext) => {
 		try {
-			clearAllGoalErrorRetries();
-			await rehydrateAndUpdate(runtime, ctx, goalUiState);
-			await withGoal(runtime, (goal) =>
-				goal.restoreAfterResume(sessionIdFromContext(ctx), Date.now()),
-			);
-			await updateGoalUi(ctx);
+			await restoreSessionGoal(ctx);
 		} catch (error) {
 			ctx.ui.notify(errorText(error), "error");
 		}
 	};
 
-	pi.on("session_start", onSessionReady);
-	pi.on("session_switch", onSessionReady);
-	pi.on("session_fork", onSessionReady);
+	const onSessionActivated = async (_event: unknown, ctx: ExtensionContext) => {
+		try {
+			const snapshot = await restoreSessionGoal(ctx);
+			await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
+		} catch (error) {
+			ctx.ui.notify(errorText(error), "error");
+		}
+	};
+
+	pi.on("session_start", onSessionActivated);
+	pi.on("session_switch", onSessionActivated);
+	pi.on("session_fork", onSessionActivated);
 	pi.on("session_tree", onSessionReady);
 
 	pi.on("before_agent_start", async (event: BeforeAgentStartEvent, ctx) => {

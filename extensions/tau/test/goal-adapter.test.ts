@@ -553,6 +553,60 @@ describe("goal adapter", () => {
 		expect(snapshot?.timeUsedSeconds).toBe(2);
 	});
 
+	it("continues an active restored goal on session start", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await fireEvent(harness, "session_start", { type: "session_start" }, ctx);
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+		expect(harness.sentMessages[0]?.message.content).toContain("ship the feature");
+		expect(harness.sentMessages[0]?.options).toEqual({
+			triggerTurn: true,
+			deliverAs: "followUp",
+		});
+	});
+
+	it("does not continue an active restored goal on session tree refresh", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await fireEvent(harness, "session_tree", { type: "session_tree" }, ctx);
+
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("sets a new command goal without replacement confirmation after completion", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
