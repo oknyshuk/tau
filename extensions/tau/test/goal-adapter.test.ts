@@ -2414,6 +2414,45 @@ describe("goal adapter", () => {
 		expect(harness.notifications.at(-1)?.message).toContain("usage limited");
 	});
 
+	it("keeps usage-limit precedence when a quota error crosses the time budget", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeErrorAssistantMessage(
+					"insufficient_quota: monthly usage limit reached",
+					37,
+				),
+			],
+		};
+
+		await runGoalCommand(harness, "--time-budget 1 ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_000);
+		await fireEvent(harness, "agent_end", agentEnd);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("usage_limited");
+		expect(snapshot?.tokensUsed).toBe(37);
+		expect(snapshot?.timeUsedSeconds).toBe(1);
+		expect(harness.sentMessages).toHaveLength(0);
+		expect(harness.notifications.at(-1)?.message).toContain("usage limited");
+	});
+
 	it("can mark a budget-limited goal usage-limited after a quota error", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
