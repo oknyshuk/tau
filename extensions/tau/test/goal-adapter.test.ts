@@ -512,6 +512,64 @@ describe("goal adapter", () => {
 		);
 	});
 
+	it("returns codex-style structured result from create_goal with a token budget", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(1_780_786_975_999);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("create_goal");
+		if (tool === undefined) {
+			throw new Error("create_goal tool was not registered");
+		}
+
+		const result = await tool.execute(
+			"call-create-goal",
+			{ objective: "ship the feature", token_budget: 100 },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		const parsed = parseToolJsonResult(result);
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+			throw new Error("expected create_goal JSON result object");
+		}
+		const goal = (parsed as { readonly goal?: unknown }).goal;
+		if (typeof goal !== "object" || goal === null || Array.isArray(goal)) {
+			throw new Error("expected create_goal JSON goal object");
+		}
+
+		expect(result.details).toMatchObject({
+			displayText: expect.stringContaining("Created thread goal."),
+			remainingTokens: 100,
+			completionBudgetReport: null,
+			goal: {
+				threadId: "session-1",
+				objective: "ship the feature",
+				status: "active",
+				tokenBudget: 100,
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+				createdAt: 1_780_786_975,
+				updatedAt: 1_780_786_975,
+			},
+		});
+		expect(parsed).toMatchObject({
+			remainingTokens: 100,
+			completionBudgetReport: null,
+			goal: {
+				threadId: "session-1",
+				objective: "ship the feature",
+				status: "active",
+				tokenBudget: 100,
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+				createdAt: 1_780_786_975,
+				updatedAt: 1_780_786_975,
+			},
+		});
+		expect("timeBudgetSeconds" in goal).toBe(false);
+	});
+
 	it("returns live elapsed time from get_goal during an active turn", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
