@@ -296,6 +296,18 @@ describe("goal adapter", () => {
 		}
 	});
 
+	it("shows codex-style usage when /goal has no current goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "");
+
+		expect(harness.notifications.at(-1)).toEqual({
+			message: "Usage: /goal <objective>\nNo goal is currently set.",
+			type: "info",
+		});
+	});
+
 	it("starts an idle agent turn after setting a goal from /goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

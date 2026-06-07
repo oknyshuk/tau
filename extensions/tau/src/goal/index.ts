@@ -1274,7 +1274,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						existing === null
 							? await rehydrateAndUpdate(runtime, ctx, goalUiState)
 							: await updateGoalUi(ctx);
-					ctx.ui.notify(describeGoal(snapshot), "info");
+					ctx.ui.notify(
+						snapshot === null
+							? "Usage: /goal <objective>\nNo goal is currently set."
+							: describeGoal(snapshot),
+						"info",
+					);
 					return;
 				}
 				if (parsed.command === "clear") {
