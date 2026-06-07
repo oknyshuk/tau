@@ -685,6 +685,64 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("returns a branch-persisted goal from get_goal without starting resume accounting", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("get_goal");
+		if (tool === undefined) {
+			throw new Error("get_goal tool was not registered");
+		}
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		const result = await tool.execute(
+			"call-get-goal",
+			{},
+			undefined,
+			undefined,
+			ctx,
+		);
+		vi.setSystemTime(5_000);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.liveSnapshot("session-1", Date.now());
+			}),
+		);
+
+		expect(result.details).toMatchObject({
+			goal: {
+				objective: "ship the feature",
+				status: "active",
+				timeUsedSeconds: 0,
+			},
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			goal: {
+				objective: "ship the feature",
+				status: "active",
+				timeUsedSeconds: 0,
+			},
+		});
+		expect(snapshot?.timeUsedSeconds).toBe(0);
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("does not add idle elapsed time to get_goal after a budget-limited turn ends", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
@@ -2791,6 +2849,56 @@ describe("goal adapter", () => {
 		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.continuationSuppressed).toBe(false);
+	});
+
+	it("resumes a branch-persisted paused goal after interactive user input", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = {
+			...makeGoalSnapshot(
+				"ship the feature",
+				null,
+				null,
+				"2026-05-01T00:00:00.000Z",
+			),
+			status: "paused" as const,
+		};
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		const inputResults = await fireEvent(harness, "input", {
+			type: "input",
+			text: "continue",
+			source: "interactive",
+		}, ctx);
+		const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "base prompt",
+		}, ctx);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(inputResults).toEqual([{ action: "continue" }]);
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.continuationSuppressed).toBe(false);
+		expect(beforeAgentStartResults).toHaveLength(1);
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("Active thread goal context."),
+		});
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
+		});
 	});
 
 	it("does not resume a paused goal after extension input", async () => {

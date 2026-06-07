@@ -1090,9 +1090,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				goalToolErrorResult(message),
 			execute: async (_params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
-				const snapshot = await withGoal(runtime, (goal) =>
+				let snapshot = await withGoal(runtime, (goal) =>
 					goal.liveSnapshot(sessionId, Date.now()),
 				);
+				if (snapshot === null) {
+					snapshot = await rehydrateAndUpdate(runtime, ctx, goalUiState);
+				}
 				return goalToolSuccessResult(describeGoal(snapshot), sessionId, snapshot);
 			},
 			renderCall: (_args, theme) =>
@@ -1387,7 +1390,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			const sessionId = sessionIdFromContext(ctx);
 			const nowMs = Date.now();
 			clearGoalPendingAutomation(sessionId);
-			const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+			let snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+			if (snapshot === null) {
+				snapshot = await rehydrateAndUpdate(runtime, ctx, goalUiState);
+			}
 			if (
 				snapshot !== null &&
 				isUserInputResumableStatus(snapshot.status)
