@@ -885,9 +885,9 @@ describe("goal adapter", () => {
 		);
 
 		expect("isError" in result && result.isError === true).toBe(true);
-		expectTextResultContains(result, "No thread goal is set.");
+		expectTextResultContains(result, "cannot update goal because this thread has no goal");
 		expect(result.details).toMatchObject({
-			displayText: "No thread goal is set.",
+			displayText: "cannot update goal because this thread has no goal",
 			goal: null,
 			remainingTokens: null,
 			completionBudgetReport: null,

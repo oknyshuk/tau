@@ -1230,7 +1230,9 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					}),
 				);
 				if (snapshot === null) {
-					return goalToolErrorResult("No thread goal is set.");
+					return goalToolErrorResult(
+						"cannot update goal because this thread has no goal",
+					);
 				}
 				await updateGoalUi(ctx);
 				if (params.status === "blocked") {
