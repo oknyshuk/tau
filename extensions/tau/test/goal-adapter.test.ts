@@ -639,6 +639,41 @@ describe("goal adapter", () => {
 		);
 	});
 
+	it("trims model-created goal objectives like codex", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("create_goal");
+		if (tool === undefined) {
+			throw new Error("create_goal tool was not registered");
+		}
+
+		const result = await tool.execute(
+			"call-create-goal",
+			{ objective: "  ship the feature  " },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(result.details).toMatchObject({
+			goal: {
+				objective: "ship the feature",
+			},
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			goal: {
+				objective: "ship the feature",
+			},
+		});
+		expect(snapshot?.objective).toBe("ship the feature");
+	});
+
 	it("returns codex-style structured result from create_goal with a token budget", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(1_780_786_975_999);

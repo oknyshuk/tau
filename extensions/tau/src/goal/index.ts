@@ -139,6 +139,7 @@ function decodeCreateGoalParams(raw: unknown): CreateGoalParams {
 	if (typeof objective !== "string" || objective.trim().length === 0) {
 		throw new Error("objective must be a non-empty string");
 	}
+	const trimmedObjective = objective.trim();
 	const tokenBudget = raw["token_budget"];
 	if (
 		tokenBudget !== undefined &&
@@ -148,10 +149,10 @@ function decodeCreateGoalParams(raw: unknown): CreateGoalParams {
 	}
 	const parsedTokenBudget = typeof tokenBudget === "number" ? tokenBudget : undefined;
 	if (tokenBudget === undefined) {
-		return { objective };
+		return { objective: trimmedObjective };
 	}
 	if (parsedTokenBudget !== undefined) {
-		return { objective, token_budget: parsedTokenBudget };
+		return { objective: trimmedObjective, token_budget: parsedTokenBudget };
 	}
 	throw new Error("invalid goal budget");
 }
