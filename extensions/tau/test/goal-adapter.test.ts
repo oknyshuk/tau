@@ -587,7 +587,7 @@ describe("goal adapter", () => {
 		expect("isError" in result && result.isError === true).toBe(true);
 		expectTextResultContains(
 			result,
-			"cannot create a new goal because this thread already has a goal; use update_goal only for status",
+			"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
 		);
 	});
 
@@ -633,7 +633,7 @@ describe("goal adapter", () => {
 		expect("isError" in result && result.isError === true).toBe(true);
 		expectTextResultContains(
 			result,
-			"cannot create a new goal because this thread already has a goal; use update_goal only for status",
+			"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
 		);
 	});
 

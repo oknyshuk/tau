@@ -322,7 +322,7 @@ export const GoalLive = Layer.effect(
 					return yield* Effect.fail(
 						new GoalConflictError({
 							reason:
-								"cannot create a new goal because this thread already has a goal; use update_goal only for status",
+								"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
 						}),
 					);
 				}
