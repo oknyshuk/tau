@@ -103,6 +103,26 @@ Do not call update_goal unless the goal is complete or the strict blocked audit 
 		);
 	});
 
+	it("includes codex completion reporting guidance in active goal system context", () => {
+		const goal = {
+			...makeGoalSnapshot("finish", 500, null, "2026-05-02T00:00:00.000Z"),
+			tokensUsed: 125,
+			timeUsedSeconds: 2,
+		};
+
+		const prompt = goalSystemPrompt(goal);
+
+		expect(prompt).toContain(
+			"If the objective is achieved, call update_goal with status \"complete\" so usage accounting is preserved.",
+		);
+		expect(prompt).toContain(
+			"If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.",
+		);
+		expect(prompt).toContain(
+			"If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete.",
+		);
+	});
+
 	it("includes codex work guidance in active goal system context", () => {
 		const goal = {
 			...makeGoalSnapshot("finish", null, null, "2026-05-02T00:00:00.000Z"),
