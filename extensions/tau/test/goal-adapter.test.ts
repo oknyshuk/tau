@@ -1230,6 +1230,39 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
+	it("pauses a branch-persisted active goal from /goal pause", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "pause", ctx);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.notifications.at(-1)?.message).toContain("Status: paused");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("suppresses a repeated continuation after an active goal steer does no tool work", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
@@ -1672,6 +1705,43 @@ describe("goal adapter", () => {
 			triggerTurn: true,
 			deliverAs: "followUp",
 		});
+	});
+
+	it("asks before replacing a branch-persisted active command goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"first goal",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "second goal", ctx);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(harness.confirmations).toHaveLength(1);
+		expect(harness.confirmations[0]?.title).toBe("Replace thread goal?");
+		expect(harness.confirmations[0]?.message).toContain("first goal");
+		expect(snapshot?.objective).toBe("second goal");
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+		expect(harness.sentMessages[0]?.message.content).toContain("second goal");
 	});
 
 	it("steers the active turn when replacing an active command goal while running", async () => {

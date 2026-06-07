@@ -620,6 +620,16 @@ async function rehydrateAndUpdate(
 	return snapshot;
 }
 
+async function getOrRehydrateGoal(
+	runtime: GoalRuntime,
+	ctx: ExtensionContext,
+	uiState: GoalUiState,
+): Promise<GoalSnapshot | null> {
+	const sessionId = sessionIdFromContext(ctx);
+	const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+	return existing ?? (await rehydrateAndUpdate(runtime, ctx, uiState));
+}
+
 async function dispatchGoalContinuation(
 	pi: ExtensionAPI,
 	runtime: GoalRuntime,
@@ -1133,10 +1143,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				goalToolErrorResult(errorText(error)),
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
-				const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
-				if (existing === null) {
-					await rehydrateAndUpdate(runtime, ctx, goalUiState);
-				}
+				await getOrRehydrateGoal(runtime, ctx, goalUiState);
 				const snapshot = await withGoal(runtime, (goal) =>
 					goal.create(
 						sessionId,
@@ -1188,10 +1195,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
 				const nowMs = Date.now();
-				let existing = await withGoal(runtime, (goal) => goal.get(sessionId));
-				if (existing === null) {
-					existing = await rehydrateAndUpdate(runtime, ctx, goalUiState);
-				}
+				const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 				if (existing?.status === "complete") {
 					if (params.status === "complete") {
 						return goalToolSuccessResult(
@@ -1248,6 +1252,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					return;
 				}
 				if (parsed.command === "clear") {
+					await getOrRehydrateGoal(runtime, ctx, goalUiState);
 					await withGoal(runtime, (goal) =>
 						goal.prepareExternalMutation(sessionId, Date.now()),
 					);
@@ -1270,8 +1275,8 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 							: parsed.command === "pause"
 								? "paused"
 								: "complete";
+					const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 					if (parsed.command === "pause" || parsed.command === "resume") {
-						const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
 						if (existing?.status === "complete") {
 							ctx.ui.notify(
 								"Thread goal is already complete. Set a new thread goal to continue.",
@@ -1304,7 +1309,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				}
 
 				const objective = parsed.objective ?? "";
-				const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+				const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 				const replacesActiveGoal = existing !== null && existing.status !== "complete";
 				if (replacesActiveGoal) {
 					const confirmed = await ctx.ui.confirm(
@@ -1397,10 +1402,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			const sessionId = sessionIdFromContext(ctx);
 			const nowMs = Date.now();
 			clearGoalPendingAutomation(sessionId);
-			let snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
-			if (snapshot === null) {
-				snapshot = await rehydrateAndUpdate(runtime, ctx, goalUiState);
-			}
+			const snapshot = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 			if (
 				snapshot !== null &&
 				isUserInputResumableStatus(snapshot.status)
