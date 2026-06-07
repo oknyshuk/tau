@@ -81,7 +81,11 @@ const CREATE_GOAL_PROMPT_GUIDELINES = [
 	"Fails if a goal exists; use update_goal only for status.",
 ] as const;
 
-const CREATE_GOAL_DESCRIPTION = CREATE_GOAL_PROMPT_GUIDELINES.join("\n");
+const CREATE_GOAL_DESCRIPTION = [
+	"Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
+	"Set token_budget only when an explicit token budget is requested.",
+	"Fails if a goal exists; use update_goal only for status.",
+].join("\n");
 
 const UPDATE_GOAL_PROMPT_GUIDELINES = [
 	"Set status to `complete` only when the objective has actually been achieved and no required work remains.",
