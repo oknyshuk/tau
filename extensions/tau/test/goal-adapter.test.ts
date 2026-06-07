@@ -2219,13 +2219,14 @@ describe("goal adapter", () => {
 		await runGoalCommand(harness, "ship the feature");
 		harness.sentMessages.length = 0;
 		await fireEvent(harness, "agent_end", agentEnd);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "keep going",
 			source: "interactive",
 		});
 		await vi.advanceTimersByTimeAsync(60_000);
 
+		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
@@ -2328,7 +2329,7 @@ describe("goal adapter", () => {
 				yield* goal.setStatus("session-1", "paused");
 			}),
 		);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "continue",
 			source: "interactive",
@@ -2345,6 +2346,7 @@ describe("goal adapter", () => {
 		expect(results[0]).toMatchObject({
 			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
 		});
+		expect(inputResults).toEqual([{ action: "continue" }]);
 	});
 
 	it("resumes a blocked goal after interactive user input", async () => {
@@ -2358,7 +2360,7 @@ describe("goal adapter", () => {
 				yield* goal.setStatus("session-1", "blocked");
 			}),
 		);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "continue",
 			source: "interactive",
@@ -2371,6 +2373,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
+		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
@@ -2386,7 +2389,7 @@ describe("goal adapter", () => {
 				yield* goal.setStatus("session-1", "blocked");
 			}),
 		);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "continue",
 			source: "interactive",
@@ -2403,6 +2406,7 @@ describe("goal adapter", () => {
 		expect(results[0]).toMatchObject({
 			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
 		});
+		expect(inputResults).toEqual([{ action: "continue" }]);
 	});
 
 	it("resumes a usage-limited goal after interactive user input", async () => {
@@ -2416,7 +2420,7 @@ describe("goal adapter", () => {
 				yield* goal.setStatus("session-1", "usage_limited");
 			}),
 		);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "continue",
 			source: "interactive",
@@ -2429,6 +2433,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
+		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
@@ -2444,7 +2449,7 @@ describe("goal adapter", () => {
 				yield* goal.setStatus("session-1", "usage_limited");
 			}),
 		);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "continue",
 			source: "interactive",
@@ -2461,6 +2466,7 @@ describe("goal adapter", () => {
 		expect(results[0]).toMatchObject({
 			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
 		});
+		expect(inputResults).toEqual([{ action: "continue" }]);
 	});
 
 	it("resumes a budget-limited goal after interactive user input", async () => {
@@ -2474,7 +2480,7 @@ describe("goal adapter", () => {
 				yield* goal.setStatus("session-1", "budget_limited");
 			}),
 		);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "continue",
 			source: "interactive",
@@ -2487,6 +2493,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
+		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.budgetLimitPromptSent).toBe(false);
 		expect(snapshot?.continuationSuppressed).toBe(false);
@@ -2503,7 +2510,7 @@ describe("goal adapter", () => {
 				yield* goal.setStatus("session-1", "budget_limited");
 			}),
 		);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "continue",
 			source: "interactive",
@@ -2520,6 +2527,7 @@ describe("goal adapter", () => {
 		expect(results[0]).toMatchObject({
 			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
 		});
+		expect(inputResults).toEqual([{ action: "continue" }]);
 	});
 
 	it("clears continuation suppression after interactive user input", async () => {
@@ -2544,7 +2552,7 @@ describe("goal adapter", () => {
 		expect(snapshot?.continuationSuppressed).toBe(true);
 
 		harness.sentMessages.length = 0;
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "keep going",
 			source: "interactive",
@@ -2560,6 +2568,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
+		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.continuationSuppressed).toBe(false);
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
