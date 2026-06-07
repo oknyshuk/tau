@@ -946,6 +946,42 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("sends the budget-limit prompt when an error crosses the time budget", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--time-budget 1 finish");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_000);
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeErrorAssistantMessage("provider returned error: 503")],
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.budgetLimitPromptSent).toBe(true);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
+		expect(harness.sentMessages[0]?.message.content).toContain("reached its time budget");
+		expect(harness.sentMessages[0]?.options).toEqual({
+			triggerTurn: true,
+			deliverAs: "followUp",
+		});
+	});
+
 	it("steers the budget-limit prompt during an active turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

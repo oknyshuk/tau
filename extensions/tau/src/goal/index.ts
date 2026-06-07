@@ -1467,18 +1467,18 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			}
 			await updateGoalUi(ctx);
 
-			if (latestAssistant?.stopReason === "error") {
-				await handleGoalAssistantError(ctx, result.snapshot, latestAssistant);
-				return;
-			}
-			clearGoalErrorRetry(sessionId);
-
 			if (result.budgetLimitReached && result.snapshot !== null) {
 				await dispatchGoalBudgetLimit(pi, runtime, ctx, result.snapshot, {
 					activeTurn: false,
 				});
 				return;
 			}
+
+			if (latestAssistant?.stopReason === "error") {
+				await handleGoalAssistantError(ctx, result.snapshot, latestAssistant);
+				return;
+			}
+			clearGoalErrorRetry(sessionId);
 
 			if (!shouldAutoContinue(result.snapshot, ctx)) {
 				return;
