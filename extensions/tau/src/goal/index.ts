@@ -1061,12 +1061,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		);
 	};
 
-		pi.registerTool(
-			defineDecodedTool({
-				name: "get_goal",
-				label: "get goal",
-				description:
-					"Get the current goal for this thread, including status, budgets, token and elapsed-time usage, and remaining token budget.",
+	pi.registerTool(
+		defineDecodedTool({
+			name: "get_goal",
+			label: "get goal",
+			description:
+				"Get the current goal for this thread, including status, budgets, token and elapsed-time usage, and remaining token budget.",
 			parameters: Type.Object({}, { additionalProperties: false }),
 			decodeParams: decodeNoParams,
 			formatInvalidParamsResult: (message) =>
@@ -1084,12 +1084,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		}),
 	);
 
-		pi.registerTool(
-			defineDecodedTool({
-				name: "create_goal",
-				label: "create goal",
-				description:
-					"Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
+	pi.registerTool(
+		defineDecodedTool({
+			name: "create_goal",
+			label: "create goal",
+			description:
+				"Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
 			promptGuidelines: [
 				"Use create_goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
 				"Set token_budget only when an explicit token budget is requested.",
@@ -1097,9 +1097,16 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			],
 			parameters: Type.Object(
 				{
-					objective: Type.String({ description: "Concrete objective for this thread." }),
+					objective: Type.String({
+						description:
+							"The concrete objective to start pursuing. This starts a new active goal only when no goal is currently defined; if a goal already exists, this tool fails.",
+					}),
 					token_budget: Type.Optional(
-						Type.Integer({ description: "Optional positive token budget.", minimum: 1 }),
+						Type.Integer({
+							description:
+								"Positive token budget for the new goal. Omit unless explicitly requested.",
+							minimum: 1,
+						}),
 					),
 				},
 				{ additionalProperties: false },
@@ -1136,25 +1143,31 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		}),
 	);
 
-		pi.registerTool(
-			defineDecodedTool({
-				name: "update_goal",
-				label: "update goal",
-				description:
-					"Update the existing goal. Use this tool only to mark the goal achieved or genuinely blocked.",
+	pi.registerTool(
+		defineDecodedTool({
+			name: "update_goal",
+			label: "update goal",
+			description:
+				"Update the existing goal. Use this tool only to mark the goal achieved or genuinely blocked.",
 			promptGuidelines: [
-				"Set status to complete only when the objective is achieved and no required work remains.",
-				"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.",
-				"If the user resumes a goal that was previously marked blocked, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to blocked again.",
-				"Once the blocked threshold is satisfied, use status blocked instead of continuing to report that the goal is still blocked while leaving it active.",
-				"Do not use blocked merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
+				"Set status to `complete` only when the objective has actually been achieved and no required work remains.",
+				"Set status to `blocked` only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.",
+				"If the user resumes a goal that was previously marked `blocked`, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to `blocked` again.",
+				"Once the blocked threshold is satisfied, do not keep reporting that you are still blocked while leaving the goal active; set status to `blocked`.",
+				"Do not use `blocked` merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
 				"Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",
-				"Do not use update_goal to pause, resume, clear, budget-limit, or usage-limit a goal.",
-				"When marking a budgeted goal achieved with status complete, report the final token usage from the tool result to the user.",
+				"You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal; those status changes are controlled by the user or system.",
+				"When marking a budgeted goal achieved with status `complete`, report the final token usage from the tool result to the user.",
 			],
 			parameters: Type.Object(
 				{
-					status: Type.Union([Type.Literal("complete"), Type.Literal("blocked")]),
+					status: Type.Union(
+						[Type.Literal("complete"), Type.Literal("blocked")],
+						{
+							description:
+								"Required. Set to `complete` only when the objective is achieved and no required work remains. Set to `blocked` only after the same blocking condition has recurred for at least three consecutive goal turns and the agent is at an impasse. After a previously blocked goal is resumed, the resumed run starts a fresh blocked audit.",
+						},
+					),
 				},
 				{ additionalProperties: false },
 			),

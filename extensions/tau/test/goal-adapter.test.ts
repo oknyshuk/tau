@@ -235,6 +235,25 @@ function expectClosedSchema(value: unknown): void {
 	);
 }
 
+function expectParameterDescription(
+	parameters: unknown,
+	name: string,
+	description: string,
+): void {
+	if (typeof parameters !== "object" || parameters === null || Array.isArray(parameters)) {
+		throw new Error("expected parameter schema object");
+	}
+	const properties = (parameters as { readonly properties?: unknown }).properties;
+	if (typeof properties !== "object" || properties === null || Array.isArray(properties)) {
+		throw new Error("expected parameter schema properties");
+	}
+	const property = (properties as Record<string, unknown>)[name];
+	if (typeof property !== "object" || property === null || Array.isArray(property)) {
+		throw new Error(`expected parameter schema property ${name}`);
+	}
+	expect((property as { readonly description?: unknown }).description).toBe(description);
+}
+
 function expectTextResultContains(
 	result: { readonly content: ReadonlyArray<{ readonly type: string; readonly text?: string }> },
 	expected: string,
@@ -321,6 +340,21 @@ describe("goal adapter", () => {
 		expect(updateGoal.description).toBe(
 			"Update the existing goal. Use this tool only to mark the goal achieved or genuinely blocked.",
 		);
+		expectParameterDescription(
+			createGoal.parameters,
+			"objective",
+			"The concrete objective to start pursuing. This starts a new active goal only when no goal is currently defined; if a goal already exists, this tool fails.",
+		);
+		expectParameterDescription(
+			createGoal.parameters,
+			"token_budget",
+			"Positive token budget for the new goal. Omit unless explicitly requested.",
+		);
+		expectParameterDescription(
+			updateGoal.parameters,
+			"status",
+			"Required. Set to `complete` only when the objective is achieved and no required work remains. Set to `blocked` only after the same blocking condition has recurred for at least three consecutive goal turns and the agent is at an impasse. After a previously blocked goal is resumed, the resumed run starts a fresh blocked audit.",
+		);
 		expect(createGoal.promptGuidelines).toContain(
 			"Use create_goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks.",
 		);
@@ -328,19 +362,28 @@ describe("goal adapter", () => {
 			"Set token_budget only when an explicit token budget is requested.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
-			"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.",
+			"Set status to `complete` only when the objective has actually been achieved and no required work remains.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
-			"If the user resumes a goal that was previously marked blocked, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to blocked again.",
+			"Set status to `blocked` only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
-			"Do not use blocked merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
+			"If the user resumes a goal that was previously marked `blocked`, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to `blocked` again.",
+		);
+		expect(updateGoal.promptGuidelines).toContain(
+			"Once the blocked threshold is satisfied, do not keep reporting that you are still blocked while leaving the goal active; set status to `blocked`.",
+		);
+		expect(updateGoal.promptGuidelines).toContain(
+			"Do not use `blocked` merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
 			"Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
-			"When marking a budgeted goal achieved with status complete, report the final token usage from the tool result to the user.",
+			"You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal; those status changes are controlled by the user or system.",
+		);
+		expect(updateGoal.promptGuidelines).toContain(
+			"When marking a budgeted goal achieved with status `complete`, report the final token usage from the tool result to the user.",
 		);
 	});
 
