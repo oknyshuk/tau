@@ -1869,6 +1869,49 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("asks before replacing an unchanged unfinished command goal", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "first goal");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_500);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(25),
+		});
+		harness.sentMessages.length = 0;
+		vi.setSystemTime(2_500);
+		await runGoalCommand(harness, "first goal");
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(harness.confirmations).toHaveLength(1);
+		expect(harness.confirmations[0]?.title).toBe("Replace thread goal?");
+		expect(harness.confirmations[0]?.message).toContain("Current: first goal");
+		expect(harness.confirmations[0]?.message).toContain("New: first goal");
+		expect(snapshot?.objective).toBe("first goal");
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.tokensUsed).toBe(0);
+		expect(snapshot?.timeUsedSeconds).toBe(0);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+		expect(harness.sentMessages[0]?.message.content).toContain("first goal");
+		expect(harness.sentMessages[0]?.options).toEqual({
+			triggerTurn: true,
+			deliverAs: "followUp",
+		});
+	});
+
 	it("asks before replacing a branch-persisted active command goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

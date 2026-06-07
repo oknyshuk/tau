@@ -1324,10 +1324,17 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				const objective = parsed.objective ?? "";
 				const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 				const objectiveChanged = existing !== null && existing.objective !== objective;
-				const replacesExistingGoal =
-					existing !== null && (objectiveChanged || existing.status === "complete");
+				const sameObjectiveBudgetEdit =
+					existing !== null &&
+					existing.status !== "complete" &&
+					!objectiveChanged &&
+					(parsed.tokenBudget !== null || parsed.timeBudgetSeconds !== null);
 				const replacesUnfinishedGoal =
-					existing !== null && existing.status !== "complete" && objectiveChanged;
+					existing !== null &&
+					existing.status !== "complete" &&
+					!sameObjectiveBudgetEdit;
+				const replacesExistingGoal =
+					existing !== null && (replacesUnfinishedGoal || existing.status === "complete");
 				if (replacesUnfinishedGoal) {
 					const confirmed = await ctx.ui.confirm(
 						"Replace thread goal?",
@@ -1362,7 +1369,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					});
 					return;
 				}
-				if (replacesUnfinishedGoal) {
+				if (replacesUnfinishedGoal && objectiveChanged) {
 					await dispatchGoalObjectiveUpdated(pi, runtime, ctx, snapshot);
 				} else {
 					await dispatchActivatedGoal(pi, runtime, ctx, snapshot);
