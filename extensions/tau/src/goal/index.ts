@@ -227,7 +227,7 @@ function shouldAutoContinue(
 }
 
 function isUserInputResumableStatus(status: GoalStatus): boolean {
-	return status === "paused" || status === "blocked";
+	return status === "paused" || status === "blocked" || status === "usage_limited";
 }
 
 function signalFromContext(ctx: ExtensionContext): AbortSignal | undefined {
