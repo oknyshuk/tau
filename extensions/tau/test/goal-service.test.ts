@@ -1015,4 +1015,41 @@ describe("goal service", () => {
 		expect(result.snapshot?.tokensUsed).toBe(23);
 	});
 
+	it("accounts budget-limited wrap-up progress before marking usage-limited", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", 25);
+				yield* goal.markAgentStart("session-1", 0);
+				const budgetLimited = yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(30, true, "toolUse"),
+					1_000,
+				);
+				const usageLimited = yield* goal.markUsageLimited(
+					"session-1",
+					makeAssistantMessage(5, false, "error"),
+					1_500,
+				);
+				const laterTurn = yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(50, false),
+					3_000,
+				);
+				const snapshot = yield* goal.get("session-1");
+				return { budgetLimited, usageLimited, laterTurn, snapshot };
+			}),
+		);
+
+		expect(result.budgetLimited.snapshot?.status).toBe("budget_limited");
+		expect(result.budgetLimited.snapshot?.tokensUsed).toBe(30);
+		expect(result.usageLimited?.status).toBe("usage_limited");
+		expect(result.usageLimited?.tokensUsed).toBe(35);
+		expect(result.laterTurn.snapshot).toBeNull();
+		expect(result.snapshot?.tokensUsed).toBe(35);
+	});
+
 });
