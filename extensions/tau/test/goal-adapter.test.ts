@@ -306,6 +306,9 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.objective).toBe("ship the feature");
 		expect(snapshot?.timeBudgetSeconds).toBe(300);
+		expect(harness.notifications.at(-1)?.message).toContain("Tokens: 0 tokens");
+		expect(harness.notifications.at(-1)?.message).toContain("Time: 0s/5m 0s");
+		expect(harness.notifications.at(-1)?.message).not.toContain("no budget");
 		expect(harness.sentMessages[0]?.message.content).toContain(
 			"- Time budget: 300 seconds",
 		);

@@ -178,31 +178,30 @@ function describeGoal(goal: GoalSnapshot | null): string {
 	if (goal === null) {
 		return "No active thread goal.";
 	}
-	const budget =
-		goal.tokenBudget === null
-			? "no budget"
-			: `${formatTokenCount(goal.tokensUsed)}/${formatTokenCount(goal.tokenBudget)} tokens`;
-	const timeBudget =
-		goal.timeBudgetSeconds === null
-			? formatDuration(goal.timeUsedSeconds * 1_000)
-			: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
 	return [
 		`Goal: ${goal.objective}`,
 		`Status: ${goal.status}`,
-		`Usage: ${budget}, ${timeBudget}`,
+		`Tokens: ${goalTokenUsageText(goal)}`,
+		`Time: ${goalTimeUsageText(goal)}`,
 	].join("\n");
 }
 
-function describeGoalInline(goal: GoalSnapshot): string {
-	const budget =
+function goalTokenUsageText(goal: GoalSnapshot): string {
+	const tokens =
 		goal.tokenBudget === null
 			? formatTokenCount(goal.tokensUsed)
 			: `${formatTokenCount(goal.tokensUsed)}/${formatTokenCount(goal.tokenBudget)}`;
-	const timeBudget =
-		goal.timeBudgetSeconds === null
-			? formatDuration(goal.timeUsedSeconds * 1_000)
-			: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
-	return `goal ${goal.status} ${budget} ${timeBudget}`;
+	return `${tokens} tokens`;
+}
+
+function goalTimeUsageText(goal: GoalSnapshot): string {
+	return goal.timeBudgetSeconds === null
+		? formatDuration(goal.timeUsedSeconds * 1_000)
+		: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
+}
+
+function describeGoalInline(goal: GoalSnapshot): string {
+	return `goal ${goal.status} ${goalTokenUsageText(goal)} ${goalTimeUsageText(goal)}`;
 }
 
 function shouldAutoContinue(
@@ -253,8 +252,8 @@ class GoalWidget implements Component {
 		const lines = [
 			` Goal: ${goal.objective}`,
 			` Status: ${goal.status}`,
-			` Usage: ${formatTokenCount(goal.tokensUsed)} tokens`,
-			` Time: ${formatDuration(goal.timeUsedSeconds * 1_000)}${goal.timeBudgetSeconds === null ? "" : `/${formatDuration(goal.timeBudgetSeconds * 1_000)}`}`,
+			` Tokens: ${goalTokenUsageText(goal)}`,
+			` Time: ${goalTimeUsageText(goal)}`,
 		];
 		return maxWidth === 0 ? lines.map(() => "") : lines.map((line) => truncateToWidth(line, maxWidth));
 	}
