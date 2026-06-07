@@ -216,6 +216,16 @@ async function runGoalCommand(
 	await command.handler(args, ctx);
 }
 
+function parseToolJsonResult(result: {
+	readonly content: ReadonlyArray<{ readonly type: string; readonly text?: string }>;
+}): unknown {
+	const item = result.content[0];
+	if (item?.type !== "text" || item.text === undefined) {
+		throw new Error("expected tool to return text JSON content");
+	}
+	return JSON.parse(item.text) as unknown;
+}
+
 describe("goal adapter", () => {
 	const harnesses: GoalAdapterHarness[] = [];
 
@@ -606,14 +616,21 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.status).toBe("blocked");
 		expect(result.details).toMatchObject({
+			displayText: "Goal blocked.",
 			remainingTokens: null,
 			completionBudgetReport: null,
 		});
-		const item = result.content[0];
-		if (item?.type !== "text") {
-			throw new Error("expected update_goal to return text content");
-		}
-		expect(item.text).toBe("Goal blocked.");
+		expect(parseToolJsonResult(result)).toMatchObject({
+			goal: {
+				threadId: "session-1",
+				objective: "ship the feature",
+				status: "blocked",
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+			},
+			remainingTokens: null,
+			completionBudgetReport: null,
+		});
 	});
 
 	it("accounts the update_goal caller turn after marking the goal blocked", async () => {
@@ -677,6 +694,17 @@ describe("goal adapter", () => {
 			remainingTokens: 75,
 			completionBudgetReport: expect.stringContaining("Goal achieved."),
 			goal: {
+				threadId: "session-1",
+				status: "complete",
+				tokenBudget: 100,
+				tokensUsed: 25,
+			},
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			remainingTokens: 75,
+			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			goal: {
+				threadId: "session-1",
 				status: "complete",
 				tokenBudget: 100,
 				tokensUsed: 25,

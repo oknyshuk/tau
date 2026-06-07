@@ -42,8 +42,34 @@ const GOAL_ERROR_RETRY_JITTER_MS = 1_000;
 const GOAL_ERROR_RETRY_BUSY_DELAY_MS = 1_000;
 
 type GoalToolDetails = {
-	readonly snapshot: GoalSnapshot | null;
-	readonly goal: GoalSnapshot | null;
+	readonly displayText: string;
+	readonly goal: GoalToolGoal | null;
+	readonly remainingTokens: number | null;
+	readonly completionBudgetReport: string | null;
+};
+
+type GoalProtocolStatus =
+	| "active"
+	| "paused"
+	| "blocked"
+	| "usageLimited"
+	| "budgetLimited"
+	| "complete";
+
+type GoalToolGoal = {
+	readonly threadId: string;
+	readonly objective: string;
+	readonly status: GoalProtocolStatus;
+	readonly tokenBudget?: number;
+	readonly timeBudgetSeconds?: number;
+	readonly tokensUsed: number;
+	readonly timeUsedSeconds: number;
+	readonly createdAt: number;
+	readonly updatedAt: number;
+};
+
+type GoalToolResponse = {
+	readonly goal: GoalToolGoal | null;
 	readonly remainingTokens: number | null;
 	readonly completionBudgetReport: string | null;
 };
@@ -340,27 +366,123 @@ function errorText(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-function goalToolResult(
-	text: string,
+function protocolGoalStatus(status: GoalStatus): GoalProtocolStatus {
+	switch (status) {
+		case "active":
+		case "paused":
+		case "blocked":
+		case "complete":
+			return status;
+		case "usage_limited":
+			return "usageLimited";
+		case "budget_limited":
+			return "budgetLimited";
+	}
+}
+
+function epochSeconds(timestamp: string): number {
+	const ms = Date.parse(timestamp);
+	if (!Number.isFinite(ms)) {
+		throw new Error(`invalid goal timestamp: ${timestamp}`);
+	}
+	return Math.floor(ms / 1_000);
+}
+
+function goalToolGoal(sessionId: string, snapshot: GoalSnapshot): GoalToolGoal {
+	return {
+		threadId: sessionId,
+		objective: snapshot.objective,
+		status: protocolGoalStatus(snapshot.status),
+		...(snapshot.tokenBudget === null ? {} : { tokenBudget: snapshot.tokenBudget }),
+		...(snapshot.timeBudgetSeconds === null
+			? {}
+			: { timeBudgetSeconds: snapshot.timeBudgetSeconds }),
+		tokensUsed: snapshot.tokensUsed,
+		timeUsedSeconds: snapshot.timeUsedSeconds,
+		createdAt: epochSeconds(snapshot.createdAt),
+		updatedAt: epochSeconds(snapshot.updatedAt),
+	};
+}
+
+function goalCompletionBudgetReport(
 	snapshot: GoalSnapshot | null,
-	options?: { readonly isError?: boolean; readonly includeCompletionBudgetReport?: boolean },
-) {
+	includeCompletionBudgetReport: boolean | undefined,
+): string | null {
+	if (
+		includeCompletionBudgetReport !== true ||
+		snapshot === null ||
+		snapshot.status !== "complete" ||
+		(snapshot.tokenBudget === null && snapshot.timeUsedSeconds <= 0)
+	) {
+		return null;
+	}
+	return "Goal achieved. Report final usage from this tool result's structured goal fields. If \u0060goal.tokenBudget\u0060 is present, include token usage from \u0060goal.tokensUsed\u0060 and \u0060goal.tokenBudget\u0060. If \u0060goal.timeUsedSeconds\u0060 is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language.";
+}
+
+function goalResponse(
+	sessionId: string,
+	snapshot: GoalSnapshot | null,
+	includeCompletionBudgetReport: boolean | undefined,
+): GoalToolResponse {
 	const remainingTokens =
 		snapshot?.tokenBudget === null || snapshot === null
 			? null
 			: Math.max(0, snapshot.tokenBudget - snapshot.tokensUsed);
-	const completionBudgetReport =
-		options?.includeCompletionBudgetReport === true &&
-		snapshot !== null &&
-		snapshot.status === "complete" &&
-		(snapshot.tokenBudget !== null || snapshot.timeUsedSeconds > 0)
-			? "Goal achieved. Report final usage from this tool result's structured goal fields. If `goal.tokenBudget` is present, include token usage from `goal.tokensUsed` and `goal.tokenBudget`. If `goal.timeUsedSeconds` is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language."
-			: null;
+	const completionBudgetReport = goalCompletionBudgetReport(
+		snapshot,
+		includeCompletionBudgetReport,
+	);
+	return {
+		goal: snapshot === null ? null : goalToolGoal(sessionId, snapshot),
+		remainingTokens,
+		completionBudgetReport,
+	};
+}
+
+function goalToolSuccessResult(
+	displayText: string,
+	sessionId: string,
+	snapshot: GoalSnapshot | null,
+	options?: { readonly includeCompletionBudgetReport?: boolean },
+) {
+	const response = goalResponse(
+		sessionId,
+		snapshot,
+		options?.includeCompletionBudgetReport,
+	);
+	return textToolResult<GoalToolDetails>(
+		JSON.stringify(response, null, 2),
+		{ displayText, ...response },
+	);
+}
+
+function goalToolErrorResult(text: string) {
 	return textToolResult<GoalToolDetails>(
 		text,
-		{ snapshot, goal: snapshot, remainingTokens, completionBudgetReport },
-		options,
+		{
+			displayText: text,
+			goal: null,
+			remainingTokens: null,
+			completionBudgetReport: null,
+		},
+		{ isError: true },
 	);
+}
+
+function renderGoalToolResult(
+	result: {
+		readonly content: ReadonlyArray<{ readonly type: string; readonly text?: string }>;
+		readonly details?: unknown;
+	},
+	theme: Theme,
+): Component {
+	const details = result.details;
+	if (isRecord(details) && typeof details["displayText"] === "string") {
+		return new Text(theme.fg("muted", details["displayText"]), 0, 0);
+	}
+	const item = result.content[0];
+	const text = item?.type === "text" ? item.text ?? "" : "";
+	return new Text(theme.fg("muted", text), 0, 0);
 }
 
 function parseGoalCommand(args: string): {
@@ -822,20 +944,17 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			parameters: Type.Object({}),
 			decodeParams: decodeNoParams,
 			formatInvalidParamsResult: (message) =>
-				goalToolResult(message, null, { isError: true }),
+				goalToolErrorResult(message),
 			execute: async (_params, { ctx }) => {
+				const sessionId = sessionIdFromContext(ctx);
 				const snapshot = await withGoal(runtime, (goal) =>
-					goal.get(sessionIdFromContext(ctx)),
+					goal.get(sessionId),
 				);
-				return goalToolResult(describeGoal(snapshot), snapshot);
+				return goalToolSuccessResult(describeGoal(snapshot), sessionId, snapshot);
 			},
 			renderCall: (_args, theme) =>
 				new Text(theme.fg("toolTitle", theme.bold("get_goal")), 0, 0),
-			renderResult: (result, _options, theme) => {
-				const item = result.content[0];
-				const text = item?.type === "text" ? item.text : "";
-				return new Text(theme.fg("muted", text), 0, 0);
-			},
+			renderResult: (result, _options, theme) => renderGoalToolResult(result, theme),
 		}),
 	);
 
@@ -857,13 +976,14 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			}),
 			decodeParams: decodeCreateGoalParams,
 			formatInvalidParamsResult: (message) =>
-				goalToolResult(message, null, { isError: true }),
+				goalToolErrorResult(message),
 			formatExecuteErrorResult: (error) =>
-				goalToolResult(errorText(error), null, { isError: true }),
+				goalToolErrorResult(errorText(error)),
 			execute: async (params, { ctx }) => {
+				const sessionId = sessionIdFromContext(ctx);
 				const snapshot = await withGoal(runtime, (goal) =>
 					goal.create(
-						sessionIdFromContext(ctx),
+						sessionId,
 						params.objective,
 						params.token_budget ?? null,
 						null,
@@ -874,15 +994,15 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					),
 				);
 				await updateGoalUi(ctx);
-				return goalToolResult(`Created thread goal.\n${describeGoal(snapshot)}`, snapshot);
+				return goalToolSuccessResult(
+					`Created thread goal.\n${describeGoal(snapshot)}`,
+					sessionId,
+					snapshot,
+				);
 			},
 			renderCall: (_args, theme) =>
 				new Text(theme.fg("toolTitle", theme.bold("create_goal")), 0, 0),
-			renderResult: (result, _options, theme) => {
-				const item = result.content[0];
-				const text = item?.type === "text" ? item.text : "";
-				return new Text(theme.fg("muted", text), 0, 0);
-			},
+			renderResult: (result, _options, theme) => renderGoalToolResult(result, theme),
 		}),
 	);
 
@@ -902,35 +1022,33 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			}),
 			decodeParams: decodeUpdateGoalParams,
 			formatInvalidParamsResult: (message) =>
-				goalToolResult(message, null, { isError: true }),
+				goalToolErrorResult(message),
 			formatExecuteErrorResult: (error) =>
-				goalToolResult(errorText(error), null, { isError: true }),
+				goalToolErrorResult(errorText(error)),
 			execute: async (params, { ctx }) => {
+				const sessionId = sessionIdFromContext(ctx);
 				const snapshot = await withGoal(runtime, (goal) =>
-					goal.setStatus(sessionIdFromContext(ctx), params.status, {
+					goal.setStatus(sessionId, params.status, {
 						accountCurrentTurn: true,
 					}),
 				);
 				if (snapshot === null) {
-					return goalToolResult("No thread goal is set.", snapshot, { isError: true });
+					return goalToolErrorResult("No thread goal is set.");
 				}
 				await updateGoalUi(ctx);
 				if (params.status === "blocked") {
-					return goalToolResult("Goal blocked.", snapshot);
+					return goalToolSuccessResult("Goal blocked.", sessionId, snapshot);
 				}
-				return goalToolResult(
+				return goalToolSuccessResult(
 					`Goal complete. Final usage: ${formatTokenCount(snapshot.tokensUsed)} tokens, ${formatDuration(snapshot.timeUsedSeconds * 1_000)}.`,
+					sessionId,
 					snapshot,
 					{ includeCompletionBudgetReport: true },
 				);
 			},
 			renderCall: (_args, theme) =>
 				new Text(theme.fg("toolTitle", theme.bold("update_goal")), 0, 0),
-			renderResult: (result, _options, theme) => {
-				const item = result.content[0];
-				const text = item?.type === "text" ? item.text : "";
-				return new Text(theme.fg("muted", text), 0, 0);
-			},
+			renderResult: (result, _options, theme) => renderGoalToolResult(result, theme),
 		}),
 	);
 
