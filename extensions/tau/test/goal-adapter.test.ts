@@ -2843,6 +2843,64 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
+	it("injects active goal context after user input nudges an interrupted goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const controller = new AbortController();
+		const signalCtx = makePiSignalContext(harness.ctx, controller);
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "base prompt" },
+			signalCtx,
+		);
+		controller.abort();
+		await flushPromises();
+		await fireEvent(
+			harness,
+			"agent_end",
+			{ type: "agent_end", messages: [makeAssistantToolCallMessage()] },
+			signalCtx,
+		);
+		expect(harness.sentMessages).toHaveLength(0);
+
+		const inputResults = await fireEvent(harness, "input", {
+			type: "input",
+			text: "keep going",
+			source: "interactive",
+		});
+		const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "base prompt",
+		});
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantToolCallMessage()],
+		});
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(inputResults).toEqual([{ action: "continue" }]);
+		expect(beforeAgentStartResults).toHaveLength(1);
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("Active thread goal context."),
+		});
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
+		});
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.continuationSuppressed).toBe(false);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+	});
+
 	it("does not continue when pi clears the signal before agent end handling", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
