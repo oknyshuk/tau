@@ -2889,6 +2889,10 @@ describe("goal adapter", () => {
 			text: "continue",
 			source: "interactive",
 		});
+		const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "base prompt",
+		});
 		await fireEvent(harness, "agent_end", {
 			type: "agent_end",
 			messages: [makeAssistantMessage(10)],
@@ -2902,6 +2906,13 @@ describe("goal adapter", () => {
 		);
 
 		expect(inputResults).toEqual([{ action: "continue" }]);
+		expect(beforeAgentStartResults).toHaveLength(1);
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("Active thread goal context."),
+		});
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
+		});
 		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
