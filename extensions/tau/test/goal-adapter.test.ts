@@ -2324,7 +2324,7 @@ describe("goal adapter", () => {
 		});
 	});
 
-	it("returns active-turn elapsed time when update_goal completes a running goal", async () => {
+	it("returns codex-style completion usage details when elapsed time is nonzero", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
@@ -2353,14 +2353,14 @@ describe("goal adapter", () => {
 				status: "complete",
 				timeUsedSeconds: 2,
 			},
-			completionBudgetReport: null,
+			completionBudgetReport: expect.stringContaining("goal.timeUsedSeconds"),
 		});
 		expect(parseToolJsonResult(result)).toMatchObject({
 			goal: {
 				status: "complete",
 				timeUsedSeconds: 2,
 			},
-			completionBudgetReport: null,
+			completionBudgetReport: expect.stringContaining("goal.timeUsedSeconds"),
 		});
 	});
 
@@ -2390,7 +2390,7 @@ describe("goal adapter", () => {
 
 		expect(result.details).toMatchObject({
 			remainingTokens: null,
-			completionBudgetReport: expect.stringContaining("goal.timeBudgetSeconds"),
+			completionBudgetReport: expect.stringContaining("goal.timeUsedSeconds"),
 			goal: {
 				status: "complete",
 				timeBudgetSeconds: 300,
@@ -2399,7 +2399,7 @@ describe("goal adapter", () => {
 		});
 		expect(parseToolJsonResult(result)).toMatchObject({
 			remainingTokens: null,
-			completionBudgetReport: expect.stringContaining("goal.timeBudgetSeconds"),
+			completionBudgetReport: expect.stringContaining("goal.timeUsedSeconds"),
 			goal: {
 				status: "complete",
 				timeBudgetSeconds: 300,

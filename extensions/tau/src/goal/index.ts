@@ -438,11 +438,11 @@ function goalCompletionBudgetReport(
 		includeCompletionBudgetReport !== true ||
 		snapshot === null ||
 		snapshot.status !== "complete" ||
-		(snapshot.tokenBudget === null && snapshot.timeBudgetSeconds === null)
+		(snapshot.tokenBudget === null && snapshot.timeUsedSeconds <= 0)
 	) {
 		return null;
 	}
-	return "Goal achieved. Report final usage from this tool result's structured goal fields. If \u0060goal.tokenBudget\u0060 is present, include token usage from \u0060goal.tokensUsed\u0060 and \u0060goal.tokenBudget\u0060. If \u0060goal.timeBudgetSeconds\u0060 is present, include elapsed time from \u0060goal.timeUsedSeconds\u0060 and \u0060goal.timeBudgetSeconds\u0060. If \u0060goal.timeBudgetSeconds\u0060 is absent but \u0060goal.timeUsedSeconds\u0060 is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language.";
+	return "Goal achieved. Report final usage from this tool result's structured goal fields. If \u0060goal.tokenBudget\u0060 is present, include token usage from \u0060goal.tokensUsed\u0060 and \u0060goal.tokenBudget\u0060. If \u0060goal.timeUsedSeconds\u0060 is greater than 0, summarize elapsed time in a concise, human-friendly form appropriate to the response language.";
 }
 
 function goalResponse(
