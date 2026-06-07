@@ -321,6 +321,15 @@ export class AgentWorker implements Agent {
 		// eslint-disable-next-line @typescript-eslint/no-this-alias
 		const worker = this;
 		return Effect.gen(function* () {
+			if (worker.session.isCompacting) {
+				yield* Effect.tryPromise({
+					try: () => worker.session.steer(message),
+					catch: (err) =>
+						`${modelLabel}: ${err instanceof Error ? err.message : String(err)}`,
+				});
+				return;
+			}
+
 			if (worker.session.isStreaming) {
 				yield* Effect.tryPromise({
 					try: () =>

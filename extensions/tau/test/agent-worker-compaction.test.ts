@@ -21,6 +21,11 @@ interface PromptCall {
 	readonly options: unknown;
 }
 
+interface SteerCall {
+	readonly message: string;
+	readonly images: unknown;
+}
+
 const waitForTimers = async (): Promise<void> => {
 	await new Promise<void>((resolve) => {
 		setTimeout(resolve, 0);
@@ -41,6 +46,7 @@ const assistantMessage = (options: {
 class FakeAgentSession {
 	readonly listeners: SessionListener[] = [];
 	readonly promptCalls: PromptCall[] = [];
+	readonly steerCalls: SteerCall[] = [];
 	messages: readonly AssistantEventMessage[] = [];
 	isStreaming = false;
 	isCompacting = false;
@@ -65,6 +71,10 @@ class FakeAgentSession {
 		if (this.onPrompt) {
 			await this.onPrompt(this);
 		}
+	}
+
+	async steer(message: string, images?: unknown): Promise<void> {
+		this.steerCalls.push({ message, images });
 	}
 
 	async abort(): Promise<void> {}
@@ -215,6 +225,25 @@ describe("AgentWorker overflow compaction handling", () => {
 					source: "extension",
 					streamingBehavior: "steer",
 				},
+			},
+		]);
+		expect(Effect.runSync(SubscriptionRef.get(statusRef)).state).toBe("running");
+	});
+
+	it("steers a compacting worker when prompted again", async () => {
+		const session = new FakeAgentSession();
+		session.isCompacting = true;
+		const { worker, statusRef } = await makeWorker(session);
+
+		const submissionId = await Effect.runPromise(worker.prompt("take this nudge"));
+		await waitForTimers();
+
+		expect(submissionId).toMatch(/^sub-/);
+		expect(session.promptCalls).toEqual([]);
+		expect(session.steerCalls).toEqual([
+			{
+				message: "take this nudge",
+				images: undefined,
 			},
 		]);
 		expect(Effect.runSync(SubscriptionRef.get(statusRef)).state).toBe("running");
