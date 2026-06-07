@@ -1344,7 +1344,13 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 	const onSessionReady = async (_event: unknown, ctx: ExtensionContext) => {
 		try {
-			await restoreSessionGoal(ctx);
+			const sessionId = sessionIdFromContext(ctx);
+			const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+			if (existing !== null) {
+				await updateGoalUi(ctx);
+				return;
+			}
+			await rehydrateAndUpdate(runtime, ctx, goalUiState);
 		} catch (error) {
 			ctx.ui.notify(errorText(error), "error");
 		}
