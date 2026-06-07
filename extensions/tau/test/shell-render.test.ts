@@ -25,14 +25,31 @@ function renderResult(
 }
 
 describe("shell renderer", () => {
-	it("renders exec_command calls", () => {
-		const rendered = normalizeRendered(renderShellCall({
+	it("renders an in-flight exec_command call and clears it once final", () => {
+		const inflight = normalizeRendered(renderShellCall({
 			cmd: "printf 'hello'",
 			workdir: "/tmp/project",
 			tty: true,
 		}, plainTheme));
 
-		expect(rendered).toBe("");
+		expect(inflight).toContain("exec_command");
+		expect(inflight).toContain("printf 'hello'");
+		expect(inflight).toContain("running…");
+
+		const final = normalizeRendered(
+			renderShellCall({ cmd: "printf 'hello'" }, plainTheme, { isPartial: false }),
+		);
+		expect(final).toBe("");
+	});
+
+	it("renders an in-flight poll call so long polls aren't invisible", () => {
+		const inflight = normalizeRendered(
+			renderShellCall({ session_id: 39 }, plainTheme, { isPartial: true }),
+		);
+
+		expect(inflight).toContain("poll");
+		expect(inflight).toContain("session 39");
+		expect(inflight).toContain("waiting for output…");
 	});
 
 	it("renders compact and expanded exec_command results for Ctrl+O", () => {
