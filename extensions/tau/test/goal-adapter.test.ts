@@ -1057,6 +1057,38 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
+	it("keeps live accounting intact when showing the goal during an active turn", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_000);
+		await runGoalCommand(harness, "");
+		vi.setSystemTime(2_500);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(10),
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(harness.notifications.at(-1)?.message).toContain("ship the feature");
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.tokensUsed).toBe(10);
+		expect(snapshot?.timeUsedSeconds).toBe(2);
+	});
+
 	it("suppresses a repeated continuation after an active goal steer does no tool work", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
