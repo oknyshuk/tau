@@ -524,8 +524,11 @@ describe("goal adapter", () => {
 		expect("isError" in invalidStatusResult && invalidStatusResult.isError === true).toBe(
 			true,
 		);
-		expectTextResultContains(emptyObjectiveResult, "objective must be a non-empty string");
-		expectTextResultContains(invalidBudgetResult, "token_budget must be a positive integer");
+		expectTextResultContains(emptyObjectiveResult, "goal objective must not be empty");
+		expectTextResultContains(
+			invalidBudgetResult,
+			"goal budgets must be positive when provided",
+		);
 		expectTextResultContains(
 			invalidStatusResult,
 			"update_goal can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system",
@@ -649,7 +652,7 @@ describe("goal adapter", () => {
 
 		const result = await tool.execute(
 			"call-create-goal",
-			{ objective: "  ship the feature  " },
+			{ objective: "  ship\n\tthe feature  " },
 			undefined,
 			undefined,
 			harness.ctx,
@@ -663,15 +666,15 @@ describe("goal adapter", () => {
 
 		expect(result.details).toMatchObject({
 			goal: {
-				objective: "ship the feature",
+				objective: "ship\n\tthe feature",
 			},
 		});
 		expect(parseToolJsonResult(result)).toMatchObject({
 			goal: {
-				objective: "ship the feature",
+				objective: "ship\n\tthe feature",
 			},
 		});
-		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.objective).toBe("ship\n\tthe feature");
 	});
 
 	it("returns codex-style structured result from create_goal with a token budget", async () => {

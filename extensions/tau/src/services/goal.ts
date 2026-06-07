@@ -137,7 +137,7 @@ function withRuntime(
 }
 
 function normalizeObjective(objective: string): string {
-	return objective.replace(/\s+/g, " ").trim();
+	return objective.trim();
 }
 
 function validateTokenBudget(
@@ -148,7 +148,7 @@ function validateTokenBudget(
 	}
 	if (!Number.isInteger(tokenBudget) || tokenBudget <= 0) {
 		return Effect.fail(
-			new GoalConflictError({ reason: "token_budget must be a positive integer" }),
+			new GoalConflictError({ reason: "goal budgets must be positive when provided" }),
 		);
 	}
 	return Effect.succeed(tokenBudget);
@@ -300,13 +300,13 @@ export const GoalLive = Layer.effect(
 				const objective = normalizeObjective(objectiveInput);
 				if (objective.length === 0) {
 					return yield* Effect.fail(
-						new GoalConflictError({ reason: "objective must be non-empty" }),
+						new GoalConflictError({ reason: "goal objective must not be empty" }),
 					);
 				}
 				if (objective.length > 4_000) {
 					return yield* Effect.fail(
 						new GoalConflictError({
-							reason: "objective must be at most 4000 characters",
+							reason: "goal objective must be at most 4000 characters",
 						}),
 					);
 				}

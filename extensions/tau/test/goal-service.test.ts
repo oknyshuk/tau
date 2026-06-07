@@ -100,13 +100,13 @@ describe("goal service", () => {
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
 				const goal = yield* Goal;
-				return yield* goal.create("session-1", "  ship goal support  ", 1_000, null, {
+				return yield* goal.create("session-1", "  ship\n\tgoal support  ", 1_000, null, {
 					failIfExists: true,
 				});
 			}),
 		);
 
-		expect(snapshot.objective).toBe("ship goal support");
+		expect(snapshot.objective).toBe("ship\n\tgoal support");
 		expect(snapshot.tokenBudget).toBe(1_000);
 		expect(harness.appended).toHaveLength(1);
 		expect(harness.appended[0]?.customType).toBe(GOAL_ENTRY_TYPE);

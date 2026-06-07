@@ -136,16 +136,16 @@ function decodeCreateGoalParams(raw: unknown): CreateGoalParams {
 	}
 	rejectUnknownParams(raw, new Set(["objective", "token_budget"]));
 	const objective = raw["objective"];
-	if (typeof objective !== "string" || objective.trim().length === 0) {
-		throw new Error("objective must be a non-empty string");
+	if (typeof objective !== "string") {
+		throw new Error("objective must be a string");
 	}
 	const trimmedObjective = objective.trim();
 	const tokenBudget = raw["token_budget"];
 	if (
 		tokenBudget !== undefined &&
-		(typeof tokenBudget !== "number" || !Number.isInteger(tokenBudget) || tokenBudget <= 0)
+		(typeof tokenBudget !== "number" || !Number.isInteger(tokenBudget))
 	) {
-		throw new Error("token_budget must be a positive integer");
+		throw new Error("token_budget must be an integer");
 	}
 	const parsedTokenBudget = typeof tokenBudget === "number" ? tokenBudget : undefined;
 	if (tokenBudget === undefined) {
@@ -1143,7 +1143,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						Type.Integer({
 							description:
 								"Positive token budget for the new goal. Omit unless explicitly requested.",
-							minimum: 1,
 						}),
 					),
 				},
