@@ -694,6 +694,49 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
+	it("preserves interrupt tracking across session tree refresh", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const controller = new AbortController();
+		const signalCtx = makePiSignalContext(harness.ctx, controller);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const treeCtx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			signalCtx,
+		);
+		await fireEvent(harness, "session_tree", { type: "session_tree" }, treeCtx);
+		controller.abort();
+		await flushPromises();
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.status).toBe("paused");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("sets a new command goal without replacement confirmation after completion", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
