@@ -1100,7 +1100,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				goalToolErrorResult(errorText(error)),
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
-				clearGoalErrorRetry(sessionId);
+				const nowMs = Date.now();
+				clearGoalPendingAutomation(sessionId);
+				await withGoal(runtime, (goal) =>
+					goal.prepareExternalMutation(sessionId, nowMs),
+				);
 				const snapshot = await withGoal(runtime, (goal) =>
 					goal.setStatus(sessionId, params.status, {
 						accountCurrentTurn: true,

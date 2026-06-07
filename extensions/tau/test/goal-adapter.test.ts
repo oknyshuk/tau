@@ -977,6 +977,46 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("returns active-turn elapsed time when update_goal completes a running goal", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(2_500);
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		const result = await tool.execute(
+			"call-update-goal",
+			{ status: "complete" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect(result.details).toMatchObject({
+			goal: {
+				status: "complete",
+				timeUsedSeconds: 2,
+			},
+			completionBudgetReport: expect.stringContaining("Goal achieved."),
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			goal: {
+				status: "complete",
+				timeUsedSeconds: 2,
+			},
+			completionBudgetReport: expect.stringContaining("Goal achieved."),
+		});
+	});
+
 	it("pauses the goal when pi reports an interrupted turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
