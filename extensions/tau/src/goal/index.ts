@@ -48,10 +48,18 @@ type GoalToolDetails = {
 	readonly completionBudgetReport: string | null;
 };
 
+type GoalToolStatus =
+	| "active"
+	| "paused"
+	| "blocked"
+	| "usageLimited"
+	| "budgetLimited"
+	| "complete";
+
 type GoalToolGoal = {
 	readonly threadId: string;
 	readonly objective: string;
-	readonly status: GoalStatus;
+	readonly status: GoalToolStatus;
 	readonly tokenBudget?: number;
 	readonly timeBudgetSeconds?: number;
 	readonly tokensUsed: number;
@@ -566,11 +574,28 @@ function epochSeconds(timestamp: string): number {
 	return Math.floor(ms / 1_000);
 }
 
+function goalToolStatus(status: GoalStatus): GoalToolStatus {
+	switch (status) {
+		case "active":
+			return "active";
+		case "paused":
+			return "paused";
+		case "blocked":
+			return "blocked";
+		case "usage_limited":
+			return "usageLimited";
+		case "budget_limited":
+			return "budgetLimited";
+		case "complete":
+			return "complete";
+	}
+}
+
 function goalToolGoal(sessionId: string, snapshot: GoalSnapshot): GoalToolGoal {
 	return {
 		threadId: sessionId,
 		objective: snapshot.objective,
-		status: snapshot.status,
+		status: goalToolStatus(snapshot.status),
 		...(snapshot.tokenBudget === null ? {} : { tokenBudget: snapshot.tokenBudget }),
 		...(snapshot.timeBudgetSeconds === null
 			? {}

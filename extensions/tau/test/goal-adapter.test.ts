@@ -1104,13 +1104,13 @@ describe("goal adapter", () => {
 
 		expect(result.details).toMatchObject({
 			goal: {
-				status: "budget_limited",
+				status: "budgetLimited",
 				timeUsedSeconds: 1,
 			},
 		});
 		expect(parseToolJsonResult(result)).toMatchObject({
 			goal: {
-				status: "budget_limited",
+				status: "budgetLimited",
 				timeUsedSeconds: 1,
 			},
 		});
@@ -1238,7 +1238,7 @@ describe("goal adapter", () => {
 		});
 	});
 
-	it("returns snake_case limited statuses from get_goal", async () => {
+	it("returns codex-style camelCase limited statuses from get_goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const tool = harness.tools.get("get_goal");
@@ -1247,15 +1247,19 @@ describe("goal adapter", () => {
 		}
 
 		await runGoalCommand(harness, "ship the feature");
-		for (const status of ["usage_limited", "budget_limited"] as const) {
+		const cases = [
+			{ internalStatus: "usage_limited", toolStatus: "usageLimited" },
+			{ internalStatus: "budget_limited", toolStatus: "budgetLimited" },
+		] as const;
+		for (const { internalStatus, toolStatus } of cases) {
 			await harness.run(
 				Effect.gen(function* () {
 					const goal = yield* Goal;
-					yield* goal.setStatus("session-1", status);
+					yield* goal.setStatus("session-1", internalStatus);
 				}),
 			);
 			const result = await tool.execute(
-				`call-get-goal-${status}`,
+				`call-get-goal-${internalStatus}`,
 				{},
 				undefined,
 				undefined,
@@ -1263,10 +1267,10 @@ describe("goal adapter", () => {
 			);
 
 			expect(result.details).toMatchObject({
-				goal: { status },
+				goal: { status: toolStatus },
 			});
 			expect(parseToolJsonResult(result)).toMatchObject({
-				goal: { status },
+				goal: { status: toolStatus },
 			});
 		}
 	});
@@ -2676,7 +2680,7 @@ describe("goal adapter", () => {
 		expect(parseToolJsonResult(result)).toMatchObject({
 			remainingTokens: 0,
 			goal: {
-				status: "budget_limited",
+				status: "budgetLimited",
 				tokenBudget: 40,
 				tokensUsed: 50,
 			},
