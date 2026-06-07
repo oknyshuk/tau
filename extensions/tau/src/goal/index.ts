@@ -778,7 +778,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	const pauseGoalFromInterrupt = async (ctx: ExtensionContext): Promise<void> => {
 		const sessionId = sessionIdFromContext(ctx);
 		clearGoalErrorRetry(sessionId);
-		const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+		const snapshot = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 		if (snapshot?.status !== "complete") {
 			await withGoal(runtime, (goal) =>
 				goal.prepareExternalMutation(sessionId, Date.now()),
@@ -954,7 +954,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		if (state === undefined) {
 			return;
 		}
-		const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+		const snapshot = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 		const current = currentGoalErrorRetry(sessionId, generation);
 		if (current === undefined) {
 			return;

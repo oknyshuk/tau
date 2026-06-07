@@ -2521,6 +2521,60 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
+	it("pauses a branch-persisted goal from the pi interrupt signal before completion events", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const controller = new AbortController();
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const branchCtx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+		const signalCtx = makePiSignalContext(branchCtx, controller);
+
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			signalCtx,
+		);
+		vi.setSystemTime(2_500);
+		controller.abort();
+		await vi.advanceTimersByTimeAsync(0);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.timeUsedSeconds).toBe(2);
+
+		await fireEvent(
+			harness,
+			"agent_end",
+			{ type: "agent_end", messages: [makeAssistantToolCallMessage()] },
+			signalCtx,
+		);
+
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("pauses a branch-persisted goal when pi reports an interrupted agent end", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
