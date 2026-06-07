@@ -50,6 +50,12 @@ function activeSystemBudgetLines(goal: GoalSnapshot): string {
 	].join("\n");
 }
 
+function timeBudgetCompletionGuidance(goal: GoalSnapshot): string {
+	return goal.timeBudgetSeconds === null
+		? ""
+		: " If the achieved goal has a time budget, report elapsed time from the tool result's `goal.timeUsedSeconds` and `goal.timeBudgetSeconds` after update_goal succeeds.";
+}
+
 function budgetLimitName(goal: GoalSnapshot): string {
 	const tokenBudgetReached =
 		goal.tokenBudget !== null && goal.tokensUsed >= goal.tokenBudget;
@@ -115,7 +121,7 @@ Before deciding that the goal is achieved, treat completion as unproven and veri
 - Treat uncertain or indirect evidence as not achieved; gather stronger evidence or continue the work.
 - The audit must prove completion, not merely fail to find obvious remaining work.
 
-Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call update_goal with status "complete" so usage accounting is preserved. If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.
+Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call update_goal with status "complete" so usage accounting is preserved. If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.${timeBudgetCompletionGuidance(goal)}
 
 Blocked audit:
 - Do not call update_goal with status "blocked" the first time a blocker appears.
@@ -169,7 +175,7 @@ Before deciding that the updated goal is achieved, treat completion as unproven 
 - Treat uncertain or indirect evidence as not achieved; gather stronger evidence or continue the work.
 - The audit must prove completion, not merely fail to find obvious remaining work.
 
-Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the updated goal complete is a claim that the full updated objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the updated goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the updated objective is achieved, call update_goal with status "complete" so usage accounting is preserved. If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.
+Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the updated goal complete is a claim that the full updated objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the updated goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the updated objective is achieved, call update_goal with status "complete" so usage accounting is preserved. If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.${timeBudgetCompletionGuidance(goal)}
 
 Blocked audit:
 - Do not call update_goal with status "blocked" the first time a blocker appears.
@@ -280,7 +286,7 @@ Before deciding that the goal is achieved, treat completion as unproven and veri
 - Treat uncertain or indirect evidence as not achieved; gather stronger evidence or continue the work.
 - The audit must prove completion, not merely fail to find obvious remaining work.
 
-Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call update_goal with status "complete" so usage accounting is preserved. If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.
+Do not rely on intent, partial progress, memory of earlier work, or a plausible final answer as proof of completion. Marking the goal complete is a claim that the full objective has been finished and can withstand requirement-by-requirement scrutiny. Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains. If the evidence is incomplete, weak, indirect, merely consistent with completion, or leaves any requirement missing, incomplete, or unverified, keep working instead of marking the goal complete. If the objective is achieved, call update_goal with status "complete" so usage accounting is preserved. If the achieved goal has a token budget, report the final consumed token budget to the user after update_goal succeeds.${timeBudgetCompletionGuidance(goal)}
 
 Blocked audit:
 - Do not call update_goal with status "blocked" the first time a blocker appears.

@@ -99,6 +99,7 @@ Do not call update_goal unless the goal is complete or the strict blocked audit 
 			expect(prompt).toContain("- Time spent pursuing goal: 45 seconds");
 			expect(prompt).toContain("- Time budget: 120 seconds");
 			expect(prompt).toContain("- Time remaining: 75 seconds");
+			expect(prompt).toContain("goal.timeBudgetSeconds");
 		}
 	});
 
