@@ -527,7 +527,10 @@ describe("goal adapter", () => {
 		);
 		expectTextResultContains(emptyObjectiveResult, "objective must be a non-empty string");
 		expectTextResultContains(invalidBudgetResult, "token_budget must be a positive integer");
-		expectTextResultContains(invalidStatusResult, 'status must be "complete" or "blocked"');
+		expectTextResultContains(
+			invalidStatusResult,
+			"update_goal can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system",
+		);
 	});
 
 	it("rejects time budgets from the model-facing create_goal tool", async () => {

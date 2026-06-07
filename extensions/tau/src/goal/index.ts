@@ -162,7 +162,9 @@ function decodeUpdateGoalParams(raw: unknown): UpdateGoalParams {
 	}
 	rejectUnknownParams(raw, new Set(["status"]));
 	if (raw["status"] !== "complete" && raw["status"] !== "blocked") {
-		throw new Error('status must be "complete" or "blocked"');
+		throw new Error(
+			"update_goal can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system",
+		);
 	}
 	return { status: raw["status"] };
 }
