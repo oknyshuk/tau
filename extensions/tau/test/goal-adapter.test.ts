@@ -1420,6 +1420,66 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("returns codex-style structured result from update_goal complete with a token budget", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(1_780_786_975_999);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 100 ship the feature");
+		vi.setSystemTime(1_780_786_977_001);
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		const result = await tool.execute(
+			"call-update-goal",
+			{ status: "complete" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		const parsed = parseToolJsonResult(result);
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+			throw new Error("expected update_goal JSON result object");
+		}
+		const goal = (parsed as { readonly goal?: unknown }).goal;
+		if (typeof goal !== "object" || goal === null || Array.isArray(goal)) {
+			throw new Error("expected update_goal JSON goal object");
+		}
+
+		expect(result.details).toMatchObject({
+			displayText: expect.stringContaining("Goal complete."),
+			remainingTokens: 100,
+			completionBudgetReport: expect.stringContaining("goal.tokenBudget"),
+			goal: {
+				threadId: "session-1",
+				objective: "ship the feature",
+				status: "complete",
+				tokenBudget: 100,
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+				createdAt: 1_780_786_975,
+				updatedAt: 1_780_786_977,
+			},
+		});
+		expect(parsed).toMatchObject({
+			remainingTokens: 100,
+			completionBudgetReport: expect.stringContaining("goal.tokenBudget"),
+			goal: {
+				threadId: "session-1",
+				objective: "ship the feature",
+				status: "complete",
+				tokenBudget: 100,
+				tokensUsed: 0,
+				timeUsedSeconds: 0,
+				createdAt: 1_780_786_975,
+				updatedAt: 1_780_786_977,
+			},
+		});
+		expect("timeBudgetSeconds" in goal).toBe(false);
+	});
+
 	it("returns active-turn elapsed time when update_goal completes a running goal", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
