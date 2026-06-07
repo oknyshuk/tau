@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	budgetLimitPrompt,
 	continuationPrompt,
+	goalSystemPrompt,
 	objectiveUpdatedPrompt,
 } from "../src/goal/prompts.js";
 import { makeGoalSnapshot } from "../src/goal/schema.js";
@@ -81,6 +82,25 @@ Do not call update_goal unless the goal is complete or the strict blocked audit 
 		expect(prompt).toContain("- Tokens remaining: unbounded");
 		expect(prompt).not.toContain("- Time budget:");
 		expect(prompt).not.toContain("- Time remaining:");
+	});
+
+	it("includes codex audit guidance in active goal system context", () => {
+		const goal = {
+			...makeGoalSnapshot("finish", null, null, "2026-05-02T00:00:00.000Z"),
+			tokensUsed: 10,
+			timeUsedSeconds: 2,
+		};
+
+		const prompt = goalSystemPrompt(goal);
+
+		expect(prompt).toContain("Completion audit:");
+		expect(prompt).toContain("Blocked audit:");
+		expect(prompt).toContain(
+			"Only mark the goal achieved when current evidence proves every requirement has been satisfied and no required work remains.",
+		);
+		expect(prompt).toContain(
+			"Only use status \"blocked\" when the same blocking condition has repeated for at least three consecutive goal turns",
+		);
 	});
 
 	it("matches the codex budget-limit prompt shape", () => {
