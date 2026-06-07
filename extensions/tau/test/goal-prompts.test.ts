@@ -126,6 +126,24 @@ Do not call update_goal unless the goal is complete or the strict blocked audit 
 		);
 	});
 
+	it("includes codex continuation behavior in active goal system context", () => {
+		const goal = {
+			...makeGoalSnapshot("finish", null, null, "2026-05-02T00:00:00.000Z"),
+			tokensUsed: 10,
+			timeUsedSeconds: 2,
+		};
+
+		const prompt = goalSystemPrompt(goal);
+
+		expect(prompt).toContain("Continuation behavior:");
+		expect(prompt).toContain(
+			"This goal persists across turns. Ending this turn does not require shrinking the objective to what fits now.",
+		);
+		expect(prompt).toContain(
+			"Keep the full objective intact. If it cannot be finished now, make concrete progress toward the real requested end state",
+		);
+	});
+
 	it("matches the codex budget-limit prompt shape", () => {
 		const goal = {
 			...makeGoalSnapshot("finish", 100, 30, "2026-05-02T00:00:00.000Z"),
