@@ -3285,6 +3285,62 @@ describe("goal adapter", () => {
 		});
 	});
 
+	for (const status of ["blocked", "usage_limited", "budget_limited"] as const) {
+		it(`resumes a branch-persisted ${status} goal after interactive user input`, async () => {
+			const harness = makeGoalAdapterHarness();
+			harnesses.push(harness);
+			const restored = {
+				...makeGoalSnapshot(
+					"ship the feature",
+					status === "budget_limited" ? 10 : null,
+					null,
+					"2026-05-01T00:00:00.000Z",
+				),
+				status,
+				...(status === "budget_limited"
+					? { tokensUsed: 10, budgetLimitPromptSent: true }
+					: {}),
+			};
+			const ctx = {
+				...harness.ctx,
+				sessionManager: {
+					...harness.ctx.sessionManager,
+					getBranch: () => [
+						makeCustomEntry("goal", { version: 2, snapshot: restored }),
+					],
+				},
+			} as ExtensionCommandContext;
+
+			const inputResults = await fireEvent(harness, "input", {
+				type: "input",
+				text: "continue",
+				source: "interactive",
+			}, ctx);
+			const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
+				type: "before_agent_start",
+				systemPrompt: "base prompt",
+			}, ctx);
+			const snapshot = await harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					return yield* goal.get("session-1");
+				}),
+			);
+
+			expect(inputResults).toEqual([{ action: "continue" }]);
+			expect(snapshot?.status).toBe("active");
+			expect(snapshot?.budgetLimitPromptSent).toBe(false);
+			expect(snapshot?.continuationSuppressed).toBe(false);
+			expect(beforeAgentStartResults).toHaveLength(1);
+			expect(beforeAgentStartResults[0]).toMatchObject({
+				systemPrompt: expect.stringContaining("Active thread goal context."),
+			});
+			expect(beforeAgentStartResults[0]).toMatchObject({
+				systemPrompt: expect.stringContaining("<objective>\nship the feature"),
+			});
+		});
+	}
+
 	it("does not resume a paused goal after extension input", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
