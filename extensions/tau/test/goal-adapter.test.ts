@@ -226,6 +226,26 @@ function parseToolJsonResult(result: {
 	return JSON.parse(item.text) as unknown;
 }
 
+function expectClosedSchema(value: unknown): void {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		throw new Error("expected parameter schema object");
+	}
+	expect((value as { readonly additionalProperties?: unknown }).additionalProperties).toBe(
+		false,
+	);
+}
+
+function expectTextResultContains(
+	result: { readonly content: ReadonlyArray<{ readonly type: string; readonly text?: string }> },
+	expected: string,
+): void {
+	const item = result.content[0];
+	if (item?.type !== "text") {
+		throw new Error("expected tool to return text content");
+	}
+	expect(item.text).toContain(expected);
+}
+
 describe("goal adapter", () => {
 	const harnesses: GoalAdapterHarness[] = [];
 
@@ -267,6 +287,59 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.objective).toBe("ship the feature");
 		expect(snapshot?.timeBudgetSeconds).toBe(300);
+	});
+
+	it("uses codex-style closed schemas for goal tool parameters", () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		for (const name of ["get_goal", "create_goal", "update_goal"]) {
+			const tool = harness.tools.get(name);
+			if (tool === undefined) {
+				throw new Error(name + " tool was not registered");
+			}
+			expectClosedSchema(tool.parameters);
+		}
+	});
+
+	it("rejects unknown model-facing goal tool parameters", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const getGoal = harness.tools.get("get_goal");
+		const createGoal = harness.tools.get("create_goal");
+		const updateGoal = harness.tools.get("update_goal");
+		if (getGoal === undefined || createGoal === undefined || updateGoal === undefined) {
+			throw new Error("goal tools were not registered");
+		}
+
+		const getResult = await getGoal.execute(
+			"call-get-goal",
+			{ extra: true },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		const createResult = await createGoal.execute(
+			"call-create-goal",
+			{ objective: "ship the feature", extra: true },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+		const updateResult = await updateGoal.execute(
+			"call-update-goal",
+			{ status: "blocked", reason: "waiting" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect("isError" in getResult && getResult.isError === true).toBe(true);
+		expect("isError" in createResult && createResult.isError === true).toBe(true);
+		expect("isError" in updateResult && updateResult.isError === true).toBe(true);
+		expectTextResultContains(getResult, "unknown parameter: extra");
+		expectTextResultContains(createResult, "unknown parameter: extra");
+		expectTextResultContains(updateResult, "unknown parameter: reason");
 	});
 
 	it("rejects time budgets from the model-facing create_goal tool", async () => {

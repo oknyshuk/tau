@@ -87,10 +87,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function rejectUnknownParams(
+	raw: Record<string, unknown>,
+	allowed: ReadonlySet<string>,
+): void {
+	for (const key of Object.keys(raw)) {
+		if (!allowed.has(key)) {
+			throw new Error(`unknown parameter: ${key}`);
+		}
+	}
+}
+
 function decodeNoParams(raw: unknown): Record<string, never> {
 	if (!isRecord(raw)) {
 		throw new Error("expected an object");
 	}
+	rejectUnknownParams(raw, new Set());
 	return {};
 }
 
@@ -98,14 +110,15 @@ function decodeCreateGoalParams(raw: unknown): CreateGoalParams {
 	if (!isRecord(raw)) {
 		throw new Error("expected an object");
 	}
+	if (raw["time_budget_seconds"] !== undefined) {
+		throw new Error("time_budget_seconds is not supported by create_goal");
+	}
+	rejectUnknownParams(raw, new Set(["objective", "token_budget"]));
 	const objective = raw["objective"];
 	if (typeof objective !== "string" || objective.trim().length === 0) {
 		throw new Error("objective must be a non-empty string");
 	}
 	const tokenBudget = raw["token_budget"];
-	if (raw["time_budget_seconds"] !== undefined) {
-		throw new Error("time_budget_seconds is not supported by create_goal");
-	}
 	if (
 		tokenBudget !== undefined &&
 		(typeof tokenBudget !== "number" || !Number.isInteger(tokenBudget) || tokenBudget <= 0)
@@ -126,6 +139,7 @@ function decodeUpdateGoalParams(raw: unknown): UpdateGoalParams {
 	if (!isRecord(raw)) {
 		throw new Error("expected an object");
 	}
+	rejectUnknownParams(raw, new Set(["status"]));
 	if (raw["status"] !== "complete" && raw["status"] !== "blocked") {
 		throw new Error('status must be "complete" or "blocked"');
 	}
@@ -941,7 +955,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			name: "get_goal",
 			label: "get goal",
 			description: "Get the current thread goal, including status, budgets, and usage.",
-			parameters: Type.Object({}),
+			parameters: Type.Object({}, { additionalProperties: false }),
 			decodeParams: decodeNoParams,
 			formatInvalidParamsResult: (message) =>
 				goalToolErrorResult(message),
@@ -968,12 +982,15 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				"Use create_goal only when the user explicitly requests a thread goal.",
 				"Do not replace an existing goal with create_goal; report the existing goal instead.",
 			],
-			parameters: Type.Object({
-				objective: Type.String({ description: "Concrete objective for this thread." }),
-				token_budget: Type.Optional(
-					Type.Integer({ description: "Optional positive token budget.", minimum: 1 }),
-				),
-			}),
+			parameters: Type.Object(
+				{
+					objective: Type.String({ description: "Concrete objective for this thread." }),
+					token_budget: Type.Optional(
+						Type.Integer({ description: "Optional positive token budget.", minimum: 1 }),
+					),
+				},
+				{ additionalProperties: false },
+			),
 			decodeParams: decodeCreateGoalParams,
 			formatInvalidParamsResult: (message) =>
 				goalToolErrorResult(message),
@@ -1017,9 +1034,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				"Call update_goal with status blocked only when the strict blocked audit is satisfied.",
 				"Do not use update_goal to pause, resume, clear, or budget-limit a goal.",
 			],
-			parameters: Type.Object({
-				status: Type.Union([Type.Literal("complete"), Type.Literal("blocked")]),
-			}),
+			parameters: Type.Object(
+				{
+					status: Type.Union([Type.Literal("complete"), Type.Literal("blocked")]),
+				},
+				{ additionalProperties: false },
+			),
 			decodeParams: decodeUpdateGoalParams,
 			formatInvalidParamsResult: (message) =>
 				goalToolErrorResult(message),
