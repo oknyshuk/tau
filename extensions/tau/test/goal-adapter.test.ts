@@ -712,6 +712,35 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
+	it("suppresses repeated continuation after an active objective update does no tool work", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const runningCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "first goal");
+		harness.sentMessages.length = 0;
+		await runGoalCommand(harness, "second goal", runningCtx);
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantMessage(10)],
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("second goal");
+		expect(snapshot?.continuationSuppressed).toBe(true);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-objective-updated");
+	});
+
 	it("starts replacement goal accounting from the command time while running", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);

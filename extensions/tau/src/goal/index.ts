@@ -676,6 +676,7 @@ async function dispatchGoalObjectiveUpdated(
 		await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
 		return;
 	}
+	await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionIdFromContext(ctx)));
 	pi.sendMessage(
 		{
 			customType: GOAL_OBJECTIVE_UPDATED_MESSAGE_TYPE,
