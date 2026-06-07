@@ -47,6 +47,7 @@ export { resolveModelPattern } from "./worker/model-runner.js";
 export class AgentWorker implements Agent {
 	private readonly tracking = createWorkerTrackingState();
 	private readonly sessionController: WorkerSessionController;
+	private readonly compactionQueuedMessages: string[] = [];
 
 	constructor(
 		readonly id: AgentId,
@@ -78,6 +79,7 @@ export class AgentWorker implements Agent {
 			publishRunningStatusIfNotFinal: () => this.publishRunningStatusIfNotFinal(),
 			publishCompleted: (message) => this.publishCompleted(message),
 			publishFailed: (reason) => this.publishFailed(reason),
+			onAutoCompactionEnd: (event) => this.scheduleCompactionQueueFlush(event.willRetry),
 			statusRef: this.statusRef,
 		});
 	}
@@ -133,6 +135,81 @@ export class AgentWorker implements Agent {
 	private publishCompleted(message: string | undefined): void {
 		this.terminalState = "completed";
 		this.publishStatus(buildCompletedStatus(this.tracking, message));
+	}
+
+	private queueCompactionMessage(message: string): void {
+		this.compactionQueuedMessages.push(message);
+	}
+
+	private takeCompactionQueuedMessage(): string | undefined {
+		if (this.compactionQueuedMessages.length === 0) {
+			return undefined;
+		}
+
+		const messages = [...this.compactionQueuedMessages];
+		this.compactionQueuedMessages.length = 0;
+		return messages.join("\n\n");
+	}
+
+	private restoreCompactionQueuedMessage(message: string): void {
+		this.compactionQueuedMessages.unshift(message);
+	}
+
+	private guardedBackground(effect: Effect.Effect<void, unknown>): Effect.Effect<void, never> {
+		return effect.pipe(
+			Effect.catch((err: unknown) => {
+				const reason = err instanceof Error ? err.message : String(err);
+				return SubscriptionRef.set(this.statusRef, buildFailedStatus(this.tracking, reason));
+			}),
+		);
+	}
+
+	private steerRunningSession(message: string, modelLabel: string): Effect.Effect<void, string> {
+		return Effect.tryPromise({
+			try: () =>
+				this.session.prompt(message, {
+					source: "extension",
+					streamingBehavior: "steer",
+				}),
+			catch: (err) => `${modelLabel}: ${err instanceof Error ? err.message : String(err)}`,
+		});
+	}
+
+	private flushCompactionQueuedMessage(willRetry: boolean): Effect.Effect<void, never> {
+		const message = this.takeCompactionQueuedMessage();
+		if (message === undefined) {
+			return Effect.void;
+		}
+
+		if (willRetry) {
+			return Effect.tryPromise({
+				try: () => this.session.steer(message),
+				catch: (err) => err,
+			}).pipe(
+				Effect.catch((err: unknown) => {
+					this.restoreCompactionQueuedMessage(message);
+					const reason = err instanceof Error ? err.message : String(err);
+					return SubscriptionRef.set(
+						this.statusRef,
+						buildFailedStatus(this.tracking, reason),
+					);
+				}),
+			);
+		}
+
+		return this.sessionController.replaceBackground(
+			this.guardedBackground(this.runWithModelFallback(message)),
+		);
+	}
+
+	private scheduleCompactionQueueFlush(willRetry: boolean): void {
+		if (this.compactionQueuedMessages.length === 0) {
+			return;
+		}
+
+		setTimeout(() => {
+			this.runFork(this.flushCompactionQueuedMessage(willRetry));
+		}, 0);
 	}
 
 	static make(opts: {
@@ -322,24 +399,12 @@ export class AgentWorker implements Agent {
 		const worker = this;
 		return Effect.gen(function* () {
 			if (worker.session.isCompacting) {
-				yield* Effect.tryPromise({
-					try: () => worker.session.steer(message),
-					catch: (err) =>
-						`${modelLabel}: ${err instanceof Error ? err.message : String(err)}`,
-				});
+				worker.queueCompactionMessage(message);
 				return;
 			}
 
 			if (worker.session.isStreaming) {
-				yield* Effect.tryPromise({
-					try: () =>
-						worker.session.prompt(message, {
-							source: "extension",
-							streamingBehavior: "steer",
-						}),
-					catch: (err) =>
-						`${modelLabel}: ${err instanceof Error ? err.message : String(err)}`,
-				});
+				yield* worker.steerRunningSession(message, modelLabel);
 				return;
 			}
 
@@ -415,16 +480,27 @@ export class AgentWorker implements Agent {
 
 			yield* SubscriptionRef.set(worker.statusRef, worker.currentRunningStatus());
 
+			if (worker.session.isCompacting) {
+				worker.queueCompactionMessage(message);
+				return submissionId;
+			}
+
+			if (worker.session.isStreaming) {
+				yield* worker
+					.steerRunningSession(message, worker.models[0]?.model ?? worker.type)
+					.pipe(
+						Effect.catch((reason) =>
+							SubscriptionRef.set(
+								worker.statusRef,
+								buildFailedStatus(worker.tracking, reason),
+							),
+						),
+					);
+				return submissionId;
+			}
+
 			yield* worker.sessionController.replaceBackground(
-				worker.runWithModelFallback(message).pipe(
-					Effect.catch((err: unknown) => {
-						const reason = err instanceof Error ? err.message : String(err);
-						return SubscriptionRef.set(
-							worker.statusRef,
-							buildFailedStatus(worker.tracking, reason),
-						);
-					}),
-				),
+				worker.guardedBackground(worker.runWithModelFallback(message)),
 			);
 
 			return submissionId;

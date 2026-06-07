@@ -230,7 +230,7 @@ describe("AgentWorker overflow compaction handling", () => {
 		expect(Effect.runSync(SubscriptionRef.get(statusRef)).state).toBe("running");
 	});
 
-	it("steers a compacting worker when prompted again", async () => {
+	it("steers a queued compacting worker nudge when compaction retries", async () => {
 		const session = new FakeAgentSession();
 		session.isCompacting = true;
 		const { worker, statusRef } = await makeWorker(session);
@@ -240,12 +240,59 @@ describe("AgentWorker overflow compaction handling", () => {
 
 		expect(submissionId).toMatch(/^sub-/);
 		expect(session.promptCalls).toEqual([]);
+		expect(session.steerCalls).toEqual([]);
+		expect(Effect.runSync(SubscriptionRef.get(statusRef)).state).toBe("running");
+
+		session.isCompacting = false;
+		session.emit({
+			type: "auto_compaction_end",
+			result: undefined,
+			aborted: false,
+			willRetry: true,
+		} satisfies AgentSessionEvent);
+		await waitForTimers();
+
 		expect(session.steerCalls).toEqual([
 			{
 				message: "take this nudge",
 				images: undefined,
 			},
 		]);
+		expect(Effect.runSync(SubscriptionRef.get(statusRef)).state).toBe("running");
+	});
+
+	it("starts a queued compacting worker nudge when compaction ends without retry", async () => {
+		const session = new FakeAgentSession();
+		session.isCompacting = true;
+		const { worker, statusRef } = await makeWorker(session);
+
+		const submissionId = await Effect.runPromise(worker.prompt("take this nudge"));
+		await waitForTimers();
+
+		expect(submissionId).toMatch(/^sub-/);
+		expect(session.promptCalls).toEqual([]);
+		expect(session.steerCalls).toEqual([]);
+
+		session.isCompacting = false;
+		session.emit({
+			type: "auto_compaction_end",
+			result: undefined,
+			aborted: false,
+			willRetry: false,
+		} satisfies AgentSessionEvent);
+		await waitForTimers();
+		await waitForTimers();
+
+		expect(session.promptCalls).toEqual([
+			{
+				message: "take this nudge",
+				options: {
+					source: "extension",
+					streamingBehavior: "steer",
+				},
+			},
+		]);
+		expect(session.steerCalls).toEqual([]);
 		expect(Effect.runSync(SubscriptionRef.get(statusRef)).state).toBe("running");
 	});
 

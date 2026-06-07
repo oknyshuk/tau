@@ -13,6 +13,7 @@ export interface WorkerSessionControllerOptions {
 	readonly publishRunningStatusIfNotFinal: () => void;
 	readonly publishCompleted: (message: string | undefined) => void;
 	readonly publishFailed: (reason: string) => void;
+	readonly onAutoCompactionEnd?: (event: { readonly willRetry: boolean }) => void;
 	readonly statusRef: SubscriptionRef.SubscriptionRef<Status>;
 }
 
@@ -32,6 +33,9 @@ export class WorkerSessionController {
 			publishRunningStatusIfNotFinal: this.options.publishRunningStatusIfNotFinal,
 			publishCompleted: this.options.publishCompleted,
 			publishFailed: this.options.publishFailed,
+			...(this.options.onAutoCompactionEnd !== undefined
+				? { onAutoCompactionEnd: this.options.onAutoCompactionEnd }
+				: {}),
 		});
 	}
 
