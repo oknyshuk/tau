@@ -1144,7 +1144,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			promptGuidelines: [
 				"Set status to complete only when the objective is achieved and no required work remains.",
 				"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.",
-				"If the user resumes a goal that was previously marked blocked, treat the resumed run as a fresh blocked audit.",
+				"If the user resumes a goal that was previously marked blocked, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to blocked again.",
 				"Once the blocked threshold is satisfied, use status blocked instead of continuing to report that the goal is still blocked while leaving it active.",
 				"Do not use blocked merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
 				"Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.",

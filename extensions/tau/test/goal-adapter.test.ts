@@ -321,6 +321,9 @@ describe("goal adapter", () => {
 			"Set status to blocked only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
+			"If the user resumes a goal that was previously marked blocked, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to blocked again.",
+		);
+		expect(updateGoal.promptGuidelines).toContain(
 			"Do not use blocked merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.",
 		);
 		expect(updateGoal.promptGuidelines).toContain(
