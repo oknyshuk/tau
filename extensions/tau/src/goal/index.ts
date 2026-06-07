@@ -1320,10 +1320,23 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	pi.on("input", async (event, ctx) => {
 		if (event.source !== "extension") {
 			const sessionId = sessionIdFromContext(ctx);
+			const nowMs = Date.now();
 			clearGoalPendingAutomation(sessionId);
-			await withGoal(runtime, (goal) =>
-				goal.clearContinuationSuppression(sessionId),
-			);
+			const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+			if (snapshot?.status === "paused") {
+				await withGoal(runtime, (goal) =>
+					goal.prepareExternalMutation(sessionId, nowMs),
+				);
+				await withGoal(runtime, (goal) =>
+					goal.setStatus(sessionId, "active", {
+						...(!ctx.isIdle() ? { startActiveAccountingAtMs: nowMs } : {}),
+					}),
+				);
+			} else {
+				await withGoal(runtime, (goal) =>
+					goal.clearContinuationSuppression(sessionId),
+				);
+			}
 			await updateGoalUi(ctx);
 		}
 		return { action: "continue" };
