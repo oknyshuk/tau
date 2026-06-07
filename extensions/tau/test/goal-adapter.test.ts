@@ -1907,7 +1907,7 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-objective-updated");
 	});
 
-	it("starts replacement goal accounting from the command time while running", async () => {
+	it("continues objective update accounting from the command time while running", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
@@ -1939,7 +1939,7 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.objective).toBe("second goal");
 		expect(snapshot?.tokensUsed).toBe(10);
-		expect(snapshot?.timeUsedSeconds).toBe(1);
+		expect(snapshot?.timeUsedSeconds).toBe(3);
 	});
 
 	it("accounts assistant token usage on turn_end", async () => {

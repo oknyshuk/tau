@@ -147,21 +147,31 @@ describe("goal service", () => {
 		});
 	});
 
-	it("allows a command-owned goal after the previous goal is complete", async () => {
+	it("updates a command-owned goal after completion without replacing accounting", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
 
-		const snapshot = await harness.run(
+		const result = await harness.run(
 			Effect.gen(function* () {
 				const goal = yield* Goal;
 				yield* goal.create("session-1", "first", null, null, { failIfExists: true });
-				yield* goal.setStatus("session-1", "complete");
-				return yield* goal.create("session-1", "second", null, null);
+				yield* goal.markAgentStart("session-1", 0);
+				yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(25, false),
+					1_500,
+				);
+				const completed = yield* goal.setStatus("session-1", "complete");
+				const updated = yield* goal.create("session-1", "second", null, null);
+				return { completed, updated };
 			}),
 		);
 
-		expect(snapshot.objective).toBe("second");
-		expect(snapshot.status).toBe("active");
+		expect(result.updated.objective).toBe("second");
+		expect(result.updated.status).toBe("active");
+		expect(result.updated.tokensUsed).toBe(25);
+		expect(result.updated.timeUsedSeconds).toBe(1);
+		expect(result.updated.createdAt).toBe(result.completed?.createdAt);
 	});
 
 	it("rehydrates the latest goal entry on the active branch", async () => {
@@ -840,7 +850,7 @@ describe("goal service", () => {
 		expect(harness.appended).toHaveLength(3);
 	});
 
-	it("accounts active progress before an external goal replacement", async () => {
+	it("accounts active progress before an external goal objective update", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
 
@@ -865,10 +875,10 @@ describe("goal service", () => {
 		expect(result.prepared.snapshot?.objective).toBe("old goal");
 		expect(result.prepared.snapshot?.timeUsedSeconds).toBe(2);
 		expect(result.replacement.objective).toBe("new goal");
-		expect(result.replacement.timeUsedSeconds).toBe(0);
+		expect(result.replacement.timeUsedSeconds).toBe(2);
 		expect(result.nextTurn.snapshot?.objective).toBe("new goal");
 		expect(result.nextTurn.snapshot?.tokensUsed).toBe(10);
-		expect(result.nextTurn.snapshot?.timeUsedSeconds).toBe(1);
+		expect(result.nextTurn.snapshot?.timeUsedSeconds).toBe(3);
 	});
 
 	it("suppresses repeated continuation when a dispatched continuation did no tool work", async () => {

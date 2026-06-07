@@ -332,13 +332,10 @@ export const GoalLive = Layer.effect(
 						}),
 					);
 				}
-				if (
-					existing !== null &&
-					existing.objective === objective &&
-					existing.status !== "complete"
-				) {
+				if (existing !== null) {
 					const unchangedActiveGoal =
 						existing.status === "active" &&
+						existing.objective === objective &&
 						existing.tokenBudget === tokenBudget &&
 						existing.timeBudgetSeconds === timeBudgetSeconds &&
 						existing.continuationSuppressed === false &&
@@ -346,6 +343,7 @@ export const GoalLive = Layer.effect(
 					const activeSnapshot = unchangedActiveGoal
 						? existing
 						: withUpdatedSnapshot(existing, nowIso, {
+								objective,
 								status: "active",
 								tokenBudget,
 								timeBudgetSeconds,
