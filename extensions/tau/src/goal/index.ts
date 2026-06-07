@@ -398,7 +398,6 @@ function shouldAutoContinue(
 	return (
 		goal !== null &&
 		goal.status === "active" &&
-		!goal.continuationSuppressed &&
 		ctx.isIdle() &&
 		!ctx.hasPendingMessages()
 	);
@@ -853,7 +852,6 @@ async function dispatchGoalContinuation(
 	if (!shouldAutoContinue(snapshot, ctx)) {
 		return;
 	}
-	await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionIdFromContext(ctx)));
 	pi.sendMessage(
 		{
 			customType: GOAL_CONTINUATION_MESSAGE_TYPE,
@@ -871,7 +869,6 @@ async function steerActiveGoal(
 	ctx: ExtensionContext,
 	snapshot: GoalSnapshot,
 ): Promise<void> {
-	await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionIdFromContext(ctx)));
 	pi.sendMessage(
 		{
 			customType: GOAL_CONTINUATION_MESSAGE_TYPE,
@@ -912,7 +909,6 @@ async function dispatchGoalObjectiveUpdated(
 		await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
 		return;
 	}
-	await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionIdFromContext(ctx)));
 	pi.sendMessage(
 		{
 			customType: GOAL_OBJECTIVE_UPDATED_MESSAGE_TYPE,
@@ -1222,7 +1218,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			},
 			{ triggerTurn: true, deliverAs: "followUp" },
 		);
-		await withGoal(runtime, (goal) => goal.markContinuationDispatched(sessionId));
 	};
 
 	const handleGoalAssistantError = async (
@@ -1701,10 +1696,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					goal.setStatus(sessionId, "active", {
 						...(!ctx.isIdle() ? { startActiveAccountingAtMs: nowMs } : {}),
 					}),
-				);
-			} else {
-				await withGoal(runtime, (goal) =>
-					goal.clearContinuationSuppression(sessionId),
 				);
 			}
 			await updateGoalUi(ctx);

@@ -1762,7 +1762,7 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.content).toContain("ship the follow-up");
 	});
 
-	it("suppresses a repeated continuation after an active goal steer does no tool work", async () => {
+	it("re-dispatches a continuation after an active goal steer does no tool work", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const runningCtx = {
@@ -1782,9 +1782,10 @@ describe("goal adapter", () => {
 				return yield* goal.get("session-1");
 			}),
 		);
-		expect(snapshot?.continuationSuppressed).toBe(true);
-		expect(harness.sentMessages).toHaveLength(1);
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(2);
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
+		expect(harness.sentMessages[1]?.message.customType).toBe("tau:goal-continuation");
 	});
 
 	it("starts an idle agent turn after /goal resume", async () => {
@@ -2345,7 +2346,7 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
-	it("suppresses repeated continuation after an active objective update does no tool work", async () => {
+	it("re-dispatches a continuation after an active objective update does no tool work", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const runningCtx = {
@@ -2369,9 +2370,9 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.objective).toBe("second goal");
-		expect(snapshot?.continuationSuppressed).toBe(true);
-		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages).toHaveLength(2);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-objective-updated");
+		expect(harness.sentMessages[1]?.message.customType).toBe("tau:goal-continuation");
 	});
 
 	it("starts replacement goal accounting from the command time while running", async () => {
@@ -3297,7 +3298,6 @@ describe("goal adapter", () => {
 			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
 		});
 		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.continuationSuppressed).toBe(false);
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
 	});
@@ -3539,7 +3539,6 @@ describe("goal adapter", () => {
 			);
 
 			expect(snapshot?.status).toBe("active");
-			expect(snapshot?.continuationSuppressed).toBe(false);
 			expect(harness.sentMessages).toHaveLength(0);
 			expect(harness.notifications).toHaveLength(notificationCount);
 		}
@@ -3919,7 +3918,6 @@ describe("goal adapter", () => {
 
 		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
 	it("resumes a branch-persisted paused goal after interactive user input", async () => {
@@ -3962,7 +3960,6 @@ describe("goal adapter", () => {
 
 		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.continuationSuppressed).toBe(false);
 		expect(beforeAgentStartResults).toHaveLength(1);
 		expect(beforeAgentStartResults[0]).toMatchObject({
 			systemPrompt: expect.stringContaining("Active thread goal context."),
@@ -4013,7 +4010,6 @@ describe("goal adapter", () => {
 
 			expect(inputResults).toEqual([{ action: "continue" }]);
 			expect(snapshot?.status).toBe("active");
-			expect(snapshot?.continuationSuppressed).toBe(false);
 			expect(beforeAgentStartResults).toHaveLength(1);
 			expect(beforeAgentStartResults[0]).toMatchObject({
 				systemPrompt: expect.stringContaining("Active thread goal context."),
@@ -4137,7 +4133,6 @@ describe("goal adapter", () => {
 
 			expect(inputResults).toEqual([{ action: "continue" }]);
 			expect(snapshot?.status).toBe("active");
-			expect(snapshot?.continuationSuppressed).toBe(false);
 			expect(beforeAgentStartResults).toHaveLength(1);
 			expect(beforeAgentStartResults[0]).toMatchObject({
 				systemPrompt: expect.stringContaining("Active thread goal context."),
@@ -4241,7 +4236,6 @@ describe("goal adapter", () => {
 
 		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
 	it("injects active goal context after an interactive nudge resumes a blocked goal", async () => {
@@ -4301,7 +4295,6 @@ describe("goal adapter", () => {
 
 		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
 	it("injects active goal context after an interactive nudge resumes a usage-limited goal", async () => {
@@ -4362,7 +4355,6 @@ describe("goal adapter", () => {
 		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("budget_limited");
 		expect(snapshot?.budgetLimitPromptSent).toBe(false);
-		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
 	it("injects budget-limited context after interactive user input on a budget-limited goal", async () => {
@@ -4396,147 +4388,7 @@ describe("goal adapter", () => {
 		expect(inputResults).toEqual([{ action: "continue" }]);
 	});
 
-	it("clears continuation suppression after interactive user input", async () => {
-		const harness = makeGoalAdapterHarness();
-		harnesses.push(harness);
-		const runningCtx = {
-			...harness.ctx,
-			isIdle: () => false,
-		} as ExtensionCommandContext;
-
-		await runGoalCommand(harness, "ship the feature", runningCtx);
-		await fireEvent(harness, "agent_end", {
-			type: "agent_end",
-			messages: [makeAssistantMessage(10)],
-		});
-		let snapshot = await harness.run(
-			Effect.gen(function* () {
-				const goal = yield* Goal;
-				return yield* goal.get("session-1");
-			}),
-		);
-		expect(snapshot?.continuationSuppressed).toBe(true);
-
-		harness.sentMessages.length = 0;
-		const inputResults = await fireEvent(harness, "input", {
-			type: "input",
-			text: "keep going",
-			source: "interactive",
-		});
-		await fireEvent(harness, "agent_end", {
-			type: "agent_end",
-			messages: [makeAssistantToolCallMessage()],
-		});
-		snapshot = await harness.run(
-			Effect.gen(function* () {
-				const goal = yield* Goal;
-				return yield* goal.get("session-1");
-			}),
-		);
-
-		expect(inputResults).toEqual([{ action: "continue" }]);
-		expect(snapshot?.continuationSuppressed).toBe(false);
-		expect(harness.sentMessages).toHaveLength(1);
-		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
-	});
-
-	it("clears continuation suppression after rpc user input", async () => {
-		const harness = makeGoalAdapterHarness();
-		harnesses.push(harness);
-		const runningCtx = {
-			...harness.ctx,
-			isIdle: () => false,
-		} as ExtensionCommandContext;
-
-		await runGoalCommand(harness, "ship the feature", runningCtx);
-		await fireEvent(harness, "agent_end", {
-			type: "agent_end",
-			messages: [makeAssistantMessage(10)],
-		});
-		let snapshot = await harness.run(
-			Effect.gen(function* () {
-				const goal = yield* Goal;
-				return yield* goal.get("session-1");
-			}),
-		);
-		expect(snapshot?.continuationSuppressed).toBe(true);
-
-		harness.sentMessages.length = 0;
-		const inputResults = await fireEvent(harness, "input", {
-			type: "input",
-			text: "keep going",
-			source: "rpc",
-		});
-		await fireEvent(harness, "agent_end", {
-			type: "agent_end",
-			messages: [makeAssistantToolCallMessage()],
-		});
-		snapshot = await harness.run(
-			Effect.gen(function* () {
-				const goal = yield* Goal;
-				return yield* goal.get("session-1");
-			}),
-		);
-
-		expect(inputResults).toEqual([{ action: "continue" }]);
-		expect(snapshot?.continuationSuppressed).toBe(false);
-		expect(harness.sentMessages).toHaveLength(1);
-		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
-	});
-
-	for (const source of ["interactive", "rpc"] as const) {
-		it(`injects active goal context after a ${source} nudge clears continuation suppression`, async () => {
-			const harness = makeGoalAdapterHarness();
-			harnesses.push(harness);
-			const runningCtx = {
-				...harness.ctx,
-				isIdle: () => false,
-			} as ExtensionCommandContext;
-
-			await runGoalCommand(harness, "ship the feature", runningCtx);
-			await fireEvent(harness, "agent_end", {
-				type: "agent_end",
-				messages: [makeAssistantMessage(10)],
-			});
-			let snapshot = await harness.run(
-				Effect.gen(function* () {
-					const goal = yield* Goal;
-					return yield* goal.get("session-1");
-				}),
-			);
-			expect(snapshot?.continuationSuppressed).toBe(true);
-
-			harness.sentMessages.length = 0;
-			const inputResults = await fireEvent(harness, "input", {
-				type: "input",
-				text: "keep going",
-				source,
-			});
-			const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
-				type: "before_agent_start",
-				systemPrompt: "base prompt",
-			});
-			snapshot = await harness.run(
-				Effect.gen(function* () {
-					const goal = yield* Goal;
-					return yield* goal.get("session-1");
-				}),
-			);
-
-			expect(inputResults).toEqual([{ action: "continue" }]);
-			expect(snapshot?.continuationSuppressed).toBe(false);
-			expect(beforeAgentStartResults).toHaveLength(1);
-			expect(beforeAgentStartResults[0]).toMatchObject({
-				systemPrompt: expect.stringContaining("Active thread goal context."),
-			});
-			expect(beforeAgentStartResults[0]).toMatchObject({
-				systemPrompt: expect.stringContaining("<objective>\nship the feature"),
-			});
-			expect(harness.sentMessages).toHaveLength(0);
-		});
-	}
-
-	it("does not suppress continuation when interactive input takes over a dispatched continuation", async () => {
+	it("injects active goal context when interactive input takes over a dispatched continuation", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 
@@ -4574,7 +4426,6 @@ describe("goal adapter", () => {
 			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
 		});
 		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
 	it("sends a delayed recovery retry when an assistant error happens before tool work", async () => {

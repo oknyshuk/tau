@@ -40,7 +40,6 @@ export const GoalSnapshotSchema = Schema.Struct({
 	timeUsedSeconds: NonNegativeIntSchema,
 	createdAt: Schema.String,
 	updatedAt: Schema.String,
-	continuationSuppressed: Schema.Boolean,
 	budgetLimitPromptSent: Schema.Boolean,
 });
 export type GoalSnapshot = Schema.Schema.Type<typeof GoalSnapshotSchema>;
@@ -114,6 +113,5 @@ export const makeGoalSnapshot = (
 	timeUsedSeconds: 0,
 	createdAt: nowIso,
 	updatedAt: nowIso,
-	continuationSuppressed: false,
 	budgetLimitPromptSent: false,
 });

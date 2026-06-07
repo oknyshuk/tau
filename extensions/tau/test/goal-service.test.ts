@@ -774,28 +774,8 @@ describe("goal service", () => {
 		);
 
 		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.continuationSuppressed).toBe(false);
 		expect(snapshot?.budgetLimitPromptSent).toBe(false);
 		expect(harness.appended).toHaveLength(1);
-	});
-
-	it("appends an active event when active status clears continuation suppression", async () => {
-		const harness = makeGoalRuntime();
-		runtimes.push(harness);
-
-		const snapshot = await harness.run(
-			Effect.gen(function* () {
-				const goal = yield* Goal;
-				yield* goal.create("session-1", "finish", null);
-				yield* goal.markContinuationDispatched("session-1");
-				yield* goal.accountAgentEnd("session-1", makeAgentEnd(0), 0);
-				return yield* goal.setStatus("session-1", "active");
-			}),
-		);
-
-		expect(snapshot?.status).toBe("active");
-		expect(snapshot?.continuationSuppressed).toBe(false);
-		expect(harness.appended).toHaveLength(3);
 	});
 
 	it("does not append a new event when clearing a missing goal", async () => {
@@ -850,7 +830,6 @@ describe("goal service", () => {
 		expect(snapshot.status).toBe("active");
 		expect(snapshot.objective).toBe("finish");
 		expect(snapshot.tokenBudget).toBe(100);
-		expect(snapshot.continuationSuppressed).toBe(false);
 		expect(snapshot.budgetLimitPromptSent).toBe(false);
 		expect(harness.appended).toHaveLength(1);
 	});
@@ -926,40 +905,6 @@ describe("goal service", () => {
 		expect(result.nextTurn.snapshot?.objective).toBe("new goal");
 		expect(result.nextTurn.snapshot?.tokensUsed).toBe(10);
 		expect(result.nextTurn.snapshot?.timeUsedSeconds).toBe(3);
-	});
-
-	it("suppresses repeated continuation when a dispatched continuation did no tool work", async () => {
-		const harness = makeGoalRuntime();
-		runtimes.push(harness);
-
-		const result = await harness.run(
-			Effect.gen(function* () {
-				const goal = yield* Goal;
-				yield* goal.create("session-1", "finish", null);
-				yield* goal.markContinuationDispatched("session-1");
-				return yield* goal.accountAgentEnd("session-1", makeAgentEnd(25), 1_000);
-			}),
-		);
-
-		expect(result.snapshot?.continuationSuppressed).toBe(true);
-	});
-
-	it("clears dispatched continuation state when user input takes over", async () => {
-		const harness = makeGoalRuntime();
-		runtimes.push(harness);
-
-		const result = await harness.run(
-			Effect.gen(function* () {
-				const goal = yield* Goal;
-				yield* goal.create("session-1", "finish", null);
-				yield* goal.markContinuationDispatched("session-1");
-				yield* goal.clearContinuationSuppression("session-1");
-				return yield* goal.accountAgentEnd("session-1", makeAgentEnd(25), 1_000);
-			}),
-		);
-
-		expect(result.snapshot?.continuationSuppressed).toBe(false);
-		expect(harness.appended).toHaveLength(1);
 	});
 
 	it("accounts aborted assistant messages without changing goal status", async () => {

@@ -18,7 +18,6 @@ import {
 type GoalRuntime = {
 	readonly snapshot: GoalSnapshot | null;
 	readonly activeTurnStartedAtMs: number | null;
-	readonly continuationInFlight: boolean;
 	readonly terminalTurnAccountingPending: boolean;
 };
 
@@ -93,13 +92,7 @@ export interface GoalService {
 		message: AgentMessage,
 		nowMs: number,
 	) => Effect.Effect<GoalAgentEndResult, never, never>;
-	readonly markContinuationDispatched: (
-		sessionId: string,
-	) => Effect.Effect<GoalSnapshot | null, never, never>;
 	readonly markBudgetLimitPromptSent: (
-		sessionId: string,
-	) => Effect.Effect<GoalSnapshot | null, never, never>;
-	readonly clearContinuationSuppression: (
 		sessionId: string,
 	) => Effect.Effect<GoalSnapshot | null, never, never>;
 }
@@ -109,7 +102,6 @@ export class Goal extends Context.Service<Goal, GoalService>()("Goal") {}
 const emptyRuntime: GoalRuntime = {
 	snapshot: null,
 	activeTurnStartedAtMs: null,
-	continuationInFlight: false,
 	terminalTurnAccountingPending: false,
 };
 
@@ -117,7 +109,6 @@ function runtimeWithSnapshot(snapshot: GoalSnapshot | null): GoalRuntime {
 	return {
 		snapshot,
 		activeTurnStartedAtMs: null,
-		continuationInFlight: false,
 		terminalTurnAccountingPending: false,
 	};
 }
@@ -225,29 +216,6 @@ function assistantMessageUsageTokens(message: AgentMessage): number {
 		return 0;
 	}
 	return assistantUsageTokens(message);
-}
-
-function hasAssistantToolCall(event: AgentEndEvent): boolean {
-	for (const message of event.messages) {
-		if (message.role !== "assistant") {
-			continue;
-		}
-		for (const content of message.content) {
-			if (content.type === "toolCall") {
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
-function hasAssistantError(event: AgentEndEvent): boolean {
-	for (const message of event.messages) {
-		if (message.role === "assistant" && message.stopReason === "error") {
-			return true;
-		}
-	}
-	return false;
 }
 
 function runtimeCanAccountActiveTurn(runtime: GoalRuntime): boolean {
@@ -379,7 +347,6 @@ export const GoalLive = Layer.effect(
 						existing.objective === objective &&
 						existing.tokenBudget === tokenBudget &&
 						existing.timeBudgetSeconds === timeBudgetSeconds &&
-						existing.continuationSuppressed === false &&
 						existing.budgetLimitPromptSent === false;
 					const activeSnapshot = unchangedActiveGoal
 						? existing
@@ -388,7 +355,6 @@ export const GoalLive = Layer.effect(
 								status: "active",
 								tokenBudget,
 								timeBudgetSeconds,
-								continuationSuppressed: false,
 								budgetLimitPromptSent: false,
 							});
 					const budgetLimitStatusChanged =
@@ -444,7 +410,7 @@ export const GoalLive = Layer.effect(
 							tokenBudget,
 							timeBudgetSeconds,
 							...(status === "active"
-								? { continuationSuppressed: false, budgetLimitPromptSent: false }
+								? { budgetLimitPromptSent: false }
 								: {}),
 						});
 						shouldPersist = true;
@@ -457,7 +423,6 @@ export const GoalLive = Layer.effect(
 											? runtime.activeTurnStartedAtMs
 											: null))
 									: null,
-							continuationInFlight: false,
 							terminalTurnAccountingPending: false,
 						};
 					}),
@@ -484,7 +449,6 @@ export const GoalLive = Layer.effect(
 						const unchangedActiveStatus =
 							status === "active" &&
 							runtime.snapshot.status === "active" &&
-							runtime.snapshot.continuationSuppressed === false &&
 							runtime.snapshot.budgetLimitPromptSent === false;
 						if (
 							unchangedActiveStatus ||
@@ -509,15 +473,13 @@ export const GoalLive = Layer.effect(
 							return {
 								...runtime,
 								activeTurnStartedAtMs,
-								continuationInFlight:
-									status === "active" ? false : runtime.continuationInFlight,
 								terminalTurnAccountingPending,
 							};
 						}
 						const patch: Partial<GoalSnapshot> = {
 							status,
 							...(status === "active"
-								? { continuationSuppressed: false, budgetLimitPromptSent: false }
+								? { budgetLimitPromptSent: false }
 								: {}),
 						};
 						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, patch);
@@ -536,7 +498,6 @@ export const GoalLive = Layer.effect(
 							...runtime,
 							snapshot: nextSnapshot,
 							activeTurnStartedAtMs,
-							continuationInFlight: false,
 							terminalTurnAccountingPending:
 								(status === "complete" || status === "blocked") &&
 								options?.accountCurrentTurn === true,
@@ -602,7 +563,6 @@ export const GoalLive = Layer.effect(
 			nowMs: number,
 			options: {
 				readonly finishActiveAccounting: boolean;
-				readonly continuationHadToolCall: boolean | null;
 			},
 		): Effect.Effect<GoalAgentEndResult, never, never> =>
 			Effect.gen(function* () {
@@ -619,7 +579,6 @@ export const GoalLive = Layer.effect(
 								activeTurnStartedAtMs: options.finishActiveAccounting
 									? null
 									: runtime.activeTurnStartedAtMs,
-								continuationInFlight: false,
 								terminalTurnAccountingPending: false,
 							};
 						}
@@ -629,7 +588,6 @@ export const GoalLive = Layer.effect(
 								activeTurnStartedAtMs: options.finishActiveAccounting
 									? null
 									: runtime.activeTurnStartedAtMs,
-								continuationInFlight: false,
 								terminalTurnAccountingPending: options.finishActiveAccounting
 									? false
 									: runtime.terminalTurnAccountingPending,
@@ -641,14 +599,6 @@ export const GoalLive = Layer.effect(
 							tokensUsed: runtime.snapshot.tokensUsed + tokens,
 							timeUsedSeconds: runtime.snapshot.timeUsedSeconds + seconds,
 						});
-						if (
-							runtime.continuationInFlight &&
-							options.continuationHadToolCall === false
-						) {
-							snapshot = withUpdatedSnapshot(snapshot, nowIso, {
-								continuationSuppressed: true,
-							});
-						}
 						if (snapshot.status === "active" && goalBudgetLimitReached(snapshot)) {
 							snapshot = withUpdatedSnapshot(snapshot, nowIso, {
 								status: "budget_limited",
@@ -657,16 +607,11 @@ export const GoalLive = Layer.effect(
 						}
 						const stopActiveTurn = statusStopsActiveTurn(snapshot.status);
 						nextSnapshot = snapshot;
-						shouldPersist =
-							tokens > 0 ||
-							seconds > 0 ||
-							runtime.continuationInFlight ||
-							budgetLimitReached;
+						shouldPersist = tokens > 0 || seconds > 0 || budgetLimitReached;
 						return {
 							snapshot,
 							activeTurnStartedAtMs:
 								options.finishActiveAccounting || stopActiveTurn ? null : nowMs,
-							continuationInFlight: false,
 							terminalTurnAccountingPending: false,
 						};
 					}),
@@ -680,13 +625,11 @@ export const GoalLive = Layer.effect(
 		const accountTurnEnd: GoalService["accountTurnEnd"] = (sessionId, message, nowMs) =>
 			accountUsage(sessionId, assistantMessageUsageTokens(message), nowMs, {
 				finishActiveAccounting: false,
-				continuationHadToolCall: null,
 			});
 
-		const accountAgentEnd: GoalService["accountAgentEnd"] = (sessionId, event, nowMs) =>
+		const accountAgentEnd: GoalService["accountAgentEnd"] = (sessionId, _event, nowMs) =>
 			accountUsage(sessionId, 0, nowMs, {
 				finishActiveAccounting: true,
-				continuationHadToolCall: hasAssistantError(event) ? null : hasAssistantToolCall(event),
 			});
 
 		const prepareExternalMutation: GoalService["prepareExternalMutation"] = (
@@ -695,7 +638,6 @@ export const GoalLive = Layer.effect(
 		) =>
 			accountUsage(sessionId, 0, nowMs, {
 				finishActiveAccounting: true,
-				continuationHadToolCall: null,
 			});
 
 		const markUsageLimited: GoalService["markUsageLimited"] = Effect.fn(
@@ -703,23 +645,9 @@ export const GoalLive = Layer.effect(
 		)(function* (sessionId, message, nowMs) {
 			yield* accountUsage(sessionId, assistantUsageTokens(message), nowMs, {
 				finishActiveAccounting: true,
-				continuationHadToolCall: null,
 			});
 			return yield* setStatus(sessionId, "usage_limited");
 		});
-
-		const markContinuationDispatched: GoalService["markContinuationDispatched"] = (sessionId) =>
-			Ref.modify(runtimes, (state) => {
-				let snapshot: GoalSnapshot | null = null;
-				const next = withRuntime(state, sessionId, (runtime) => {
-					snapshot = runtime.snapshot;
-					if (runtime.snapshot?.status !== "active") {
-						return runtime;
-					}
-					return { ...runtime, continuationInFlight: true };
-				});
-				return [snapshot, next];
-			});
 
 		const markBudgetLimitPromptSent: GoalService["markBudgetLimitPromptSent"] = (sessionId) =>
 			Effect.gen(function* () {
@@ -748,38 +676,6 @@ export const GoalLive = Layer.effect(
 				return nextSnapshot;
 			});
 
-		const clearContinuationSuppression: GoalService["clearContinuationSuppression"] = (
-			sessionId,
-		) =>
-			Effect.gen(function* () {
-				const nowIso = new Date().toISOString();
-				let nextSnapshot: GoalSnapshot | null = null;
-				let shouldPersist = false;
-				yield* Ref.update(runtimes, (state) =>
-					withRuntime(state, sessionId, (runtime) => {
-						if (runtime.snapshot?.status !== "active") {
-							nextSnapshot = runtime.snapshot ?? null;
-							return runtime;
-						}
-						if (runtime.snapshot.continuationSuppressed === false) {
-							nextSnapshot = runtime.snapshot;
-							return runtime.continuationInFlight
-								? { ...runtime, continuationInFlight: false }
-								: runtime;
-						}
-						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, {
-							continuationSuppressed: false,
-						});
-						shouldPersist = true;
-						return { ...runtime, snapshot: nextSnapshot, continuationInFlight: false };
-					}),
-				);
-				if (shouldPersist) {
-					yield* saveSnapshot(nextSnapshot);
-				}
-				return nextSnapshot;
-			});
-
 		return Goal.of({
 			rehydrate,
 			get,
@@ -794,9 +690,7 @@ export const GoalLive = Layer.effect(
 			markAgentStart,
 			accountAgentEnd,
 			accountTurnEnd,
-			markContinuationDispatched,
 			markBudgetLimitPromptSent,
-			clearContinuationSuppression,
 		});
 	}),
 );
