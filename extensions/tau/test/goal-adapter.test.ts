@@ -599,6 +599,27 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 	});
 
+	it("does not resume a completed goal from /goal resume", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await runGoalCommand(harness, "complete");
+		harness.sentMessages.length = 0;
+		await runGoalCommand(harness, "resume");
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("complete");
+		expect(harness.sentMessages).toHaveLength(0);
+		expect(harness.notifications.at(-1)?.message).toContain("already complete");
+	});
+
 	it("restores idle accounting for an active goal on session start", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(1_000);

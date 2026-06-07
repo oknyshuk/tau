@@ -1228,6 +1228,16 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 							: parsed.command === "pause"
 								? "paused"
 								: "complete";
+					if (parsed.command === "resume") {
+						const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+						if (existing?.status === "complete") {
+							ctx.ui.notify(
+								"Thread goal is already complete. Set a new thread goal to continue.",
+								"info",
+							);
+							return;
+						}
+					}
 					if (status === "active") {
 						clearGoalPendingAutomation(sessionId);
 					} else {
