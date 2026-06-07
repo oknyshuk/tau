@@ -1951,6 +1951,8 @@ describe("goal adapter", () => {
 	});
 
 	it("pauses the goal from the pi interrupt signal before completion events", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const controller = new AbortController();
@@ -1964,8 +1966,9 @@ describe("goal adapter", () => {
 			{ type: "before_agent_start", systemPrompt: "system" },
 			signalCtx,
 		);
+		vi.setSystemTime(2_500);
 		controller.abort();
-		await flushPromises();
+		await vi.advanceTimersByTimeAsync(0);
 
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
@@ -1975,6 +1978,7 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.timeUsedSeconds).toBe(2);
 
 		await fireEvent(
 			harness,

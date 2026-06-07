@@ -770,6 +770,9 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		clearGoalErrorRetry(sessionId);
 		const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
 		if (snapshot?.status !== "complete") {
+			await withGoal(runtime, (goal) =>
+				goal.prepareExternalMutation(sessionId, Date.now()),
+			);
 			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 		}
 		await updateGoalUi(ctx);
