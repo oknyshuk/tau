@@ -2231,7 +2231,8 @@ describe("goal adapter", () => {
 
 		expect(harness.confirmations).toHaveLength(0);
 		expect(harness.notifications.at(-1)).toEqual({
-			message: "goal objective must be at most 4000 characters",
+			message:
+				"Goal objective is too long: 4,001 characters. Limit: 4,000 characters. Put longer instructions in a file and refer to that file in the goal, for example: /goal follow the instructions in docs/goal.md.",
 			type: "error",
 		});
 		expect(snapshot?.objective).toBe("first goal");

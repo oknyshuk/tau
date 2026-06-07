@@ -24,7 +24,12 @@ import {
 	goalSystemPrompt,
 	objectiveUpdatedPrompt,
 } from "./prompts.js";
-import type { GoalSnapshot, GoalStatus } from "./schema.js";
+import {
+	MAX_GOAL_OBJECTIVE_CHARS,
+	goalObjectiveCharCount,
+	type GoalSnapshot,
+	type GoalStatus,
+} from "./schema.js";
 
 export type GoalRuntime = {
 	readonly runPromise: <A, E>(effect: Effect.Effect<A, E, Goal>) => Promise<A>;
@@ -40,6 +45,8 @@ const GOAL_ERROR_RETRY_BASE_DELAY_MS = 5_000;
 const GOAL_ERROR_RETRY_MAX_DELAY_MS = 30_000;
 const GOAL_ERROR_RETRY_JITTER_MS = 1_000;
 const GOAL_ERROR_RETRY_BUSY_DELAY_MS = 1_000;
+const GOAL_TOO_LONG_FILE_HINT =
+	"Put longer instructions in a file and refer to that file in the goal, for example: /goal follow the instructions in docs/goal.md.";
 
 type GoalToolDetails = {
 	readonly displayText: string;
@@ -744,6 +751,23 @@ function parseGoalCommand(args: string): {
 	}
 
 	return { command: "set", objective: trimmed, tokenBudget: null, timeBudgetSeconds: null };
+}
+
+function formatIntegerWithSeparators(value: number): string {
+	return Math.max(0, Math.floor(value))
+		.toString()
+		.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function validateGoalCommandObjective(objectiveInput: string): string {
+	const objective = objectiveInput.trim();
+	const chars = goalObjectiveCharCount(objective);
+	if (chars > MAX_GOAL_OBJECTIVE_CHARS) {
+		throw new GoalConflictError({
+			reason: `Goal objective is too long: ${formatIntegerWithSeparators(chars)} characters. Limit: ${formatIntegerWithSeparators(MAX_GOAL_OBJECTIVE_CHARS)} characters. ${GOAL_TOO_LONG_FILE_HINT}`,
+		});
+	}
+	return validateGoalObjective(objective);
 }
 
 function editedGoalStatus(status: GoalStatus): GoalStatus {
@@ -1563,7 +1587,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					return;
 				}
 
-				const objective = validateGoalObjective(parsed.objective ?? "");
+				const objective = validateGoalCommandObjective(parsed.objective ?? "");
 				const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 				const objectiveChanged = existing !== null && existing.objective !== objective;
 				const sameObjectiveBudgetEdit =
