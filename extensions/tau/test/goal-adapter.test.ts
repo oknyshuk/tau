@@ -826,6 +826,20 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
 		expect(harness.sentMessages[0]?.message.content).toContain("reached its token budget");
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantMessage(0)],
+		});
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.budgetLimitPromptSent).toBe(true);
+		expect(harness.sentMessages).toHaveLength(1);
 	});
 
 	it("steers the active turn when setting a new command goal while running", async () => {
