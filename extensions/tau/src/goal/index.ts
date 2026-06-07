@@ -1287,6 +1287,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 	const restoreSessionGoal = async (ctx: ExtensionContext): Promise<GoalSnapshot | null> => {
 		clearAllGoalErrorRetries();
+		clearAllGoalInterruptListeners();
 		await rehydrateAndUpdate(runtime, ctx, goalUiState);
 		await withGoal(runtime, (goal) =>
 			goal.restoreAfterResume(sessionIdFromContext(ctx), Date.now()),

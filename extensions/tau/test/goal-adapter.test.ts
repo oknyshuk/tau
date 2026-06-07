@@ -1254,6 +1254,55 @@ describe("goal adapter", () => {
 		expect(snapshot?.status).toBe("paused");
 	});
 
+	it("ignores pre-restore interrupts after session activation", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const oldController = new AbortController();
+		const oldCtx = makePiSignalContext(harness.ctx, oldController);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const restoredCtx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			oldCtx,
+		);
+		await fireEvent(
+			harness,
+			"session_start",
+			{ type: "session_start" },
+			restoredCtx,
+		);
+		oldController.abort();
+		await flushPromises();
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+	});
+
 	it("does not pause the goal from an aborted assistant event without a pi interrupt signal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
