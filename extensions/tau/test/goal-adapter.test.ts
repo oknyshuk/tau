@@ -530,6 +530,39 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("returns snake_case limited statuses from get_goal", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("get_goal");
+		if (tool === undefined) {
+			throw new Error("get_goal tool was not registered");
+		}
+
+		await runGoalCommand(harness, "ship the feature");
+		for (const status of ["usage_limited", "budget_limited"] as const) {
+			await harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					yield* goal.setStatus("session-1", status);
+				}),
+			);
+			const result = await tool.execute(
+				`call-get-goal-${status}`,
+				{},
+				undefined,
+				undefined,
+				harness.ctx,
+			);
+
+			expect(result.details).toMatchObject({
+				goal: { status },
+			});
+			expect(parseToolJsonResult(result)).toMatchObject({
+				goal: { status },
+			});
+		}
+	});
+
 	it("starts model-created goal accounting after the create_goal caller turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
