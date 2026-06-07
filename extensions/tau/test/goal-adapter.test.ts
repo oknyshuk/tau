@@ -2201,6 +2201,51 @@ describe("goal adapter", () => {
 		expect(snapshot?.tokensUsed).toBe(23);
 	});
 
+	it("keeps an over-budget goal budget-limited when update_goal requests blocked", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 40 ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(50),
+		});
+		const tool = harness.tools.get("update_goal");
+		if (tool === undefined) {
+			throw new Error("update_goal tool was not registered");
+		}
+		const result = await tool.execute(
+			"call-update-goal",
+			{ status: "blocked" },
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect("isError" in result && result.isError === true).toBe(false);
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.tokensUsed).toBe(50);
+		expect(parseToolJsonResult(result)).toMatchObject({
+			remainingTokens: 0,
+			goal: {
+				status: "budget_limited",
+				tokenBudget: 40,
+				tokensUsed: 50,
+			},
+		});
+	});
+
 	it("returns codex-style completion budget details from update_goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
@@ -3445,8 +3490,10 @@ describe("goal adapter", () => {
 			);
 
 			expect(inputResults).toEqual([{ action: "continue" }]);
-			expect(snapshot?.status).toBe("active");
-			expect(snapshot?.budgetLimitPromptSent).toBe(false);
+			expect(snapshot?.status).toBe(
+				status === "budget_limited" ? "budget_limited" : "active",
+			);
+			expect(snapshot?.budgetLimitPromptSent).toBe(status === "budget_limited");
 			expect(snapshot?.continuationSuppressed).toBe(false);
 			expect(beforeAgentStartResults).toHaveLength(1);
 			expect(beforeAgentStartResults[0]).toMatchObject({

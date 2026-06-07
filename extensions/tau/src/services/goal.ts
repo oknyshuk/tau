@@ -216,6 +216,16 @@ function statusStopsActiveTurn(status: GoalStatus): boolean {
 	return status === "complete" || status === "blocked";
 }
 
+function statusAfterBudgetLimit(snapshot: GoalSnapshot, status: GoalStatus): GoalStatus {
+	if (
+		(snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget) &&
+		(status === "active" || status === "paused" || status === "blocked")
+	) {
+		return "budget_limited";
+	}
+	return status;
+}
+
 function elapsedSeconds(runtime: GoalRuntime, nowMs: number): number {
 	if (runtime.activeTurnStartedAtMs === null) {
 		return 0;
@@ -372,8 +382,9 @@ export const GoalLive = Layer.effect(
 		const setStatus: GoalService["setStatus"] = Effect.fn("Goal.setStatus")(
 			function* (sessionId, status, options) {
 				const existing = yield* get(sessionId);
+				const requestedStatus = status;
 				if (existing?.status === "complete") {
-					if (status === "complete") {
+					if (requestedStatus === "complete") {
 						return existing;
 					}
 					return yield* Effect.fail(
@@ -388,6 +399,7 @@ export const GoalLive = Layer.effect(
 						if (runtime.snapshot === null) {
 							return runtime;
 						}
+						const status = statusAfterBudgetLimit(runtime.snapshot, requestedStatus);
 						const unchangedActiveStatus =
 							status === "active" &&
 							runtime.snapshot.status === "active" &&
@@ -396,6 +408,7 @@ export const GoalLive = Layer.effect(
 						if (
 							unchangedActiveStatus ||
 							(runtime.snapshot.status === status &&
+								requestedStatus === status &&
 								status !== "active" &&
 								status !== "complete")
 						) {

@@ -370,6 +370,33 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(5);
 	});
 
+	for (const status of ["active", "paused", "blocked"] as const) {
+		it(`keeps an over-budget goal budget-limited when setting ${status}`, async () => {
+			const harness = makeGoalRuntime();
+			runtimes.push(harness);
+
+			const result = await harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					yield* goal.create("session-1", "finish", 40);
+					yield* goal.markAgentStart("session-1", 0);
+					const limited = yield* goal.accountTurnEnd(
+						"session-1",
+						makeAssistantMessage(50, false),
+						1_000,
+					);
+					const updated = yield* goal.setStatus("session-1", status);
+					return { limited, updated };
+				}),
+			);
+
+			expect(result.limited.snapshot?.status).toBe("budget_limited");
+			expect(result.updated?.status).toBe("budget_limited");
+			expect(result.updated?.tokensUsed).toBe(50);
+			expect(harness.appended).toHaveLength(3);
+		});
+	}
+
 	it("keeps timing a budget-limited wrap-up turn until agent end", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
