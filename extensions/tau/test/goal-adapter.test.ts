@@ -4458,6 +4458,58 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
 	});
 
+	for (const source of ["interactive", "rpc"] as const) {
+		it(`injects active goal context after a ${source} nudge clears continuation suppression`, async () => {
+			const harness = makeGoalAdapterHarness();
+			harnesses.push(harness);
+			const runningCtx = {
+				...harness.ctx,
+				isIdle: () => false,
+			} as ExtensionCommandContext;
+
+			await runGoalCommand(harness, "ship the feature", runningCtx);
+			await fireEvent(harness, "agent_end", {
+				type: "agent_end",
+				messages: [makeAssistantMessage(10)],
+			});
+			let snapshot = await harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					return yield* goal.get("session-1");
+				}),
+			);
+			expect(snapshot?.continuationSuppressed).toBe(true);
+
+			harness.sentMessages.length = 0;
+			const inputResults = await fireEvent(harness, "input", {
+				type: "input",
+				text: "keep going",
+				source,
+			});
+			const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
+				type: "before_agent_start",
+				systemPrompt: "base prompt",
+			});
+			snapshot = await harness.run(
+				Effect.gen(function* () {
+					const goal = yield* Goal;
+					return yield* goal.get("session-1");
+				}),
+			);
+
+			expect(inputResults).toEqual([{ action: "continue" }]);
+			expect(snapshot?.continuationSuppressed).toBe(false);
+			expect(beforeAgentStartResults).toHaveLength(1);
+			expect(beforeAgentStartResults[0]).toMatchObject({
+				systemPrompt: expect.stringContaining("Active thread goal context."),
+			});
+			expect(beforeAgentStartResults[0]).toMatchObject({
+				systemPrompt: expect.stringContaining("<objective>\nship the feature"),
+			});
+			expect(harness.sentMessages).toHaveLength(0);
+		});
+	}
+
 	it("does not suppress continuation when interactive input takes over a dispatched continuation", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
