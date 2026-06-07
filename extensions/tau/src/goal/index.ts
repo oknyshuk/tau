@@ -264,6 +264,27 @@ function describeGoalSummary(goal: GoalSnapshot): string {
 	return lines.join("\n");
 }
 
+function goalUsageSummary(goal: GoalSnapshot): string {
+	const parts = [`Objective: ${goal.objective}`];
+	if (goal.timeUsedSeconds > 0 || goal.timeBudgetSeconds !== null) {
+		const time =
+			goal.timeBudgetSeconds === null
+				? formatDuration(goal.timeUsedSeconds * 1_000)
+				: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
+		parts.push(`Time: ${time}.`);
+	}
+	if (goal.tokenBudget !== null) {
+		parts.push(
+			`Tokens: ${formatTokenCount(goal.tokensUsed)}/${formatTokenCount(goal.tokenBudget)}.`,
+		);
+	}
+	return parts.join(" ");
+}
+
+function describeGoalMutation(goal: GoalSnapshot): string {
+	return `Goal ${goalStatusLabel(goal.status)}\n${goalUsageSummary(goal)}`;
+}
+
 function goalTokenUsageText(goal: GoalSnapshot): string {
 	const tokens =
 		goal.tokenBudget === null
@@ -1384,8 +1405,13 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 							},
 						),
 					);
+					if (snapshot === null) {
+						throw new GoalConflictError({
+							reason: "cannot update goal because this thread has no goal",
+						});
+					}
 					await updateGoalUi(ctx);
-					ctx.ui.notify(describeGoal(snapshot), "info");
+					ctx.ui.notify(describeGoalMutation(snapshot), "info");
 					if (status === "active") {
 						if (existing.objective !== snapshot?.objective && !ctx.isIdle()) {
 							await dispatchGoalObjectiveUpdated(pi, runtime, ctx, snapshot);
@@ -1434,8 +1460,13 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 								: {}),
 						}),
 					);
+					if (snapshot === null) {
+						throw new GoalConflictError({
+							reason: "cannot update goal because this thread has no goal",
+						});
+					}
 					await updateGoalUi(ctx);
-					ctx.ui.notify(describeGoal(snapshot), "info");
+					ctx.ui.notify(describeGoalMutation(snapshot), "info");
 					if (status === "active") {
 						await dispatchActivatedGoal(pi, runtime, ctx, snapshot);
 					}
@@ -1483,7 +1514,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					),
 				);
 				await updateGoalUi(ctx);
-				ctx.ui.notify(`Set thread goal.\n${describeGoal(snapshot)}`, "info");
+				ctx.ui.notify(describeGoalMutation(snapshot), "info");
 				if (snapshot.status === "budget_limited") {
 					await dispatchGoalBudgetLimit(pi, runtime, ctx, snapshot, {
 						activeTurn: !ctx.isIdle(),

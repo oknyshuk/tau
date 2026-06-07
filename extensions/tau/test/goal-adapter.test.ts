@@ -453,11 +453,12 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.objective).toBe("ship the feature");
-		expect(snapshot?.timeBudgetSeconds).toBe(300);
-		expect(harness.notifications.at(-1)?.message).toContain("Tokens: 0 tokens");
-		expect(harness.notifications.at(-1)?.message).toContain("Time: 0s/5m 0s");
-		expect(harness.notifications.at(-1)?.message).not.toContain("no budget");
+	expect(snapshot?.objective).toBe("ship the feature");
+	expect(snapshot?.timeBudgetSeconds).toBe(300);
+	expect(harness.notifications.at(-1)?.message).toBe(
+		"Goal active\nObjective: ship the feature Time: 0s/5m 0s.",
+	);
+	expect(harness.notifications.at(-1)?.message).not.toContain("no budget");
 		expect(harness.sentMessages[0]?.message.content).toContain(
 			"- Time budget: 300 seconds",
 		);
@@ -1560,11 +1561,13 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.objective).toBe("ship the feature");
-		expect(snapshot?.status).toBe("paused");
-		expect(harness.notifications.at(-1)?.message).toContain("Status: paused");
-		expect(harness.sentMessages).toHaveLength(0);
-	});
+	expect(snapshot?.objective).toBe("ship the feature");
+	expect(snapshot?.status).toBe("paused");
+	expect(harness.notifications.at(-1)?.message).toBe(
+		"Goal paused\nObjective: ship the feature",
+	);
+	expect(harness.sentMessages).toHaveLength(0);
+});
 
 	it("does not treat /goal edit as a new objective when no goal exists", async () => {
 		const harness = makeGoalAdapterHarness();
