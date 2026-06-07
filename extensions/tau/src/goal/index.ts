@@ -753,6 +753,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 	const pauseGoalFromInterrupt = async (ctx: ExtensionContext): Promise<void> => {
 		const sessionId = sessionIdFromContext(ctx);
+		clearGoalErrorRetry(sessionId);
 		await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 		await updateGoalUi(ctx);
 	};
@@ -769,6 +770,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	const clearGoalInterruptState = (sessionId: string): void => {
 		clearGoalInterruptListener(sessionId);
 		interruptedSessions.delete(sessionId);
+	};
+
+	const clearGoalPendingAutomation = (sessionId: string): void => {
+		clearGoalInterruptState(sessionId);
+		clearGoalErrorRetry(sessionId);
 	};
 
 	const clearAllGoalInterruptListeners = (): void => {
@@ -1094,6 +1100,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				goalToolErrorResult(errorText(error)),
 			execute: async (params, { ctx }) => {
 				const sessionId = sessionIdFromContext(ctx);
+				clearGoalErrorRetry(sessionId);
 				const snapshot = await withGoal(runtime, (goal) =>
 					goal.setStatus(sessionId, params.status, {
 						accountCurrentTurn: true,
@@ -1135,7 +1142,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						goal.prepareExternalMutation(sessionId, Date.now()),
 					);
 					await withGoal(runtime, (goal) => goal.clear(sessionId));
-					clearGoalInterruptState(sessionId);
+					clearGoalPendingAutomation(sessionId);
 					clearGoalUi(ctx, goalUiState);
 					stopGoalTicker();
 					ctx.ui.notify("Cleared thread goal.", "info");
@@ -1153,7 +1160,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 							: parsed.command === "pause"
 								? "paused"
 								: "complete";
-					clearGoalInterruptState(sessionId);
+					clearGoalPendingAutomation(sessionId);
 					await withGoal(runtime, (goal) =>
 						goal.prepareExternalMutation(sessionId, nowMs),
 					);
@@ -1185,7 +1192,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					}
 				}
 				const nowMs = Date.now();
-				clearGoalInterruptState(sessionId);
+				clearGoalPendingAutomation(sessionId);
 				await withGoal(runtime, (goal) =>
 					goal.prepareExternalMutation(sessionId, nowMs),
 				);

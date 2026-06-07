@@ -1357,6 +1357,31 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.content).toContain("provider returned error: 503");
 	});
 
+	it("cancels a delayed recovery retry after /goal resume", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+		await runGoalCommand(harness, "resume");
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+		harness.sentMessages.length = 0;
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("sends a delayed recovery retry when an assistant error happens before tool work", async () => {
 		vi.useFakeTimers();
 		const harness = makeGoalAdapterHarness();
