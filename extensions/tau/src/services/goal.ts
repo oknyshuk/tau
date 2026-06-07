@@ -45,6 +45,16 @@ export interface GoalService {
 			readonly startActiveAccountingAtMs?: number;
 		},
 	) => Effect.Effect<GoalSnapshot, GoalError, never>;
+	readonly edit: (
+		sessionId: string,
+		objective: string,
+		status: GoalStatus,
+		tokenBudget: number | null,
+		timeBudgetSeconds: number | null,
+		options?: {
+			readonly startActiveAccountingAtMs?: number;
+		},
+	) => Effect.Effect<GoalSnapshot | null, GoalError, never>;
 	readonly setStatus: (
 		sessionId: string,
 		status: GoalStatus,
@@ -134,6 +144,23 @@ function withRuntime(
 
 function normalizeObjective(objective: string): string {
 	return objective.trim();
+}
+
+function validateObjective(objectiveInput: string): Effect.Effect<string, GoalConflictError, never> {
+	const objective = normalizeObjective(objectiveInput);
+	if (objective.length === 0) {
+		return Effect.fail(
+			new GoalConflictError({ reason: "goal objective must not be empty" }),
+		);
+	}
+	if (objective.length > 4_000) {
+		return Effect.fail(
+			new GoalConflictError({
+				reason: "goal objective must be at most 4000 characters",
+			}),
+		);
+	}
+	return Effect.succeed(objective);
 }
 
 function validateTokenBudget(
@@ -308,19 +335,7 @@ export const GoalLive = Layer.effect(
 
 		const create: GoalService["create"] = Effect.fn("Goal.create")(
 			function* (sessionId, objectiveInput, tokenBudgetInput, timeBudgetSecondsInput, options) {
-				const objective = normalizeObjective(objectiveInput);
-				if (objective.length === 0) {
-					return yield* Effect.fail(
-						new GoalConflictError({ reason: "goal objective must not be empty" }),
-					);
-				}
-				if (objective.length > 4_000) {
-					return yield* Effect.fail(
-						new GoalConflictError({
-							reason: "goal objective must be at most 4000 characters",
-						}),
-					);
-				}
+				const objective = yield* validateObjective(objectiveInput);
 				const tokenBudget = yield* validateTokenBudget(tokenBudgetInput);
 				const timeBudgetSeconds = yield* validateTimeBudgetSeconds(
 					timeBudgetSecondsInput ?? null,
@@ -379,6 +394,57 @@ export const GoalLive = Layer.effect(
 				);
 				yield* saveSnapshot(snapshot);
 				return snapshot;
+			},
+		);
+
+		const edit: GoalService["edit"] = Effect.fn("Goal.edit")(
+			function* (
+				sessionId,
+				objectiveInput,
+				status,
+				tokenBudgetInput,
+				timeBudgetSecondsInput,
+				options,
+			) {
+				const objective = yield* validateObjective(objectiveInput);
+				const tokenBudget = yield* validateTokenBudget(tokenBudgetInput);
+				const timeBudgetSeconds = yield* validateTimeBudgetSeconds(timeBudgetSecondsInput);
+				const nowIso = new Date().toISOString();
+				let nextSnapshot: GoalSnapshot | null = null;
+				let shouldPersist = false;
+				yield* Ref.update(runtimes, (state) =>
+					withRuntime(state, sessionId, (runtime) => {
+						if (runtime.snapshot === null) {
+							return runtime;
+						}
+						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, {
+							objective,
+							status,
+							tokenBudget,
+							timeBudgetSeconds,
+							...(status === "active"
+								? { continuationSuppressed: false, budgetLimitPromptSent: false }
+								: {}),
+						});
+						shouldPersist = true;
+						return {
+							snapshot: nextSnapshot,
+							activeTurnStartedAtMs:
+								status === "active"
+									? (options?.startActiveAccountingAtMs ??
+										(runtime.snapshot.status === "active"
+											? runtime.activeTurnStartedAtMs
+											: null))
+									: null,
+							continuationInFlight: false,
+							terminalTurnAccountingPending: false,
+						};
+					}),
+				);
+				if (shouldPersist) {
+					yield* saveSnapshot(nextSnapshot);
+				}
+				return nextSnapshot;
 			},
 		);
 
@@ -707,6 +773,7 @@ export const GoalLive = Layer.effect(
 			get,
 			liveSnapshot,
 			create,
+			edit,
 			setStatus,
 			prepareExternalMutation,
 			markUsageLimited,

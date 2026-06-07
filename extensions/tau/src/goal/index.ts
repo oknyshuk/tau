@@ -524,7 +524,7 @@ function renderGoalToolResult(
 }
 
 function parseGoalCommand(args: string): {
-	readonly command: "show" | "clear" | "pause" | "resume" | "complete" | "set";
+	readonly command: "show" | "clear" | "edit" | "pause" | "resume" | "complete" | "set";
 	readonly objective?: string;
 	readonly tokenBudget?: number | null;
 	readonly timeBudgetSeconds?: number | null;
@@ -536,6 +536,7 @@ function parseGoalCommand(args: string): {
 	const [first] = trimmed.split(/\s+/, 1);
 	switch (first) {
 		case "clear":
+		case "edit":
 		case "pause":
 		case "resume":
 		case "complete":
@@ -579,6 +580,19 @@ function parseGoalCommand(args: string): {
 	}
 
 	return { command: "set", objective: trimmed, tokenBudget: null, timeBudgetSeconds: null };
+}
+
+function editedGoalStatus(status: GoalStatus): GoalStatus {
+	switch (status) {
+		case "active":
+		case "paused":
+		case "blocked":
+		case "usage_limited":
+			return status;
+		case "budget_limited":
+		case "complete":
+			return "active";
+	}
 }
 
 function parseTimeBudgetSeconds(input: string): number {
@@ -1274,6 +1288,51 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					clearGoalUi(ctx, goalUiState);
 					stopGoalTicker();
 					ctx.ui.notify("Cleared thread goal.", "info");
+					return;
+				}
+				if (parsed.command === "edit") {
+					const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
+					if (existing === null) {
+						ctx.ui.notify("No goal is currently set.", "info");
+						return;
+					}
+					const objective = await ctx.ui.input("Edit goal", existing.objective);
+					if (objective === undefined) {
+						return;
+					}
+					const nowMs = Date.now();
+					const status = editedGoalStatus(existing.status);
+					if (status === "active") {
+						clearGoalPendingAutomation(sessionId);
+					} else {
+						clearGoalTerminalAutomation(sessionId);
+					}
+					await withGoal(runtime, (goal) =>
+						goal.prepareExternalMutation(sessionId, nowMs),
+					);
+					const snapshot = await withGoal(runtime, (goal) =>
+						goal.edit(
+							sessionId,
+							objective,
+							status,
+							existing.tokenBudget,
+							existing.timeBudgetSeconds,
+							{
+								...(status === "active" && !ctx.isIdle()
+									? { startActiveAccountingAtMs: nowMs }
+									: {}),
+							},
+						),
+					);
+					await updateGoalUi(ctx);
+					ctx.ui.notify(describeGoal(snapshot), "info");
+					if (status === "active") {
+						if (existing.objective !== snapshot?.objective && !ctx.isIdle()) {
+							await dispatchGoalObjectiveUpdated(pi, runtime, ctx, snapshot);
+						} else {
+							await dispatchActivatedGoal(pi, runtime, ctx, snapshot);
+						}
+					}
 					return;
 				}
 				if (

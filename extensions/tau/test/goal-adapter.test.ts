@@ -42,6 +42,8 @@ type GoalAdapterHarness = {
 	readonly sentMessages: SentMessage[];
 	readonly notifications: ReadonlyArray<{ readonly message: string; readonly type: string }>;
 	readonly confirmations: ReadonlyArray<{ readonly title: string; readonly message: string }>;
+	readonly inputs: ReadonlyArray<{ readonly title: string; readonly placeholder?: string }>;
+	readonly inputResponses: Array<string | undefined>;
 	readonly ctx: ExtensionCommandContext;
 	readonly run: <A, E>(effect: Effect.Effect<A, E, Goal>) => Promise<A>;
 	readonly dispose: () => Promise<void>;
@@ -54,6 +56,8 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 	const sentMessages: SentMessage[] = [];
 	const notifications: Array<{ readonly message: string; readonly type: string }> = [];
 	const confirmations: Array<{ readonly title: string; readonly message: string }> = [];
+	const inputs: Array<{ readonly title: string; readonly placeholder?: string }> = [];
+	const inputResponses: Array<string | undefined> = [];
 	const piBase = {
 		on: (name: string, handler: EventHandler) => {
 			const handlers = events.get(name) ?? [];
@@ -92,6 +96,12 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 				confirmations.push({ title, message });
 				return true;
 			},
+			input: async (title: string, placeholder?: string) => {
+				inputs.push(
+					placeholder === undefined ? { title } : { title, placeholder },
+				);
+				return inputResponses.shift();
+			},
 			setStatus: () => undefined,
 			setWidget: () => undefined,
 		},
@@ -106,6 +116,8 @@ function makeGoalAdapterHarness(): GoalAdapterHarness {
 		sentMessages,
 		notifications,
 		confirmations,
+		inputs,
+		inputResponses,
 		ctx,
 		run: (effect) => runtime.runPromise(effect),
 		dispose: () => runtime.dispose(),
@@ -1415,6 +1427,101 @@ describe("goal adapter", () => {
 		expect(snapshot?.status).toBe("paused");
 		expect(harness.notifications.at(-1)?.message).toContain("Status: paused");
 		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("does not treat /goal edit as a new objective when no goal exists", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		harness.inputResponses.push("edited objective");
+		await runGoalCommand(harness, "edit");
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot).toBeNull();
+		expect(harness.inputs).toHaveLength(0);
+		expect(harness.notifications.at(-1)?.message).toBe("No goal is currently set.");
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("edits a paused goal objective while preserving status, budget, and usage", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 80 ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_500);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(25),
+		});
+		await runGoalCommand(harness, "pause");
+		harness.sentMessages.length = 0;
+		harness.inputResponses.push("ship the feature with clearer wording");
+
+		await runGoalCommand(harness, "edit");
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(harness.inputs).toEqual([
+			{ title: "Edit goal", placeholder: "ship the feature" },
+		]);
+		expect(snapshot?.objective).toBe("ship the feature with clearer wording");
+		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.tokenBudget).toBe(80);
+		expect(snapshot?.tokensUsed).toBe(25);
+		expect(snapshot?.timeUsedSeconds).toBe(1);
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("edits a completed goal back to active while preserving usage", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_500);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(25),
+		});
+		await runGoalCommand(harness, "complete");
+		harness.sentMessages.length = 0;
+		harness.inputResponses.push("ship the follow-up");
+
+		await runGoalCommand(harness, "edit");
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the follow-up");
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.tokensUsed).toBe(25);
+		expect(snapshot?.timeUsedSeconds).toBe(1);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+		expect(harness.sentMessages[0]?.message.content).toContain("ship the follow-up");
 	});
 
 	it("suppresses a repeated continuation after an active goal steer does no tool work", async () => {
