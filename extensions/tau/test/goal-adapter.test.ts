@@ -2204,7 +2204,7 @@ describe("goal adapter", () => {
 				yield* goal.setStatus("session-1", "paused");
 			}),
 		);
-		await fireEvent(harness, "input", {
+		const inputResults = await fireEvent(harness, "input", {
 			type: "input",
 			text: "continue",
 			source: "interactive",
@@ -2217,6 +2217,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
+		expect(inputResults).toEqual([{ action: "continue" }]);
 		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
