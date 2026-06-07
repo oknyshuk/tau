@@ -322,6 +322,25 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("uses codex-style compact token formatting in /goal summary", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 80000 ship the feature");
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(63_876),
+		});
+		await runGoalCommand(harness, "");
+
+		expect(harness.notifications.at(-1)?.message).toContain(
+			"Tokens used: 63.9K",
+		);
+		expect(harness.notifications.at(-1)?.message).toContain(
+			"Token budget: 80K",
+		);
+	});
+
 	it("shows codex-style message when clearing with no current goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

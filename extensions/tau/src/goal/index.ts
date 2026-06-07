@@ -235,6 +235,31 @@ function goalStatusLabel(status: GoalStatus): string {
 	}
 }
 
+function formatGoalTokensCompact(tokens: number): string {
+	const value = Math.max(0, Math.floor(tokens));
+	if (value < 1_000) {
+		return value.toString();
+	}
+	const scaled =
+		value >= 1_000_000_000_000
+			? value / 1_000_000_000_000
+			: value >= 1_000_000_000
+				? value / 1_000_000_000
+				: value >= 1_000_000
+					? value / 1_000_000
+					: value / 1_000;
+	const suffix =
+		value >= 1_000_000_000_000
+			? "T"
+			: value >= 1_000_000_000
+				? "B"
+				: value >= 1_000_000
+					? "M"
+					: "K";
+	const decimals = scaled < 10 ? 2 : scaled < 100 ? 1 : 0;
+	return `${scaled.toFixed(decimals).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1")}${suffix}`;
+}
+
 function goalCommandHint(status: GoalStatus): string {
 	switch (status) {
 		case "active":
@@ -255,10 +280,10 @@ function describeGoalSummary(goal: GoalSnapshot): string {
 		`Status: ${goalStatusLabel(goal.status)}`,
 		`Objective: ${goal.objective}`,
 		`Time used: ${formatDuration(goal.timeUsedSeconds * 1_000)}`,
-		`Tokens used: ${formatTokenCount(goal.tokensUsed)}`,
+		`Tokens used: ${formatGoalTokensCompact(goal.tokensUsed)}`,
 	];
 	if (goal.tokenBudget !== null) {
-		lines.push(`Token budget: ${formatTokenCount(goal.tokenBudget)}`);
+		lines.push(`Token budget: ${formatGoalTokensCompact(goal.tokenBudget)}`);
 	}
 	lines.push("", goalCommandHint(goal.status));
 	return lines.join("\n");
@@ -275,7 +300,7 @@ function goalUsageSummary(goal: GoalSnapshot): string {
 	}
 	if (goal.tokenBudget !== null) {
 		parts.push(
-			`Tokens: ${formatTokenCount(goal.tokensUsed)}/${formatTokenCount(goal.tokenBudget)}.`,
+			`Tokens: ${formatGoalTokensCompact(goal.tokensUsed)}/${formatGoalTokensCompact(goal.tokenBudget)}.`,
 		);
 	}
 	return parts.join(" ");
