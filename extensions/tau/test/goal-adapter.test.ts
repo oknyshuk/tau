@@ -1625,6 +1625,33 @@ describe("goal adapter", () => {
 		expect(snapshot?.status).toBe("paused");
 	});
 
+	it("preserves a completed goal when pi reports an interrupted turn", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const interruptedCtx = makeAbortedPiContext(harness.ctx);
+
+		await runGoalCommand(harness, "ship the feature");
+		await runGoalCommand(harness, "complete");
+		await fireEvent(
+			harness,
+			"turn_end",
+			{
+				type: "turn_end",
+				message: makeAssistantMessage(0),
+			},
+			interruptedCtx,
+		);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("complete");
+	});
+
 	it("pauses the goal from the pi interrupt signal before completion events", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

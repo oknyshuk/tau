@@ -768,7 +768,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	const pauseGoalFromInterrupt = async (ctx: ExtensionContext): Promise<void> => {
 		const sessionId = sessionIdFromContext(ctx);
 		clearGoalErrorRetry(sessionId);
-		await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+		const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+		if (snapshot?.status !== "complete") {
+			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+		}
 		await updateGoalUi(ctx);
 	};
 
@@ -1407,7 +1410,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			goal.accountTurnEnd(sessionId, event.message, Date.now()),
 		);
 		if (wasGoalInterrupted(sessionId, ctx)) {
-			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+			const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+			if (snapshot?.status !== "complete") {
+				await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+			}
 			await updateGoalUi(ctx);
 			return;
 		}
@@ -1437,7 +1443,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			interruptedSessions.delete(sessionId);
 			if (interrupted) {
 				clearGoalErrorRetry(sessionId);
-				await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+				const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+				if (snapshot?.status !== "complete") {
+					await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
+				}
 				await updateGoalUi(ctx);
 				return;
 			}
