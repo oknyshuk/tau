@@ -2708,6 +2708,36 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
 	});
 
+	it("does not suppress continuation when interactive input takes over a dispatched continuation", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+
+		const inputResults = await fireEvent(harness, "input", {
+			type: "input",
+			text: "continue",
+			source: "interactive",
+		});
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantMessage(10)],
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(inputResults).toEqual([{ action: "continue" }]);
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.continuationSuppressed).toBe(false);
+	});
+
 	it("sends a delayed recovery retry when an assistant error happens before tool work", async () => {
 		vi.useFakeTimers();
 		const harness = makeGoalAdapterHarness();

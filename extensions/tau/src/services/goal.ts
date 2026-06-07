@@ -657,18 +657,21 @@ export const GoalLive = Layer.effect(
 				let shouldPersist = false;
 				yield* Ref.update(runtimes, (state) =>
 					withRuntime(state, sessionId, (runtime) => {
-						if (
-							runtime.snapshot?.status !== "active" ||
-							runtime.snapshot.continuationSuppressed === false
-						) {
+						if (runtime.snapshot?.status !== "active") {
 							nextSnapshot = runtime.snapshot ?? null;
 							return runtime;
+						}
+						if (runtime.snapshot.continuationSuppressed === false) {
+							nextSnapshot = runtime.snapshot;
+							return runtime.continuationInFlight
+								? { ...runtime, continuationInFlight: false }
+								: runtime;
 						}
 						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, {
 							continuationSuppressed: false,
 						});
 						shouldPersist = true;
-						return { ...runtime, snapshot: nextSnapshot };
+						return { ...runtime, snapshot: nextSnapshot, continuationInFlight: false };
 					}),
 				);
 				if (shouldPersist) {
