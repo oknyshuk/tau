@@ -1401,12 +1401,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			clearAllGoalErrorRetries();
 			clearAllGoalInterruptListeners();
 			const snapshot = await restoreSessionGoal(ctx);
-			if (snapshot?.status === "budget_limited" && !snapshot.budgetLimitPromptSent) {
-				await dispatchGoalBudgetLimit(pi, runtime, ctx, snapshot, {
-					activeTurn: !ctx.isIdle(),
-				});
-				return;
-			}
 			await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
 		} catch (error) {
 			ctx.ui.notify(errorText(error), "error");

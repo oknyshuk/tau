@@ -1590,7 +1590,7 @@ describe("goal adapter", () => {
 		});
 	});
 
-	it("sends a missing budget-limit prompt for a restored budget-limited goal", async () => {
+	it("restores a budget-limited goal without starting a follow-up turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const restored = {
@@ -1624,19 +1624,11 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.status).toBe("budget_limited");
-		expect(snapshot?.budgetLimitPromptSent).toBe(true);
-		expect(harness.sentMessages).toHaveLength(1);
-		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
-		expect(harness.sentMessages[0]?.message.content).toContain(
-			"The active thread goal has reached its token budget.",
-		);
-		expect(harness.sentMessages[0]?.options).toEqual({
-			triggerTurn: true,
-			deliverAs: "followUp",
-		});
+		expect(snapshot?.budgetLimitPromptSent).toBe(false);
+		expect(harness.sentMessages).toHaveLength(0);
 	});
 
-	it("budget-limits an over-budget active restored goal before continuing", async () => {
+	it("budget-limits an over-budget active restored goal without starting a follow-up turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const restored = {
@@ -1668,13 +1660,8 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.status).toBe("budget_limited");
-		expect(snapshot?.budgetLimitPromptSent).toBe(true);
-		expect(harness.sentMessages).toHaveLength(1);
-		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
-		expect(harness.sentMessages[0]?.options).toEqual({
-			triggerTurn: true,
-			deliverAs: "followUp",
-		});
+		expect(snapshot?.budgetLimitPromptSent).toBe(false);
+		expect(harness.sentMessages).toHaveLength(0);
 	});
 
 	it("does not continue an active restored goal on session tree refresh", async () => {
