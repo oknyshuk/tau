@@ -89,6 +89,9 @@ export interface GoalService {
 	readonly markBudgetLimitPromptSent: (
 		sessionId: string,
 	) => Effect.Effect<GoalSnapshot | null, never, never>;
+	readonly clearContinuationSuppression: (
+		sessionId: string,
+	) => Effect.Effect<GoalSnapshot | null, never, never>;
 }
 
 export class Goal extends Context.Service<Goal, GoalService>()("Goal") {}
@@ -580,6 +583,35 @@ export const GoalLive = Layer.effect(
 				return nextSnapshot;
 			});
 
+		const clearContinuationSuppression: GoalService["clearContinuationSuppression"] = (
+			sessionId,
+		) =>
+			Effect.gen(function* () {
+				const nowIso = new Date().toISOString();
+				let nextSnapshot: GoalSnapshot | null = null;
+				let shouldPersist = false;
+				yield* Ref.update(runtimes, (state) =>
+					withRuntime(state, sessionId, (runtime) => {
+						if (
+							runtime.snapshot?.status !== "active" ||
+							runtime.snapshot.continuationSuppressed === false
+						) {
+							nextSnapshot = runtime.snapshot ?? null;
+							return runtime;
+						}
+						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, {
+							continuationSuppressed: false,
+						});
+						shouldPersist = true;
+						return { ...runtime, snapshot: nextSnapshot };
+					}),
+				);
+				if (shouldPersist) {
+					yield* saveSnapshot(nextSnapshot);
+				}
+				return nextSnapshot;
+			});
+
 		return Goal.of({
 			rehydrate,
 			get,
@@ -595,6 +627,7 @@ export const GoalLive = Layer.effect(
 			accountTurnEnd,
 			markContinuationDispatched,
 			markBudgetLimitPromptSent,
+			clearContinuationSuppression,
 		});
 	}),
 );

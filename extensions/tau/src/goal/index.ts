@@ -1249,9 +1249,14 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	pi.on("session_fork", onSessionActivated);
 	pi.on("session_tree", onSessionReady);
 
-	pi.on("input", (event, ctx) => {
+	pi.on("input", async (event, ctx) => {
 		if (event.source !== "extension") {
-			clearGoalPendingAutomation(sessionIdFromContext(ctx));
+			const sessionId = sessionIdFromContext(ctx);
+			clearGoalPendingAutomation(sessionId);
+			await withGoal(runtime, (goal) =>
+				goal.clearContinuationSuppression(sessionId),
+			);
+			await updateGoalUi(ctx);
 		}
 		return { action: "continue" };
 	});

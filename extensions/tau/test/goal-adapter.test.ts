@@ -1433,6 +1433,49 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
 	});
 
+	it("clears continuation suppression after interactive user input", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const runningCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "ship the feature", runningCtx);
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantMessage(10)],
+		});
+		let snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.continuationSuppressed).toBe(true);
+
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "input", {
+			type: "input",
+			text: "keep going",
+			source: "interactive",
+		});
+		await fireEvent(harness, "agent_end", {
+			type: "agent_end",
+			messages: [makeAssistantToolCallMessage()],
+		});
+		snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.continuationSuppressed).toBe(false);
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+	});
+
 	it("sends a delayed recovery retry when an assistant error happens before tool work", async () => {
 		vi.useFakeTimers();
 		const harness = makeGoalAdapterHarness();
