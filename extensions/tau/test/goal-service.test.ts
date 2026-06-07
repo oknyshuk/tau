@@ -147,7 +147,7 @@ describe("goal service", () => {
 		});
 	});
 
-	it("updates a command-owned goal after completion without replacing accounting", async () => {
+	it("updates an existing external goal after completion without replacing accounting", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
 

@@ -1785,15 +1785,36 @@ describe("goal adapter", () => {
 	});
 
 	it("sets a new command goal without replacement confirmation after completion", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 
 		await runGoalCommand(harness, "first goal");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_500);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(25),
+		});
 		await runGoalCommand(harness, "complete");
 		harness.sentMessages.length = 0;
 		await runGoalCommand(harness, "second goal");
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
 
 		expect(harness.confirmations).toHaveLength(0);
+		expect(snapshot?.objective).toBe("second goal");
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.tokensUsed).toBe(0);
+		expect(snapshot?.timeUsedSeconds).toBe(0);
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.content).toContain("second goal");
 	});
@@ -1907,7 +1928,7 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-objective-updated");
 	});
 
-	it("continues objective update accounting from the command time while running", async () => {
+	it("starts replacement goal accounting from the command time while running", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
@@ -1939,7 +1960,7 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.objective).toBe("second goal");
 		expect(snapshot?.tokensUsed).toBe(10);
-		expect(snapshot?.timeUsedSeconds).toBe(3);
+		expect(snapshot?.timeUsedSeconds).toBe(1);
 	});
 
 	it("accounts assistant token usage on turn_end", async () => {
