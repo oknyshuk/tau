@@ -548,6 +548,35 @@ describe("goal adapter", () => {
 		});
 	});
 
+	it("returns codex-style empty state from get_goal when no goal is set", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("get_goal");
+		if (tool === undefined) {
+			throw new Error("get_goal tool was not registered");
+		}
+
+		const result = await tool.execute(
+			"call-get-goal",
+			{},
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect(result.details).toMatchObject({
+			displayText: "No active thread goal.",
+			goal: null,
+			remainingTokens: null,
+			completionBudgetReport: null,
+		});
+		expect(parseToolJsonResult(result)).toEqual({
+			goal: null,
+			remainingTokens: null,
+			completionBudgetReport: null,
+		});
+	});
+
 	it("omits absent budget fields from unbudgeted get_goal results", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
