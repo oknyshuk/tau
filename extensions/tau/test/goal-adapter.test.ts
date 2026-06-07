@@ -1003,6 +1003,38 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
+	it("does not re-pause a resumed goal from stale interrupt state", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const controller = new AbortController();
+		const signalCtx = makePiSignalContext(harness.ctx, controller);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			signalCtx,
+		);
+		controller.abort();
+		await flushPromises();
+		await runGoalCommand(harness, "resume");
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(10),
+		});
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.tokensUsed).toBe(10);
+	});
+
 	it("does not continue the goal when pi reports an interrupted agent end after tool work", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

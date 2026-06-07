@@ -766,6 +766,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		interruptListeners.delete(sessionId);
 	};
 
+	const clearGoalInterruptState = (sessionId: string): void => {
+		clearGoalInterruptListener(sessionId);
+		interruptedSessions.delete(sessionId);
+	};
+
 	const clearAllGoalInterruptListeners = (): void => {
 		for (const sessionId of interruptListeners.keys()) {
 			clearGoalInterruptListener(sessionId);
@@ -1130,6 +1135,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 						goal.prepareExternalMutation(sessionId, Date.now()),
 					);
 					await withGoal(runtime, (goal) => goal.clear(sessionId));
+					clearGoalInterruptState(sessionId);
 					clearGoalUi(ctx, goalUiState);
 					stopGoalTicker();
 					ctx.ui.notify("Cleared thread goal.", "info");
@@ -1147,6 +1153,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 							: parsed.command === "pause"
 								? "paused"
 								: "complete";
+					clearGoalInterruptState(sessionId);
 					await withGoal(runtime, (goal) =>
 						goal.prepareExternalMutation(sessionId, nowMs),
 					);
@@ -1178,6 +1185,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					}
 				}
 				const nowMs = Date.now();
+				clearGoalInterruptState(sessionId);
 				await withGoal(runtime, (goal) =>
 					goal.prepareExternalMutation(sessionId, nowMs),
 				);
