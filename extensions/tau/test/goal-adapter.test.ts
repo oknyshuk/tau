@@ -1228,7 +1228,7 @@ describe("goal adapter", () => {
 
 		expect(result.details).toMatchObject({
 			remainingTokens: 75,
-			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			completionBudgetReport: expect.stringContaining("goal.tokenBudget"),
 			goal: {
 				threadId: "session-1",
 				status: "complete",
@@ -1238,7 +1238,7 @@ describe("goal adapter", () => {
 		});
 		expect(parseToolJsonResult(result)).toMatchObject({
 			remainingTokens: 75,
-			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			completionBudgetReport: expect.stringContaining("goal.tokenBudget"),
 			goal: {
 				threadId: "session-1",
 				status: "complete",
@@ -1314,7 +1314,7 @@ describe("goal adapter", () => {
 
 		expect(result.details).toMatchObject({
 			remainingTokens: null,
-			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			completionBudgetReport: expect.stringContaining("goal.timeBudgetSeconds"),
 			goal: {
 				status: "complete",
 				timeBudgetSeconds: 300,
@@ -1323,7 +1323,7 @@ describe("goal adapter", () => {
 		});
 		expect(parseToolJsonResult(result)).toMatchObject({
 			remainingTokens: null,
-			completionBudgetReport: expect.stringContaining("Goal achieved."),
+			completionBudgetReport: expect.stringContaining("goal.timeBudgetSeconds"),
 			goal: {
 				status: "complete",
 				timeBudgetSeconds: 300,
