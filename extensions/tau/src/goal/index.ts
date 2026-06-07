@@ -788,7 +788,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		return state?.generation === generation ? state : undefined;
 	};
 
-	const pauseGoalFromInterrupt = async (ctx: ExtensionContext): Promise<void> => {
+	const accountGoalInterrupt = async (ctx: ExtensionContext): Promise<void> => {
 		const sessionId = sessionIdFromContext(ctx);
 		clearGoalErrorRetry(sessionId);
 		const snapshot = await getOrRehydrateGoal(runtime, ctx, goalUiState);
@@ -796,7 +796,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			await withGoal(runtime, (goal) =>
 				goal.prepareExternalMutation(sessionId, Date.now()),
 			);
-			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 		}
 		await updateGoalUi(ctx);
 	};
@@ -900,7 +899,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				return;
 			}
 			interruptedSessions.set(sessionId, generation);
-			void pauseGoalFromInterrupt(ctx);
+			void accountGoalInterrupt(ctx);
 		};
 		interruptListeners.set(sessionId, { signal, onAbort, generation });
 		if (signal.aborted) {
@@ -1475,10 +1474,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			goal.accountTurnEnd(sessionId, event.message, Date.now()),
 		);
 		if (wasGoalInterrupted(sessionId, ctx)) {
-			const snapshot = await getOrRehydrateGoal(runtime, ctx, goalUiState);
-			if (snapshot?.status !== "complete") {
-				await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
-			}
 			await updateGoalUi(ctx);
 			return;
 		}
@@ -1509,10 +1504,6 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			interruptedSessions.delete(sessionId);
 			if (interrupted) {
 				clearGoalErrorRetry(sessionId);
-				const snapshot = await getOrRehydrateGoal(runtime, ctx, goalUiState);
-				if (snapshot?.status !== "complete") {
-					await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
-				}
 				await updateGoalUi(ctx);
 				return;
 			}

@@ -1787,7 +1787,7 @@ describe("goal adapter", () => {
 				return yield* goal.get("session-1");
 			}),
 		);
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
@@ -2562,7 +2562,7 @@ describe("goal adapter", () => {
 		});
 	});
 
-	it("pauses the goal when pi reports an interrupted turn", async () => {
+	it("keeps the goal active when pi reports an interrupted turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const interruptedCtx = makeAbortedPiContext(harness.ctx);
@@ -2585,10 +2585,10 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 	});
 
-	it("pauses a branch-persisted goal when pi reports an interrupted turn", async () => {
+	it("keeps a branch-persisted goal active when pi reports an interrupted turn", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const restored = makeGoalSnapshot(
@@ -2625,7 +2625,7 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.objective).toBe("ship the feature");
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 	});
 
 	it("preserves a completed goal when pi reports an interrupted turn", async () => {
@@ -2655,7 +2655,7 @@ describe("goal adapter", () => {
 		expect(snapshot?.status).toBe("complete");
 	});
 
-	it("pauses the goal from the pi interrupt signal before completion events", async () => {
+	it("accounts the goal from the pi interrupt signal before completion events", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
@@ -2682,7 +2682,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.timeUsedSeconds).toBe(2);
 
 		await fireEvent(
@@ -2695,7 +2695,7 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
-	it("pauses a branch-persisted goal from the pi interrupt signal before completion events", async () => {
+	it("accounts a branch-persisted goal from the pi interrupt signal before completion events", async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(0);
 		const harness = makeGoalAdapterHarness();
@@ -2736,7 +2736,7 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.objective).toBe("ship the feature");
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 		expect(snapshot?.timeUsedSeconds).toBe(2);
 
 		await fireEvent(
@@ -2749,7 +2749,7 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
-	it("pauses a branch-persisted goal when pi reports an interrupted agent end", async () => {
+	it("keeps a branch-persisted goal active when pi reports an interrupted agent end", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const restored = makeGoalSnapshot(
@@ -2783,11 +2783,11 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.objective).toBe("ship the feature");
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
-	it("does not re-pause a resumed goal from stale interrupt state", async () => {
+	it("does not stop a resumed goal from stale interrupt state", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 		const controller = new AbortController();
@@ -2839,7 +2839,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
@@ -2870,7 +2870,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
@@ -2907,7 +2907,7 @@ describe("goal adapter", () => {
 			}),
 		);
 
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-objective-updated");
 	});
@@ -2959,7 +2959,7 @@ describe("goal adapter", () => {
 				return yield* goal.get("session-1");
 			}),
 		);
-		expect(snapshot?.status).toBe("paused");
+		expect(snapshot?.status).toBe("active");
 	});
 
 	it("ignores pre-restore interrupts after session activation", async () => {
