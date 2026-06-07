@@ -1476,6 +1476,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			if (isStaleGoalEventSignal(sessionId, ctx)) {
 				return;
 			}
+			await getOrRehydrateGoal(runtime, ctx, goalUiState);
 			const result = await withGoal(runtime, (goal) =>
 				goal.accountAgentEnd(sessionId, event, Date.now()),
 			);

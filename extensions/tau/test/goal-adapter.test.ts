@@ -2856,6 +2856,46 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
 	});
 
+	it("schedules retry for a branch-persisted active goal after a retryable assistant error", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [makeErrorAssistantMessage("provider returned error: 503")],
+		};
+
+		await fireEvent(harness, "agent_end", agentEnd, ctx);
+		await vi.advanceTimersByTimeAsync(60_000);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
+		expect(harness.sentMessages[0]?.message.content).toContain("provider returned error: 503");
+	});
+
 	it("marks the goal usage-limited for account quota errors", async () => {
 		vi.useFakeTimers();
 		const harness = makeGoalAdapterHarness();
