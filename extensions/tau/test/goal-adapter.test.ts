@@ -1899,6 +1899,50 @@ describe("goal adapter", () => {
 		expect(snapshot?.tokensUsed).toBe(120);
 	});
 
+	it("accounts a branch-persisted goal on turn_end before checking token budget", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			10,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			isIdle: () => false,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await fireEvent(
+			harness,
+			"turn_end",
+			{
+				type: "turn_end",
+				message: makeAssistantMessage(10),
+			},
+			ctx,
+		);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.tokensUsed).toBe(10);
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
+		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
+	});
+
 	it("injects active goal context into the system prompt", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
