@@ -306,6 +306,12 @@ describe("goal adapter", () => {
 
 		expect(snapshot?.objective).toBe("ship the feature");
 		expect(snapshot?.timeBudgetSeconds).toBe(300);
+		expect(harness.sentMessages[0]?.message.content).toContain(
+			"- Time budget: 300 seconds",
+		);
+		expect(harness.sentMessages[0]?.message.content).toContain(
+			"- Time remaining: 300 seconds",
+		);
 	});
 
 	it("uses codex-style closed schemas for goal tool parameters", () => {

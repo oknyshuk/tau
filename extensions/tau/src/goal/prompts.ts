@@ -18,6 +18,38 @@ function secondsText(seconds: number): string {
 	return `${seconds} ${seconds === 1 ? "second" : "seconds"}`;
 }
 
+function configuredTimeBudgetLines(goal: GoalSnapshot): ReadonlyArray<string> {
+	if (goal.timeBudgetSeconds === null) {
+		return [];
+	}
+	return [
+		`- Time budget: ${secondsText(goal.timeBudgetSeconds)}`,
+		`- Time remaining: ${secondsText(Math.max(0, goal.timeBudgetSeconds - goal.timeUsedSeconds))}`,
+	];
+}
+
+function continuationBudgetLines(goal: GoalSnapshot): string {
+	return [
+		`- Tokens used: ${goal.tokensUsed}`,
+		`- Token budget: ${tokenBudgetText(goal)}`,
+		`- Tokens remaining: ${remainingTokensText(goal)}`,
+		...(goal.timeBudgetSeconds === null
+			? []
+			: [`- Time spent pursuing goal: ${secondsText(goal.timeUsedSeconds)}`]),
+		...configuredTimeBudgetLines(goal),
+	].join("\n");
+}
+
+function activeSystemBudgetLines(goal: GoalSnapshot): string {
+	return [
+		`- Time spent pursuing goal: ${secondsText(goal.timeUsedSeconds)}`,
+		...configuredTimeBudgetLines(goal),
+		`- Tokens used: ${goal.tokensUsed}`,
+		`- Token budget: ${tokenBudgetText(goal)}`,
+		`- Tokens remaining: ${remainingTokensText(goal)}`,
+	].join("\n");
+}
+
 function budgetLimitName(goal: GoalSnapshot): string {
 	const tokenBudgetReached =
 		goal.tokenBudget !== null && goal.tokensUsed >= goal.tokenBudget;
@@ -59,9 +91,7 @@ Continuation behavior:
 - Temporary rough edges are acceptable while the work is moving in the right direction. Completion still requires the requested end state to be true and verified.
 
 Budget:
-- Tokens used: ${goal.tokensUsed}
-- Token budget: ${tokenBudgetText(goal)}
-- Tokens remaining: ${remainingTokensText(goal)}
+${continuationBudgetLines(goal)}
 
 Work from evidence:
 Use the current worktree and external state as authoritative. Previous conversation context can help locate relevant work, but inspect the current state before relying on it. Improve, replace, or remove existing work as needed to satisfy the actual objective.
@@ -108,9 +138,7 @@ ${escapeXml(goal.objective)}
 </untrusted_objective>
 
 Budget:
-- Tokens used: ${goal.tokensUsed}
-- Token budget: ${tokenBudgetText(goal)}
-- Tokens remaining: ${remainingTokensText(goal)}
+${continuationBudgetLines(goal)}
 
 Adjust the current turn to pursue the updated objective. Avoid continuing work that only served the previous objective unless it also helps the updated objective.
 
@@ -223,10 +251,7 @@ ${escapeXml(goal.objective)}
 </objective>
 
 Budget:
-- Time spent pursuing goal: ${goal.timeUsedSeconds} seconds
-- Tokens used: ${goal.tokensUsed}
-- Token budget: ${tokenBudgetText(goal)}
-- Tokens remaining: ${remainingTokensText(goal)}
+${activeSystemBudgetLines(goal)}
 
 Continuation behavior:
 - This goal persists across turns. Ending this turn does not require shrinking the objective to what fits now.

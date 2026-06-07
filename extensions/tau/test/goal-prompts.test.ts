@@ -11,7 +11,7 @@ import { makeGoalSnapshot } from "../src/goal/schema.js";
 describe("goal prompts", () => {
 	it("matches the codex continuation prompt shape", () => {
 		const goal = {
-			...makeGoalSnapshot("ship <feature> & verify", 500, 120, "2026-05-02T00:00:00.000Z"),
+			...makeGoalSnapshot("ship <feature> & verify", 500, null, "2026-05-02T00:00:00.000Z"),
 			tokensUsed: 125,
 			timeUsedSeconds: 45,
 		};
@@ -82,6 +82,24 @@ Do not call update_goal unless the goal is complete or the strict blocked audit 
 		expect(prompt).toContain("- Tokens remaining: unbounded");
 		expect(prompt).not.toContain("- Time budget:");
 		expect(prompt).not.toContain("- Time remaining:");
+	});
+
+	it("renders configured time budgets in active goal context", () => {
+		const goal = {
+			...makeGoalSnapshot("finish", 500, 120, "2026-05-02T00:00:00.000Z"),
+			tokensUsed: 125,
+			timeUsedSeconds: 45,
+		};
+
+		for (const prompt of [
+			continuationPrompt(goal),
+			objectiveUpdatedPrompt(goal),
+			goalSystemPrompt(goal),
+		]) {
+			expect(prompt).toContain("- Time spent pursuing goal: 45 seconds");
+			expect(prompt).toContain("- Time budget: 120 seconds");
+			expect(prompt).toContain("- Time remaining: 75 seconds");
+		}
 	});
 
 	it("includes codex audit guidance in active goal system context", () => {
