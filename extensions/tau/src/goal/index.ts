@@ -1249,6 +1249,13 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	pi.on("session_fork", onSessionActivated);
 	pi.on("session_tree", onSessionReady);
 
+	pi.on("input", (event, ctx) => {
+		if (event.source !== "extension") {
+			clearGoalPendingAutomation(sessionIdFromContext(ctx));
+		}
+		return { action: "continue" };
+	});
+
 	pi.on("before_agent_start", async (event: BeforeAgentStartEvent, ctx) => {
 		const snapshot = await withGoal(runtime, (goal) =>
 			goal

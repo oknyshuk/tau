@@ -1382,6 +1382,57 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
+	it("cancels a delayed recovery retry after interactive user input", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+		await fireEvent(harness, "input", {
+			type: "input",
+			text: "keep going",
+			source: "interactive",
+		});
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
+	it("keeps delayed recovery retry state for extension input", async () => {
+		vi.useFakeTimers();
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const agentEnd: AgentEndEvent = {
+			type: "agent_end",
+			messages: [
+				makeAssistantToolCallMessage(),
+				makeErrorAssistantMessage("provider returned error: 503"),
+			],
+		};
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "agent_end", agentEnd);
+		await fireEvent(harness, "input", {
+			type: "input",
+			text: "automatic retry",
+			source: "extension",
+		});
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-error-retry");
+	});
+
 	it("sends a delayed recovery retry when an assistant error happens before tool work", async () => {
 		vi.useFakeTimers();
 		const harness = makeGoalAdapterHarness();
