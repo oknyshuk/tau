@@ -226,10 +226,6 @@ function shouldAutoContinue(
 	);
 }
 
-function wasInterruptedByPi(ctx: ExtensionContext): boolean {
-	return signalFromContext(ctx)?.aborted === true;
-}
-
 function signalFromContext(ctx: ExtensionContext): AbortSignal | undefined {
 	if (!("signal" in ctx)) {
 		return undefined;
@@ -277,6 +273,7 @@ type GoalUiState = {
 type GoalInterruptListener = {
 	readonly signal: AbortSignal;
 	readonly onAbort: () => void;
+	readonly generation: number;
 };
 
 type GoalErrorRetryState = {
@@ -710,8 +707,10 @@ async function dispatchGoalBudgetLimit(
 export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 	let tickerFiber: Fiber.Fiber<void, never> | undefined;
 	let tickerCtx: ExtensionContext | undefined;
-	const interruptedSessions = new Set<string>();
+	const interruptedSessions = new Map<string, number>();
+	const interruptGenerations = new Map<string, number>();
 	const interruptListeners = new Map<string, GoalInterruptListener>();
+	const retiredInterruptSignals = new WeakSet<AbortSignal>();
 	const errorRetryStates = new Map<string, GoalErrorRetryState>();
 	const goalUiState: GoalUiState = {
 		mounted: false,
@@ -758,18 +757,60 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 		await updateGoalUi(ctx);
 	};
 
+	const currentGoalInterruptGeneration = (sessionId: string): number =>
+		interruptGenerations.get(sessionId) ?? 0;
+
+	const nextGoalInterruptGeneration = (sessionId: string): number => {
+		const generation = currentGoalInterruptGeneration(sessionId) + 1;
+		interruptGenerations.set(sessionId, generation);
+		return generation;
+	};
+
+	const isStaleGoalEventSignal = (sessionId: string, ctx: ExtensionContext): boolean => {
+		const signal = signalFromContext(ctx);
+		if (signal === undefined) {
+			return false;
+		}
+		if (retiredInterruptSignals.has(signal)) {
+			return true;
+		}
+		const listener = interruptListeners.get(sessionId);
+		return listener !== undefined && listener.signal !== signal;
+	};
+
+	const wasInterruptedByPi = (sessionId: string, ctx: ExtensionContext): boolean => {
+		const signal = signalFromContext(ctx);
+		if (signal === undefined || retiredInterruptSignals.has(signal)) {
+			return false;
+		}
+		const listener = interruptListeners.get(sessionId);
+		if (listener !== undefined && listener.signal !== signal) {
+			return false;
+		}
+		return signal.aborted;
+	};
+
+	const wasGoalInterrupted = (sessionId: string, ctx: ExtensionContext): boolean => {
+		if (wasInterruptedByPi(sessionId, ctx)) {
+			return true;
+		}
+		return interruptedSessions.get(sessionId) === currentGoalInterruptGeneration(sessionId);
+	};
+
 	const clearGoalInterruptListener = (sessionId: string): void => {
 		const listener = interruptListeners.get(sessionId);
 		if (listener === undefined) {
 			return;
 		}
 		listener.signal.removeEventListener("abort", listener.onAbort);
+		retiredInterruptSignals.add(listener.signal);
 		interruptListeners.delete(sessionId);
 	};
 
 	const clearGoalInterruptTracking = (sessionId: string): void => {
 		clearGoalInterruptListener(sessionId);
 		interruptedSessions.delete(sessionId);
+		interruptGenerations.delete(sessionId);
 	};
 
 	const clearStaleGoalInterruptState = (sessionId: string): void => {
@@ -795,6 +836,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			clearGoalInterruptListener(sessionId);
 		}
 		interruptedSessions.clear();
+		interruptGenerations.clear();
 	};
 
 	const observeGoalInterrupt = (ctx: ExtensionContext): void => {
@@ -808,11 +850,15 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			return;
 		}
 		clearGoalInterruptListener(sessionId);
+		const generation = nextGoalInterruptGeneration(sessionId);
 		const onAbort = (): void => {
-			interruptedSessions.add(sessionId);
+			if (currentGoalInterruptGeneration(sessionId) !== generation) {
+				return;
+			}
+			interruptedSessions.set(sessionId, generation);
 			void pauseGoalFromInterrupt(ctx);
 		};
-		interruptListeners.set(sessionId, { signal, onAbort });
+		interruptListeners.set(sessionId, { signal, onAbort, generation });
 		if (signal.aborted) {
 			onAbort();
 			return;
@@ -1300,10 +1346,13 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 	pi.on("turn_end", async (event: TurnEndEvent, ctx) => {
 		const sessionId = sessionIdFromContext(ctx);
+		if (isStaleGoalEventSignal(sessionId, ctx)) {
+			return;
+		}
 		const result = await withGoal(runtime, (goal) =>
 			goal.accountTurnEnd(sessionId, event.message, Date.now()),
 		);
-		if (wasInterruptedByPi(ctx) || interruptedSessions.has(sessionId)) {
+		if (wasGoalInterrupted(sessionId, ctx)) {
 			await withGoal(runtime, (goal) => goal.setStatus(sessionId, "paused"));
 			await updateGoalUi(ctx);
 			return;
@@ -1322,11 +1371,14 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			if (sessionId === undefined) {
 				return;
 			}
+			if (isStaleGoalEventSignal(sessionId, ctx)) {
+				return;
+			}
 			const result = await withGoal(runtime, (goal) =>
 				goal.accountAgentEnd(sessionId, event, Date.now()),
 			);
 			const latestAssistant = latestAssistantMessage(event);
-			const interrupted = wasInterruptedByPi(ctx) || interruptedSessions.has(sessionId);
+			const interrupted = wasGoalInterrupted(sessionId, ctx);
 			clearGoalInterruptListener(sessionId);
 			interruptedSessions.delete(sessionId);
 			if (interrupted) {

@@ -1204,6 +1204,56 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-objective-updated");
 	});
 
+	it("ignores stale interrupts after a newer agent turn starts", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const oldController = new AbortController();
+		const newController = new AbortController();
+		const oldCtx = makePiSignalContext(harness.ctx, oldController);
+		const newCtx = makePiSignalContext(harness.ctx, newController);
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			oldCtx,
+		);
+		await fireEvent(
+			harness,
+			"before_agent_start",
+			{ type: "before_agent_start", systemPrompt: "system" },
+			newCtx,
+		);
+		oldController.abort();
+		await fireEvent(
+			harness,
+			"agent_end",
+			{ type: "agent_end", messages: [makeAssistantToolCallMessage()] },
+			oldCtx,
+		);
+
+		let snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(0);
+
+		newController.abort();
+		await flushPromises();
+		snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.status).toBe("paused");
+	});
+
 	it("does not pause the goal from an aborted assistant event without a pi interrupt signal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
