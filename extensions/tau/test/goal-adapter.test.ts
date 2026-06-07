@@ -228,6 +228,15 @@ async function runGoalCommand(
 	await command.handler(args, ctx);
 }
 
+async function markGoalComplete(harness: GoalAdapterHarness): Promise<void> {
+	await harness.run(
+		Effect.gen(function* () {
+			const goal = yield* Goal;
+			yield* goal.setStatus("session-1", "complete");
+		}),
+	);
+}
+
 function parseToolJsonResult(result: {
 	readonly content: ReadonlyArray<{ readonly type: string; readonly text?: string }>;
 }): unknown {
@@ -301,6 +310,59 @@ describe("goal adapter", () => {
 			triggerTurn: true,
 			deliverAs: "followUp",
 		});
+	});
+
+	it("treats complete as a goal objective like codex", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "complete");
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("complete");
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages[0]?.message.content).toContain("complete");
+	});
+
+	it("treats multiword control prefixes as objectives like codex", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "edit ship the feature");
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("edit ship the feature");
+		expect(snapshot?.status).toBe("active");
+	});
+
+	it("parses goal control commands case-insensitively like codex", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await runGoalCommand(harness, "PAUSE");
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.status).toBe("paused");
 	});
 
 	it("sets a time budget from /goal", async () => {
@@ -583,7 +645,7 @@ describe("goal adapter", () => {
 		}
 
 		await runGoalCommand(harness, "first goal");
-		await runGoalCommand(harness, "complete");
+		await markGoalComplete(harness);
 		const result = await tool.execute(
 			"call-create-goal",
 			{ objective: "second goal" },
@@ -1503,7 +1565,7 @@ describe("goal adapter", () => {
 			type: "turn_end",
 			message: makeAssistantMessage(25),
 		});
-		await runGoalCommand(harness, "complete");
+		await markGoalComplete(harness);
 		harness.sentMessages.length = 0;
 		harness.inputResponses.push("ship the follow-up");
 
@@ -1586,7 +1648,7 @@ describe("goal adapter", () => {
 		harnesses.push(harness);
 
 		await runGoalCommand(harness, "ship the feature");
-		await runGoalCommand(harness, "complete");
+		await markGoalComplete(harness);
 		harness.sentMessages.length = 0;
 		await runGoalCommand(harness, "resume");
 
@@ -1607,7 +1669,7 @@ describe("goal adapter", () => {
 		harnesses.push(harness);
 
 		await runGoalCommand(harness, "ship the feature");
-		await runGoalCommand(harness, "complete");
+		await markGoalComplete(harness);
 		harness.sentMessages.length = 0;
 		await runGoalCommand(harness, "pause");
 
@@ -1939,7 +2001,7 @@ describe("goal adapter", () => {
 			type: "turn_end",
 			message: makeAssistantMessage(25),
 		});
-		await runGoalCommand(harness, "complete");
+		await markGoalComplete(harness);
 		harness.sentMessages.length = 0;
 		await runGoalCommand(harness, "second goal");
 		const snapshot = await harness.run(
@@ -2771,7 +2833,7 @@ describe("goal adapter", () => {
 		const interruptedCtx = makeAbortedPiContext(harness.ctx);
 
 		await runGoalCommand(harness, "ship the feature");
-		await runGoalCommand(harness, "complete");
+		await markGoalComplete(harness);
 		await fireEvent(
 			harness,
 			"turn_end",

@@ -524,7 +524,7 @@ function renderGoalToolResult(
 }
 
 function parseGoalCommand(args: string): {
-	readonly command: "show" | "clear" | "edit" | "pause" | "resume" | "complete" | "set";
+	readonly command: "show" | "clear" | "edit" | "pause" | "resume" | "set";
 	readonly objective?: string;
 	readonly tokenBudget?: number | null;
 	readonly timeBudgetSeconds?: number | null;
@@ -533,14 +533,13 @@ function parseGoalCommand(args: string): {
 	if (trimmed.length === 0) {
 		return { command: "show" };
 	}
-	const [first] = trimmed.split(/\s+/, 1);
-	switch (first) {
+	const control = trimmed.toLowerCase();
+	switch (control) {
 		case "clear":
 		case "edit":
 		case "pause":
 		case "resume":
-		case "complete":
-			return { command: first };
+			return { command: control };
 		default:
 			break;
 	}
@@ -1337,16 +1336,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				}
 				if (
 					parsed.command === "pause" ||
-					parsed.command === "resume" ||
-					parsed.command === "complete"
+					parsed.command === "resume"
 				) {
 					const nowMs = Date.now();
 					const status: GoalStatus =
-						parsed.command === "resume"
-							? "active"
-							: parsed.command === "pause"
-								? "paused"
-								: "complete";
+						parsed.command === "resume" ? "active" : "paused";
 					const existing = await getOrRehydrateGoal(runtime, ctx, goalUiState);
 					if (parsed.command === "pause" || parsed.command === "resume") {
 						if (existing?.status === "complete") {
