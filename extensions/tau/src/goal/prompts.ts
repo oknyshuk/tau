@@ -296,5 +296,5 @@ Blocked audit:
 - Once the blocked threshold is satisfied, do not keep reporting that you are still blocked while leaving the goal active; call update_goal with status "blocked".
 - Never use status "blocked" merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.
 
-Keep work aligned with this goal. Call update_goal with status "complete" only when the objective is actually achieved and no required work remains. Call update_goal with status "blocked" only when the strict blocked audit is satisfied. Do not mark a goal complete merely because the budget is nearly exhausted or because you are stopping work.`;
+Do not call update_goal unless the goal is complete or the strict blocked audit above is satisfied. Do not mark a goal complete merely because the budget is nearly exhausted or because you are stopping work.`;
 }

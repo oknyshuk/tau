@@ -121,6 +121,9 @@ Do not call update_goal unless the goal is complete or the strict blocked audit 
 			"Only use status \"blocked\" when the same blocking condition has repeated for at least three consecutive goal turns",
 		);
 		expect(prompt).toContain("automatic goal continuations");
+		expect(prompt).toContain(
+			"Do not call update_goal unless the goal is complete or the strict blocked audit above is satisfied. Do not mark a goal complete merely because the budget is nearly exhausted or because you are stopping work.",
+		);
 	});
 
 	it("includes codex completion reporting guidance in active goal system context", () => {
