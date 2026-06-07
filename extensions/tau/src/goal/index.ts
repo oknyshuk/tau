@@ -1250,7 +1250,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 							: parsed.command === "pause"
 								? "paused"
 								: "complete";
-					if (parsed.command === "resume") {
+					if (parsed.command === "pause" || parsed.command === "resume") {
 						const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
 						if (existing?.status === "complete") {
 							ctx.ui.notify(
