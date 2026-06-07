@@ -149,9 +149,9 @@ function makeAssistantToolCallMessage(tokens = 0): AssistantMessage {
 	};
 }
 
-function makeErrorAssistantMessage(errorMessage: string): AssistantMessage {
+function makeErrorAssistantMessage(errorMessage: string, tokens = 0): AssistantMessage {
 	return {
-		...makeAssistantMessage(0, "error"),
+		...makeAssistantMessage(tokens, "error"),
 		content: [{ type: "text", text: errorMessage }],
 		errorMessage,
 	};
@@ -924,7 +924,12 @@ describe("goal adapter", () => {
 		harnesses.push(harness);
 		const agentEnd: AgentEndEvent = {
 			type: "agent_end",
-			messages: [makeErrorAssistantMessage("insufficient_quota: monthly usage limit reached")],
+			messages: [
+				makeErrorAssistantMessage(
+					"insufficient_quota: monthly usage limit reached",
+					37,
+				),
+			],
 		};
 
 		await runGoalCommand(harness, "ship the feature");
@@ -940,6 +945,7 @@ describe("goal adapter", () => {
 		);
 
 		expect(snapshot?.status).toBe("usage_limited");
+		expect(snapshot?.tokensUsed).toBe(37);
 		expect(harness.sentMessages).toHaveLength(0);
 		expect(harness.notifications.at(-1)?.message).toContain("usage limited");
 	});

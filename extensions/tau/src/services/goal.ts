@@ -59,6 +59,11 @@ export interface GoalService {
 		sessionId: string,
 		nowMs: number,
 	) => Effect.Effect<GoalAgentEndResult, never, never>;
+	readonly markUsageLimited: (
+		sessionId: string,
+		message: AgentMessage,
+		nowMs: number,
+	) => Effect.Effect<GoalSnapshot | null, GoalError, never>;
 	readonly restoreAfterResume: (
 		sessionId: string,
 		nowMs: number,
@@ -160,15 +165,19 @@ function validateTimeBudgetSeconds(
 	return Effect.succeed(timeBudgetSeconds);
 }
 
-function assistantMessageUsageTokens(message: AgentMessage): number {
+function assistantUsageTokens(message: AgentMessage): number {
 	if (message.role !== "assistant") {
-		return 0;
-	}
-	if (message.stopReason === "error") {
 		return 0;
 	}
 	const { usage } = message;
 	return usage.totalTokens || usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+}
+
+function assistantMessageUsageTokens(message: AgentMessage): number {
+	if (message.role === "assistant" && message.stopReason === "error") {
+		return 0;
+	}
+	return assistantUsageTokens(message);
 }
 
 function hasAssistantToolCall(event: AgentEndEvent): boolean {
@@ -527,6 +536,16 @@ export const GoalLive = Layer.effect(
 				continuationHadToolCall: null,
 			});
 
+		const markUsageLimited: GoalService["markUsageLimited"] = Effect.fn(
+			"Goal.markUsageLimited",
+		)(function* (sessionId, message, nowMs) {
+			yield* accountUsage(sessionId, assistantUsageTokens(message), nowMs, {
+				finishActiveAccounting: true,
+				continuationHadToolCall: null,
+			});
+			return yield* setStatus(sessionId, "usage_limited");
+		});
+
 		const markContinuationDispatched: GoalService["markContinuationDispatched"] = (sessionId) =>
 			Ref.modify(runtimes, (state) => {
 				let snapshot: GoalSnapshot | null = null;
@@ -568,6 +587,7 @@ export const GoalLive = Layer.effect(
 			create,
 			setStatus,
 			prepareExternalMutation,
+			markUsageLimited,
 			restoreAfterResume,
 			clear,
 			markAgentStart,

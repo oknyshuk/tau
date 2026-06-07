@@ -654,11 +654,14 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 
 	const usageLimitGoalFromError = async (
 		ctx: ExtensionContext,
+		message: AssistantMessage,
 		errorMessage: string,
 	): Promise<void> => {
 		const sessionId = sessionIdFromContext(ctx);
 		clearGoalErrorRetry(sessionId);
-		await withGoal(runtime, (goal) => goal.setStatus(sessionId, "usage_limited"));
+		await withGoal(runtime, (goal) =>
+			goal.markUsageLimited(sessionId, message, Date.now()),
+		);
 		await updateGoalUi(ctx);
 		if (ctx.hasUI) {
 			ctx.ui.notify(
@@ -737,7 +740,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			return;
 		}
 		if (isUsageLimitGoalError(errorMessage)) {
-			await usageLimitGoalFromError(ctx, errorMessage);
+			await usageLimitGoalFromError(ctx, message, errorMessage);
 			return;
 		}
 		if (snapshot.status === "budget_limited") {

@@ -542,4 +542,35 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(1);
 	});
 
+	it("accounts usage-limit error progress before marking usage-limited", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.markAgentStart("session-1", 0);
+				const limited = yield* goal.markUsageLimited(
+					"session-1",
+					makeAssistantMessage(23, false, "error"),
+					1_500,
+				);
+				const laterTurn = yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(50, false),
+					3_000,
+				);
+				const snapshot = yield* goal.get("session-1");
+				return { limited, laterTurn, snapshot };
+			}),
+		);
+
+		expect(result.limited?.status).toBe("usage_limited");
+		expect(result.limited?.tokensUsed).toBe(23);
+		expect(result.limited?.timeUsedSeconds).toBe(1);
+		expect(result.laterTurn.snapshot).toBeNull();
+		expect(result.snapshot?.tokensUsed).toBe(23);
+	});
+
 });
