@@ -681,6 +681,49 @@ describe("goal adapter", () => {
 		expect(parseToolJsonResult(result)).toMatchObject({
 			goal: {
 				timeUsedSeconds: 2,
+		},
+		});
+	});
+
+	it("does not add idle elapsed time to get_goal after a budget-limited turn ends", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const tool = harness.tools.get("get_goal");
+		if (tool === undefined) {
+			throw new Error("get_goal tool was not registered");
+		}
+
+		await runGoalCommand(harness, "--budget 1 ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(1_000);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(1),
+		});
+		vi.setSystemTime(6_000);
+		const result = await tool.execute(
+			"call-get-goal",
+			{},
+			undefined,
+			undefined,
+			harness.ctx,
+		);
+
+		expect(result.details).toMatchObject({
+			goal: {
+				status: "budget_limited",
+				timeUsedSeconds: 1,
+			},
+		});
+		expect(parseToolJsonResult(result)).toMatchObject({
+			goal: {
+				status: "budget_limited",
+				timeUsedSeconds: 1,
 			},
 		});
 	});

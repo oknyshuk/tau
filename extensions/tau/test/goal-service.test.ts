@@ -338,6 +338,31 @@ describe("goal service", () => {
 		expect(result.snapshot?.timeUsedSeconds).toBe(5);
 	});
 
+	it("stops timing after a budget-limited wrap-up turn ends", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const result = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", 1);
+				yield* goal.markAgentStart("session-1", 0);
+				const limited = yield* goal.accountTurnEnd(
+					"session-1",
+					makeAssistantMessage(1, false),
+					1_000,
+				);
+				const live = yield* goal.liveSnapshot("session-1", 6_000);
+				return { limited, live };
+			}),
+		);
+
+		expect(result.limited.snapshot?.status).toBe("budget_limited");
+		expect(result.limited.snapshot?.timeUsedSeconds).toBe(1);
+		expect(result.live?.status).toBe("budget_limited");
+		expect(result.live?.timeUsedSeconds).toBe(1);
+	});
+
 	it("does not append a new event when the budget-limit prompt is already marked sent", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
