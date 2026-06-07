@@ -167,7 +167,7 @@ Do not call update_goal unless the goal is complete or the strict blocked audit 
 
 	it("matches the codex budget-limit prompt shape", () => {
 		const goal = {
-			...makeGoalSnapshot("finish", 100, 30, "2026-05-02T00:00:00.000Z"),
+			...makeGoalSnapshot("finish", 100, null, "2026-05-02T00:00:00.000Z"),
 			status: "budget_limited" as const,
 			tokensUsed: 120,
 			timeUsedSeconds: 7,
@@ -189,6 +189,35 @@ Budget:
 The system has marked the goal as budget_limited, so do not start new substantive work for this goal. Wrap up this turn soon: summarize useful progress, identify remaining work or blockers, and leave the user with a clear next step.
 
 Do not call update_goal unless the goal is actually complete.`);
+	});
+
+	it("names a time budget when the time budget is reached", () => {
+		const goal = {
+			...makeGoalSnapshot("finish", 100, 30, "2026-05-02T00:00:00.000Z"),
+			status: "budget_limited" as const,
+			tokensUsed: 40,
+			timeUsedSeconds: 30,
+		};
+
+		const prompt = budgetLimitPrompt(goal);
+
+		expect(prompt).toContain("The active thread goal has reached its time budget.");
+		expect(prompt).toContain("- Time spent pursuing goal: 30 seconds");
+		expect(prompt).toContain("- Time budget: 30 seconds");
+		expect(prompt).toContain("- Token budget: 100");
+	});
+
+	it("names both budgets when token and time budgets are reached", () => {
+		const goal = {
+			...makeGoalSnapshot("finish", 100, 30, "2026-05-02T00:00:00.000Z"),
+			status: "budget_limited" as const,
+			tokensUsed: 120,
+			timeUsedSeconds: 30,
+		};
+
+		expect(budgetLimitPrompt(goal)).toContain(
+			"The active thread goal has reached its token and time budgets.",
+		);
 	});
 
 	it("includes codex audit guidance in objective-updated steer messages", () => {

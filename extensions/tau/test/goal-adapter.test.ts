@@ -579,7 +579,8 @@ describe("goal adapter", () => {
 
 		expect(harness.sentMessages).toHaveLength(1);
 		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-budget-limit");
-		expect(harness.sentMessages[0]?.message.content).toContain("reached its token budget");
+		expect(harness.sentMessages[0]?.message.content).toContain("reached its time budget");
+		expect(harness.sentMessages[0]?.message.content).toContain("- Time budget: 1 second");
 		expect(harness.sentMessages[0]?.options).toEqual({
 			triggerTurn: true,
 			deliverAs: "followUp",
