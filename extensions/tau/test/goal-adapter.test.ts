@@ -346,6 +346,29 @@ describe("goal adapter", () => {
 		);
 	});
 
+	it("uses codex-style compact elapsed time in /goal summary", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(90 * 60 * 1_000);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(0),
+		});
+		await runGoalCommand(harness, "");
+
+		expect(harness.notifications.at(-1)?.message).toContain(
+			"Time used: 1h 30m",
+		);
+	});
+
 	it("renders codex-style compact active goal status", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
@@ -359,6 +382,29 @@ describe("goal adapter", () => {
 		expect(harness.statuses.at(-1)).toEqual({
 			key: "goal",
 			value: "Pursuing goal (12.5K / 80K)",
+		});
+	});
+
+	it("renders codex-style compact elapsed active goal status", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(0);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "ship the feature");
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		vi.setSystemTime(90 * 60 * 1_000);
+		await fireEvent(harness, "turn_end", {
+			type: "turn_end",
+			message: makeAssistantMessage(0),
+		});
+
+		expect(harness.statuses.at(-1)).toEqual({
+			key: "goal",
+			value: "Pursuing goal (1h 30m)",
 		});
 	});
 
@@ -496,7 +542,7 @@ describe("goal adapter", () => {
 	expect(snapshot?.objective).toBe("ship the feature");
 	expect(snapshot?.timeBudgetSeconds).toBe(300);
 	expect(harness.notifications.at(-1)?.message).toBe(
-		"Goal active\nObjective: ship the feature Time: 0s/5m 0s.",
+		"Goal active\nObjective: ship the feature Time: 0s/5m.",
 	);
 	expect(harness.notifications.at(-1)?.message).not.toContain("no budget");
 		expect(harness.sentMessages[0]?.message.content).toContain(

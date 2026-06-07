@@ -15,7 +15,6 @@ import { Effect, Fiber } from "effect";
 
 import { Goal, type GoalService } from "../services/goal.js";
 import { defineDecodedTool, textToolResult } from "../shared/decoded-tool.js";
-import { formatDuration } from "../shared/format-duration.js";
 import { formatTokenCount } from "../shared/format-tokens.js";
 import { GoalConflictError, GoalValidationError } from "./errors.js";
 import {
@@ -260,6 +259,27 @@ function formatGoalTokensCompact(tokens: number): string {
 	return `${scaled.toFixed(decimals).replace(/\.0+$/, "").replace(/(\.\d*[1-9])0+$/, "$1")}${suffix}`;
 }
 
+function formatGoalElapsedSeconds(seconds: number): string {
+	const totalSeconds = Math.max(0, Math.floor(seconds));
+	if (totalSeconds < 60) {
+		return `${totalSeconds}s`;
+	}
+	const minutes = Math.floor(totalSeconds / 60);
+	if (minutes < 60) {
+		return `${minutes}m`;
+	}
+	const hours = Math.floor(minutes / 60);
+	const remainingMinutes = minutes % 60;
+	if (hours >= 24) {
+		const days = Math.floor(hours / 24);
+		const remainingHours = hours % 24;
+		return `${days}d ${remainingHours}h ${remainingMinutes}m`;
+	}
+	return remainingMinutes === 0
+		? `${hours}h`
+		: `${hours}h ${remainingMinutes}m`;
+}
+
 function goalCommandHint(status: GoalStatus): string {
 	switch (status) {
 		case "active":
@@ -279,7 +299,7 @@ function describeGoalSummary(goal: GoalSnapshot): string {
 		"Goal",
 		`Status: ${goalStatusLabel(goal.status)}`,
 		`Objective: ${goal.objective}`,
-		`Time used: ${formatDuration(goal.timeUsedSeconds * 1_000)}`,
+		`Time used: ${formatGoalElapsedSeconds(goal.timeUsedSeconds)}`,
 		`Tokens used: ${formatGoalTokensCompact(goal.tokensUsed)}`,
 	];
 	if (goal.tokenBudget !== null) {
@@ -294,8 +314,8 @@ function goalUsageSummary(goal: GoalSnapshot): string {
 	if (goal.timeUsedSeconds > 0 || goal.timeBudgetSeconds !== null) {
 		const time =
 			goal.timeBudgetSeconds === null
-				? formatDuration(goal.timeUsedSeconds * 1_000)
-				: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
+				? formatGoalElapsedSeconds(goal.timeUsedSeconds)
+				: `${formatGoalElapsedSeconds(goal.timeUsedSeconds)}/${formatGoalElapsedSeconds(goal.timeBudgetSeconds)}`;
 		parts.push(`Time: ${time}.`);
 	}
 	if (goal.tokenBudget !== null) {
@@ -320,15 +340,15 @@ function goalTokenUsageText(goal: GoalSnapshot): string {
 
 function goalTimeUsageText(goal: GoalSnapshot): string {
 	return goal.timeBudgetSeconds === null
-		? formatDuration(goal.timeUsedSeconds * 1_000)
-		: `${formatDuration(goal.timeUsedSeconds * 1_000)}/${formatDuration(goal.timeBudgetSeconds * 1_000)}`;
+		? formatGoalElapsedSeconds(goal.timeUsedSeconds)
+		: `${formatGoalElapsedSeconds(goal.timeUsedSeconds)}/${formatGoalElapsedSeconds(goal.timeBudgetSeconds)}`;
 }
 
 function activeGoalStatusUsage(goal: GoalSnapshot): string {
 	if (goal.tokenBudget !== null) {
 		return `${formatGoalTokensCompact(goal.tokensUsed)} / ${formatGoalTokensCompact(goal.tokenBudget)}`;
 	}
-	return formatDuration(goal.timeUsedSeconds * 1_000);
+	return formatGoalElapsedSeconds(goal.timeUsedSeconds);
 }
 
 function compactGoalStatus(goal: GoalSnapshot): string {
@@ -347,7 +367,7 @@ function compactGoalStatus(goal: GoalSnapshot): string {
 				: `Goal unmet (${formatGoalTokensCompact(goal.tokensUsed)} / ${formatGoalTokensCompact(goal.tokenBudget)} tokens)`;
 		case "complete":
 			return goal.tokenBudget === null
-				? `Goal achieved (${formatDuration(goal.timeUsedSeconds * 1_000)})`
+				? `Goal achieved (${formatGoalElapsedSeconds(goal.timeUsedSeconds)})`
 				: `Goal achieved (${formatGoalTokensCompact(goal.tokensUsed)} tokens)`;
 	}
 }
@@ -1355,7 +1375,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				if (existing?.status === "complete") {
 					if (params.status === "complete") {
 						return goalToolSuccessResult(
-							`Goal already complete. Final usage: ${formatTokenCount(existing.tokensUsed)} tokens, ${formatDuration(existing.timeUsedSeconds * 1_000)}.`,
+							`Goal already complete. Final usage: ${formatTokenCount(existing.tokensUsed)} tokens, ${formatGoalElapsedSeconds(existing.timeUsedSeconds)}.`,
 							sessionId,
 							existing,
 							{ includeCompletionBudgetReport: true },
@@ -1382,7 +1402,7 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 					return goalToolSuccessResult("Goal blocked.", sessionId, snapshot);
 				}
 				return goalToolSuccessResult(
-					`Goal complete. Final usage: ${formatTokenCount(snapshot.tokensUsed)} tokens, ${formatDuration(snapshot.timeUsedSeconds * 1_000)}.`,
+					`Goal complete. Final usage: ${formatTokenCount(snapshot.tokensUsed)} tokens, ${formatGoalElapsedSeconds(snapshot.timeUsedSeconds)}.`,
 					sessionId,
 					snapshot,
 					{ includeCompletionBudgetReport: true },
