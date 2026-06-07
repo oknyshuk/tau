@@ -1089,6 +1089,43 @@ describe("goal adapter", () => {
 		expect(snapshot?.timeUsedSeconds).toBe(2);
 	});
 
+	it("shows a branch goal without starting resume accounting", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(1_000);
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = makeGoalSnapshot(
+			"ship the feature",
+			null,
+			null,
+			"2026-05-01T00:00:00.000Z",
+		);
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		await runGoalCommand(harness, "", ctx);
+		vi.setSystemTime(4_000);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.liveSnapshot("session-1", Date.now());
+			}),
+		);
+
+		expect(harness.notifications.at(-1)?.message).toContain("ship the feature");
+		expect(snapshot?.objective).toBe("ship the feature");
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.timeUsedSeconds).toBe(0);
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("suppresses a repeated continuation after an active goal steer does no tool work", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

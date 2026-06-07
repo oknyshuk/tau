@@ -1229,7 +1229,11 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 				const parsed = parseGoalCommand(args);
 				const sessionId = sessionIdFromContext(ctx);
 				if (parsed.command === "show") {
-					const snapshot = await updateGoalUi(ctx);
+					const existing = await withGoal(runtime, (goal) => goal.get(sessionId));
+					const snapshot =
+						existing === null
+							? await rehydrateAndUpdate(runtime, ctx, goalUiState)
+							: await updateGoalUi(ctx);
 					ctx.ui.notify(describeGoal(snapshot), "info");
 					return;
 				}
