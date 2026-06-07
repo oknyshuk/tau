@@ -3558,21 +3558,18 @@ describe("goal adapter", () => {
 		});
 	});
 
-	for (const status of ["blocked", "usage_limited", "budget_limited"] as const) {
+	for (const status of ["blocked", "usage_limited"] as const) {
 		it(`resumes a branch-persisted ${status} goal after interactive user input`, async () => {
 			const harness = makeGoalAdapterHarness();
 			harnesses.push(harness);
 			const restored = {
 				...makeGoalSnapshot(
 					"ship the feature",
-					status === "budget_limited" ? 10 : null,
+					null,
 					null,
 					"2026-05-01T00:00:00.000Z",
 				),
 				status,
-				...(status === "budget_limited"
-					? { tokensUsed: 10, budgetLimitPromptSent: true }
-					: {}),
 			};
 			const ctx = {
 				...harness.ctx,
@@ -3601,10 +3598,7 @@ describe("goal adapter", () => {
 			);
 
 			expect(inputResults).toEqual([{ action: "continue" }]);
-			expect(snapshot?.status).toBe(
-				status === "budget_limited" ? "budget_limited" : "active",
-			);
-			expect(snapshot?.budgetLimitPromptSent).toBe(status === "budget_limited");
+			expect(snapshot?.status).toBe("active");
 			expect(snapshot?.continuationSuppressed).toBe(false);
 			expect(beforeAgentStartResults).toHaveLength(1);
 			expect(beforeAgentStartResults[0]).toMatchObject({
@@ -3615,6 +3609,56 @@ describe("goal adapter", () => {
 			});
 		});
 	}
+
+	it("keeps a branch-persisted budget-limited goal limited after interactive user input", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const restored = {
+			...makeGoalSnapshot(
+				"ship the feature",
+				10,
+				null,
+				"2026-05-01T00:00:00.000Z",
+			),
+			status: "budget_limited" as const,
+			tokensUsed: 10,
+			budgetLimitPromptSent: true,
+		};
+		const ctx = {
+			...harness.ctx,
+			sessionManager: {
+				...harness.ctx.sessionManager,
+				getBranch: () => [
+					makeCustomEntry("goal", { version: 2, snapshot: restored }),
+				],
+			},
+		} as ExtensionCommandContext;
+
+		const inputResults = await fireEvent(harness, "input", {
+			type: "input",
+			text: "continue",
+			source: "interactive",
+		}, ctx);
+		const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "base prompt",
+		}, ctx);
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(inputResults).toEqual([{ action: "continue" }]);
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.budgetLimitPromptSent).toBe(true);
+		expect(beforeAgentStartResults).toHaveLength(1);
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("marked the goal as budget_limited"),
+		});
+		expect(harness.sentMessages).toHaveLength(0);
+	});
 
 	it("does not resume a paused goal after extension input", async () => {
 		const harness = makeGoalAdapterHarness();
@@ -3649,17 +3693,12 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(0);
 	});
 
-	for (const status of ["paused", "blocked", "usage_limited", "budget_limited"] as const) {
+	for (const status of ["paused", "blocked", "usage_limited"] as const) {
 		it(`resumes a ${status} goal after rpc user input`, async () => {
 			const harness = makeGoalAdapterHarness();
 			harnesses.push(harness);
 
-			await runGoalCommand(
-				harness,
-				status === "budget_limited"
-					? "--budget 10 ship the feature"
-					: "ship the feature",
-			);
+			await runGoalCommand(harness, "ship the feature");
 			await harness.run(
 				Effect.gen(function* () {
 					const goal = yield* Goal;
@@ -3685,9 +3724,6 @@ describe("goal adapter", () => {
 			expect(inputResults).toEqual([{ action: "continue" }]);
 			expect(snapshot?.status).toBe("active");
 			expect(snapshot?.continuationSuppressed).toBe(false);
-			if (status === "budget_limited") {
-				expect(snapshot?.budgetLimitPromptSent).toBe(false);
-			}
 			expect(beforeAgentStartResults).toHaveLength(1);
 			expect(beforeAgentStartResults[0]).toMatchObject({
 				systemPrompt: expect.stringContaining("Active thread goal context."),
@@ -3697,6 +3733,42 @@ describe("goal adapter", () => {
 			});
 		});
 	}
+
+	it("keeps a budget-limited goal limited after rpc user input", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+
+		await runGoalCommand(harness, "--budget 10 ship the feature");
+		await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.setStatus("session-1", "budget_limited");
+			}),
+		);
+		const inputResults = await fireEvent(harness, "input", {
+			type: "input",
+			text: "continue",
+			source: "rpc",
+		});
+		const beforeAgentStartResults = await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "base prompt",
+		});
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+
+		expect(inputResults).toEqual([{ action: "continue" }]);
+		expect(snapshot?.status).toBe("budget_limited");
+		expect(snapshot?.budgetLimitPromptSent).toBe(false);
+		expect(beforeAgentStartResults).toHaveLength(1);
+		expect(beforeAgentStartResults[0]).toMatchObject({
+			systemPrompt: expect.stringContaining("marked the goal as budget_limited"),
+		});
+	});
 
 	it("injects active goal context after an interactive nudge resumes a paused goal", async () => {
 		const harness = makeGoalAdapterHarness();
@@ -3849,7 +3921,7 @@ describe("goal adapter", () => {
 		expect(inputResults).toEqual([{ action: "continue" }]);
 	});
 
-	it("resumes a budget-limited goal after interactive user input", async () => {
+	it("keeps a budget-limited goal limited after interactive user input", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 
@@ -3874,12 +3946,12 @@ describe("goal adapter", () => {
 		);
 
 		expect(inputResults).toEqual([{ action: "continue" }]);
-		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.status).toBe("budget_limited");
 		expect(snapshot?.budgetLimitPromptSent).toBe(false);
 		expect(snapshot?.continuationSuppressed).toBe(false);
 	});
 
-	it("injects active goal context after an interactive nudge resumes a budget-limited goal", async () => {
+	it("injects budget-limited context after interactive user input on a budget-limited goal", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);
 
@@ -3902,7 +3974,7 @@ describe("goal adapter", () => {
 
 		expect(results).toHaveLength(1);
 		expect(results[0]).toMatchObject({
-			systemPrompt: expect.stringContaining("Active thread goal context."),
+			systemPrompt: expect.stringContaining("marked the goal as budget_limited"),
 		});
 		expect(results[0]).toMatchObject({
 			systemPrompt: expect.stringContaining("<objective>\nship the feature"),
