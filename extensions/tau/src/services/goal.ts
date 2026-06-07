@@ -365,13 +365,28 @@ export const GoalLive = Layer.effect(
 						if (runtime.snapshot === null) {
 							return runtime;
 						}
+						const unchangedActiveStatus =
+							status === "active" &&
+							runtime.snapshot.status === "active" &&
+							runtime.snapshot.continuationSuppressed === false &&
+							runtime.snapshot.budgetLimitPromptSent === false;
 						if (
-							runtime.snapshot.status === status &&
-							status !== "active" &&
-							status !== "complete"
+							unchangedActiveStatus ||
+							(runtime.snapshot.status === status &&
+								status !== "active" &&
+								status !== "complete")
 						) {
 							nextSnapshot = runtime.snapshot;
-							return runtime;
+							return {
+								...runtime,
+								activeTurnStartedAtMs:
+									status === "active"
+										? (options?.startActiveAccountingAtMs ?? runtime.activeTurnStartedAtMs)
+										: runtime.activeTurnStartedAtMs,
+								continuationInFlight:
+									status === "active" ? false : runtime.continuationInFlight,
+								terminalTurnAccountingPending: false,
+							};
 						}
 						const patch: Partial<GoalSnapshot> = {
 							status,

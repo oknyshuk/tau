@@ -521,6 +521,43 @@ describe("goal service", () => {
 		expect(harness.appended).toHaveLength(2);
 	});
 
+	it("does not append a new event when setting unchanged active status", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				return yield* goal.setStatus("session-1", "active");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.continuationSuppressed).toBe(false);
+		expect(snapshot?.budgetLimitPromptSent).toBe(false);
+		expect(harness.appended).toHaveLength(1);
+	});
+
+	it("appends an active event when active status clears continuation suppression", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.markContinuationDispatched("session-1");
+				yield* goal.accountAgentEnd("session-1", makeAgentEnd(0), 0);
+				return yield* goal.setStatus("session-1", "active");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("active");
+		expect(snapshot?.continuationSuppressed).toBe(false);
+		expect(harness.appended).toHaveLength(3);
+	});
+
 	it("does not append a new event when clearing a missing goal", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
