@@ -462,6 +462,23 @@ describe("goal service", () => {
 		expect(snapshot?.status).toBe("complete");
 	});
 
+	it("does not append a new event when completing an already completed goal", async () => {
+		const harness = makeGoalRuntime();
+		runtimes.push(harness);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				yield* goal.create("session-1", "finish", null);
+				yield* goal.setStatus("session-1", "complete");
+				return yield* goal.setStatus("session-1", "complete");
+			}),
+		);
+
+		expect(snapshot?.status).toBe("complete");
+		expect(harness.appended).toHaveLength(2);
+	});
+
 	it("returns a live snapshot while a goal turn is running", async () => {
 		const harness = makeGoalRuntime();
 		runtimes.push(harness);
