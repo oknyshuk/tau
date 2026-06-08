@@ -6,12 +6,6 @@ import { emptyRalphLoopMetrics } from "../ralph/schema.js";
 import { makeEmptyCapabilityContract, type RalphCapabilityContract } from "../ralph/contract.js";
 import type { StorageError } from "../shared/atomic-write.js";
 import { nowIso } from "../shared/clock.js";
-import {
-	createAutoresearchPhaseSnapshot,
-	normalizeAutoresearchTaskContractInput,
-	parseAutoresearchTaskDocument,
-	renderAutoresearchTaskDocument,
-} from "../autoresearch/task-contract.js";
 import { loopTaskFile } from "../loops/paths.js";
 import { LoopRepo } from "../loops/repo.js";
 import { resolveLoopWorkspaceRoot } from "../loops/workspace-root.js";
@@ -27,12 +21,10 @@ import {
 import {
 	decodeLoopTaskIdSync,
 	encodeLoopPersistedStateJsonSync,
-	type AutoresearchLoopPersistedState,
 	type BlockedManualResolutionLoopState,
 	type LoopPersistedState,
 	type RalphLoopStateDetails,
 	type LoopSessionRef,
-	type MetricDirection,
 	validateLoopOwnership,
 } from "../loops/schema.js";
 
@@ -66,7 +58,7 @@ function stopRalphActiveTimer(
 	};
 }
 
-type LoopCreateRalphInput = {
+type LoopCreateInput = {
 	readonly kind: "ralph";
 	readonly taskId: string;
 	readonly title: string;
@@ -80,26 +72,6 @@ type LoopCreateRalphInput = {
 	readonly capabilityContract: RalphCapabilityContract | undefined;
 };
 
-type LoopCreateAutoresearchInput = {
-	readonly kind: "autoresearch";
-	readonly taskId: string;
-	readonly title: string;
-	readonly taskContent: string;
-	readonly benchmarkCommand: string;
-	readonly checksCommand: Option.Option<string>;
-	readonly metricName: string;
-	readonly metricUnit: string;
-	readonly metricDirection: MetricDirection;
-	readonly scopeRoot: string;
-	readonly scopePaths: readonly string[];
-	readonly offLimits: readonly string[];
-	readonly constraints: readonly string[];
-	readonly maxIterations: Option.Option<number>;
-	readonly executionProfile: ExecutionProfile;
-};
-
-type LoopCreateInput = LoopCreateRalphInput | LoopCreateAutoresearchInput;
-
 type LoopManualResolutionInput = {
 	readonly reasonCode: string;
 	readonly message: string;
@@ -111,7 +83,7 @@ type LoopCleanResult = {
 	readonly cleanedTaskIds: readonly string[];
 };
 
-type LoopCleanKind = "all" | "ralph" | "autoresearch";
+type LoopCleanKind = "all" | "ralph";
 
 export interface LoopEngineService {
 	readonly createLoop: (
@@ -336,103 +308,6 @@ export const LoopEngineLive = Layer.effect(
 				),
 			);
 
-		const loadAutoresearchTaskContract = Effect.fn("LoopEngine.loadAutoresearchTaskContract")(
-			function* (cwd: string, taskId: string) {
-				const taskPath = loopTaskFile(taskId);
-				const taskContent = yield* repo.readTaskFile(cwd, taskId);
-				if (Option.isNone(taskContent)) {
-					return yield* Effect.fail(
-						new LoopContractValidationError({
-							entity: "loops.autoresearch.task",
-							reason: `${taskPath} does not exist.`,
-						}),
-					);
-				}
-
-				return yield* Effect.try({
-					try: () => parseAutoresearchTaskDocument(taskContent.value, taskPath),
-					catch: (error) =>
-						error instanceof LoopContractValidationError
-							? error
-							: new LoopContractValidationError({
-									entity: "loops.autoresearch.task",
-									reason: String(error),
-								}),
-				});
-			},
-		);
-
-		const syncAutoresearchStateWithTask = Effect.fn("LoopEngine.syncAutoresearchStateWithTask")(
-			function* (
-				cwd: string,
-				state: LoopPersistedState,
-				options: {
-					readonly clearPendingRun: boolean;
-				},
-			) {
-				if (state.kind !== "autoresearch") {
-					return state;
-				}
-
-				const contract = yield* loadAutoresearchTaskContract(cwd, state.taskId);
-				const snapshot = createAutoresearchPhaseSnapshot(
-					state.taskId,
-					contract,
-					state.autoresearch.pinnedExecutionProfile,
-					state.updatedAt,
-				);
-
-				if (
-					!options.clearPendingRun &&
-					Option.isSome(state.autoresearch.pendingRunId) &&
-					Option.isSome(state.autoresearch.phaseId) &&
-					state.autoresearch.phaseId.value !== snapshot.phaseId
-				) {
-					return yield* Effect.fail(
-						new LoopLifecycleConflictError({
-							taskId: state.taskId,
-							expected: "unchanged phase-defining contract while a run is pending",
-							actual: "phase-defining contract changed",
-						}),
-					);
-				}
-
-				const existingSnapshot = yield* repo.loadPhaseSnapshot(
-					cwd,
-					state.taskId,
-					snapshot.phaseId,
-				);
-				if (
-					Option.isNone(existingSnapshot) ||
-					existingSnapshot.value.fingerprint !== snapshot.fingerprint
-				) {
-					yield* repo.savePhaseSnapshot(cwd, snapshot);
-				}
-
-				return {
-					...state,
-					title: contract.title,
-					autoresearch: {
-						...state.autoresearch,
-						phaseId: Option.some(snapshot.phaseId),
-						pendingRunId: options.clearPendingRun
-							? Option.none<string>()
-							: state.autoresearch.pendingRunId,
-						benchmarkCommand: contract.benchmark.command,
-						checksCommand: contract.benchmark.checksCommand,
-						metricName: contract.metric.name,
-						metricUnit: contract.metric.unit,
-						metricDirection: contract.metric.direction,
-						scopeRoot: contract.scope.root,
-						scopePaths: [...contract.scope.paths],
-						offLimits: [...contract.scope.offLimits],
-						constraints: [...contract.constraints],
-						maxIterations: Option.map(contract.limits, (value) => value.maxIterations),
-					},
-				} satisfies LoopPersistedState;
-			},
-		);
-
 		const ensureSessionUnambiguous = (
 			cwd: string,
 			taskId: string,
@@ -461,70 +336,6 @@ export const LoopEngineLive = Layer.effect(
 				return yield* Effect.void;
 			});
 
-		const blockAutoresearchPendingChildLoss = Effect.fn(
-			"LoopEngine.blockAutoresearchPendingChildLoss",
-		)(function* (
-			cwd: string,
-			state: AutoresearchLoopPersistedState,
-			input: {
-				readonly operation: string;
-				readonly pendingRunId: string;
-				readonly child: Option.Option<LoopSessionRef>;
-			},
-		) {
-			const pendingRunId = input.pendingRunId;
-			const preservedStateBase64 = Buffer.from(
-				encodeLoopPersistedStateJsonSync(state),
-				"utf-8",
-			).toString("base64");
-			const blockedAt = yield* nowIso;
-			const childNotes = Option.match(input.child, {
-				onNone: () => ["child_session=none"],
-				onSome: (child) => [
-					`child_session_id=${child.sessionId}`,
-					`child_session_file=${child.sessionFile}`,
-				],
-			});
-
-			const nextState: BlockedManualResolutionLoopState = {
-				taskId: state.taskId,
-				title: state.title,
-				taskFile: state.taskFile,
-				kind: "blocked_manual_resolution",
-				previousKind: "autoresearch",
-				lifecycle: "paused",
-				createdAt: state.createdAt,
-				updatedAt: blockedAt,
-				startedAt: state.startedAt,
-				completedAt: Option.none(),
-				archivedAt: Option.none(),
-				ownership: {
-					controller: state.ownership.controller,
-					child: Option.none(),
-				},
-				blocked: {
-					reasonCode: "autoresearch.pending_run_child_lost",
-					message: `Autoresearch run ${pendingRunId} lost child ownership during ${input.operation}. Resolve the pending trial manually.`,
-					blockedAt,
-					recoveryActions: [
-						"Inspect the run artifact and child session transcript.",
-						"Decide whether the pending trial should be kept, discarded, marked crashed, or marked checks_failed.",
-						"Restore the preserved state only after resolving the pending trial outcome.",
-					],
-					recoveryNotes: [
-						`pending_run_id=${pendingRunId}`,
-						`operation=${input.operation}`,
-						...childNotes,
-						`preserved_state_base64=${preservedStateBase64}`,
-					],
-				},
-			};
-
-			yield* validateLoopOwnership(nextState);
-			yield* repo.saveState(cwd, nextState);
-			return nextState;
-		});
-
 		const createLoop: LoopEngineService["createLoop"] = Effect.fn("LoopEngine.createLoop")(
 			function* (cwd, input) {
 				const taskId = yield* normalizeTaskId(input.taskId);
@@ -534,131 +345,51 @@ export const LoopEngineLive = Layer.effect(
 				}
 
 				const timestamp = yield* nowIso;
-				const normalizedAutoresearchContract =
-					input.kind === "autoresearch"
-						? normalizeAutoresearchTaskContractInput({
-								title: input.title,
-								benchmarkCommand: input.benchmarkCommand,
-								checksCommand: input.checksCommand,
-								metricName: input.metricName,
-								metricUnit: input.metricUnit,
-								metricDirection: input.metricDirection,
-								scopeRoot: input.scopeRoot,
-								scopePaths: input.scopePaths,
-								offLimits: input.offLimits,
-								constraints: input.constraints,
-								maxIterations: input.maxIterations,
-							})
-						: null;
 
-				const normalizedAutoresearchMaxIterations =
-					normalizedAutoresearchContract === null
-						? Option.none<number>()
-						: Option.map(
-								normalizedAutoresearchContract.limits,
-								(value) => value.maxIterations,
-							);
-
-				const normalizedTitle = normalizedAutoresearchContract?.title ?? input.title;
-				const taskContent =
-					normalizedAutoresearchContract === null
-						? input.taskContent
-						: renderAutoresearchTaskDocument(
-								normalizedAutoresearchContract,
-								input.taskContent,
-							);
-
-				const shared = {
+				const state: LoopPersistedState = {
 					taskId,
-					title: normalizedTitle,
+					title: input.title,
 					taskFile: loopTaskFile(taskId),
-					lifecycle: "draft" as const,
+					lifecycle: "draft",
 					createdAt: timestamp,
 					updatedAt: timestamp,
-					startedAt: Option.none<string>(),
-					completedAt: Option.none<string>(),
-					archivedAt: Option.none<string>(),
+					startedAt: Option.none(),
+					completedAt: Option.none(),
+					archivedAt: Option.none(),
 					ownership: {
-						controller: Option.none<LoopSessionRef>(),
-						child: Option.none<LoopSessionRef>(),
+						controller: Option.none(),
+						child: Option.none(),
+					},
+					kind: "ralph",
+					ralph: {
+						iteration: 0,
+						maxIterations: input.maxIterations,
+						itemsPerIteration: input.itemsPerIteration,
+						reflectEvery: input.reflectEvery,
+						reflectInstructions: input.reflectInstructions,
+						lastReflectionAt: 0,
+						pendingDecision: Option.none(),
+						pinnedExecutionProfile: input.executionProfile,
+						sandboxProfile: Option.some(input.sandboxProfile),
+						metrics: {
+							...emptyRalphLoopMetrics(),
+							activeStartedAt: Option.some(timestamp),
+						},
+						capabilityContract:
+							input.capabilityContract ?? makeEmptyCapabilityContract(),
+						deferredConfigMutations: [],
 					},
 				};
 
-				const state: LoopPersistedState =
-					input.kind === "ralph"
-						? {
-								...shared,
-								kind: "ralph",
-								ralph: {
-									iteration: 0,
-									maxIterations: input.maxIterations,
-									itemsPerIteration: input.itemsPerIteration,
-									reflectEvery: input.reflectEvery,
-									reflectInstructions: input.reflectInstructions,
-									lastReflectionAt: 0,
-									pendingDecision: Option.none(),
-									pinnedExecutionProfile: input.executionProfile,
-									sandboxProfile: Option.some(input.sandboxProfile),
-									metrics: {
-										...emptyRalphLoopMetrics(),
-										activeStartedAt: Option.some(timestamp),
-									},
-									capabilityContract:
-										input.capabilityContract ?? makeEmptyCapabilityContract(),
-									deferredConfigMutations: [],
-								},
-							}
-						: {
-								...shared,
-								kind: "autoresearch",
-								autoresearch: {
-									phaseId: Option.none(),
-									pendingRunId: Option.none(),
-									runCount: 0,
-									maxIterations: normalizedAutoresearchMaxIterations,
-									benchmarkCommand:
-										normalizedAutoresearchContract?.benchmark.command ??
-										input.benchmarkCommand,
-									checksCommand:
-										normalizedAutoresearchContract?.benchmark.checksCommand ??
-										input.checksCommand,
-									metricName:
-										normalizedAutoresearchContract?.metric.name ??
-										input.metricName,
-									metricUnit:
-										normalizedAutoresearchContract?.metric.unit ??
-										input.metricUnit,
-									metricDirection:
-										normalizedAutoresearchContract?.metric.direction ??
-										input.metricDirection,
-									scopeRoot:
-										normalizedAutoresearchContract?.scope.root ??
-										input.scopeRoot,
-									scopePaths: [
-										...(normalizedAutoresearchContract?.scope.paths ??
-											input.scopePaths),
-									],
-									offLimits: [
-										...(normalizedAutoresearchContract?.scope.offLimits ??
-											input.offLimits),
-									],
-									constraints: [
-										...(normalizedAutoresearchContract?.constraints ??
-											input.constraints),
-									],
-									pinnedExecutionProfile: input.executionProfile,
-								},
-							};
-
 				yield* validateLoopOwnership(state);
-				yield* repo.ensureTaskFile(cwd, taskId, taskContent);
+				yield* repo.ensureTaskFile(cwd, taskId, input.taskContent);
 				yield* repo.saveState(cwd, state);
 				return state;
 			},
 		);
 
 		const startLoop: LoopEngineService["startLoop"] = Effect.fn("LoopEngine.startLoop")(
-			function* (cwd, taskId, controller, executionProfile) {
+			function* (cwd, taskId, controller, _executionProfile) {
 				const state = yield* ensureLoadedState(cwd, taskId);
 				yield* validateState(state);
 
@@ -676,57 +407,28 @@ export const LoopEngineLive = Layer.effect(
 				yield* ensureSessionUnambiguous(cwd, state.taskId, controller);
 
 				const timestamp = yield* nowIso;
-				const restarted = state.kind === "ralph" && state.lifecycle === "completed";
+				const restarted = state.lifecycle === "completed";
 
-				const nextStateBase: LoopPersistedState =
-					state.kind === "ralph"
-						? {
-								...state,
-								lifecycle: "active",
-								updatedAt: timestamp,
-								startedAt: Option.some(timestamp),
-								completedAt: Option.none(),
-								ownership: {
-									controller: Option.some(controller),
-									child: Option.none(),
-								},
-								ralph: {
-									...state.ralph,
-									iteration: restarted ? 0 : state.ralph.iteration,
-									pendingDecision: Option.none(),
-									metrics: {
-										...(restarted
-											? emptyRalphLoopMetrics()
-											: state.ralph.metrics),
-										activeStartedAt: Option.some(timestamp),
-									},
-								},
-							}
-						: {
-								...state,
-								lifecycle: "active",
-								updatedAt: timestamp,
-								startedAt: Option.some(timestamp),
-								completedAt: Option.none(),
-								ownership: {
-									controller: Option.some(controller),
-									child: Option.none(),
-								},
-								autoresearch: {
-									...state.autoresearch,
-									pinnedExecutionProfile:
-										executionProfile ??
-										state.autoresearch.pinnedExecutionProfile,
-									pendingRunId: Option.none(),
-								},
-							};
-
-				const nextState =
-					nextStateBase.kind === "autoresearch"
-						? yield* syncAutoresearchStateWithTask(cwd, nextStateBase, {
-								clearPendingRun: true,
-							})
-						: nextStateBase;
+				const nextState: LoopPersistedState = {
+					...state,
+					lifecycle: "active",
+					updatedAt: timestamp,
+					startedAt: Option.some(timestamp),
+					completedAt: Option.none(),
+					ownership: {
+						controller: Option.some(controller),
+						child: Option.none(),
+					},
+					ralph: {
+						...state.ralph,
+						iteration: restarted ? 0 : state.ralph.iteration,
+						pendingDecision: Option.none(),
+						metrics: {
+							...(restarted ? emptyRalphLoopMetrics() : state.ralph.metrics),
+							activeStartedAt: Option.some(timestamp),
+						},
+					},
+				};
 
 				yield* validateLoopOwnership(nextState);
 				yield* repo.saveState(cwd, nextState);
@@ -735,7 +437,7 @@ export const LoopEngineLive = Layer.effect(
 		);
 
 		const resumeLoop: LoopEngineService["resumeLoop"] = Effect.fn("LoopEngine.resumeLoop")(
-			function* (cwd, taskId, controller, executionProfile) {
+			function* (cwd, taskId, controller, _executionProfile) {
 				const state = yield* ensureLoadedState(cwd, taskId);
 				yield* validateState(state);
 				if (state.kind === "blocked_manual_resolution") {
@@ -764,46 +466,22 @@ export const LoopEngineLive = Layer.effect(
 				}
 
 				const timestamp = yield* nowIso;
-				const nextStateBase: LoopPersistedState =
-					state.kind === "ralph"
-						? {
-								...state,
-								lifecycle: "active",
-								updatedAt: timestamp,
-								ownership: {
-									controller: Option.some(controller),
-									child: Option.none(),
-								},
-								ralph: {
-									...state.ralph,
-									metrics: {
-										...state.ralph.metrics,
-										activeStartedAt: Option.some(timestamp),
-									},
-								},
-							}
-						: {
-								...state,
-								lifecycle: "active",
-								updatedAt: timestamp,
-								ownership: {
-									controller: Option.some(controller),
-									child: Option.none(),
-								},
-								autoresearch: {
-									...state.autoresearch,
-									pinnedExecutionProfile:
-										executionProfile ??
-										state.autoresearch.pinnedExecutionProfile,
-								},
-							};
-
-				const nextState =
-					nextStateBase.kind === "autoresearch"
-						? yield* syncAutoresearchStateWithTask(cwd, nextStateBase, {
-								clearPendingRun: false,
-							})
-						: nextStateBase;
+				const nextState: LoopPersistedState = {
+					...state,
+					lifecycle: "active",
+					updatedAt: timestamp,
+					ownership: {
+						controller: Option.some(controller),
+						child: Option.none(),
+					},
+					ralph: {
+						...state.ralph,
+						metrics: {
+							...state.ralph.metrics,
+							activeStartedAt: Option.some(timestamp),
+						},
+					},
+				};
 
 				yield* validateLoopOwnership(nextState);
 				yield* repo.saveState(cwd, nextState);
@@ -816,14 +494,6 @@ export const LoopEngineLive = Layer.effect(
 				const state = yield* ensureLoadedState(cwd, taskId);
 				yield* validateState(state);
 				yield* ensureLifecycle(state, ["active"], "active");
-
-				if (state.kind === "autoresearch" && Option.isSome(state.autoresearch.pendingRunId)) {
-					return yield* blockAutoresearchPendingChildLoss(cwd, state, {
-						operation: "pause",
-						pendingRunId: state.autoresearch.pendingRunId.value,
-						child: state.ownership.child,
-					});
-				}
 
 				const timestamp = yield* nowIso;
 				const nextState: LoopPersistedState =
@@ -862,14 +532,6 @@ export const LoopEngineLive = Layer.effect(
 				const state = yield* ensureLoadedState(cwd, taskId);
 				yield* validateState(state);
 				yield* ensureLifecycle(state, ["active", "paused"], "active or paused");
-
-				if (state.kind === "autoresearch" && Option.isSome(state.autoresearch.pendingRunId)) {
-					return yield* blockAutoresearchPendingChildLoss(cwd, state, {
-						operation: "stop",
-						pendingRunId: state.autoresearch.pendingRunId.value,
-						child: state.ownership.child,
-					});
-				}
 
 				const timestamp = yield* nowIso;
 				const nextState: LoopPersistedState =
@@ -972,14 +634,6 @@ export const LoopEngineLive = Layer.effect(
 						reason: "child session does not match persisted ownership",
 					}),
 				);
-			}
-
-			if (state.kind === "autoresearch" && Option.isSome(state.autoresearch.pendingRunId)) {
-				return yield* blockAutoresearchPendingChildLoss(cwd, state, {
-					operation: "clear_child",
-					pendingRunId: state.autoresearch.pendingRunId.value,
-					child: Option.some(child),
-				});
 			}
 
 			const nextState: LoopPersistedState = {
@@ -1106,33 +760,21 @@ export const LoopEngineLive = Layer.effect(
 									child: Option.none(),
 								},
 							}
-						: state.kind === "ralph"
-							? {
-									...state,
-									taskFile: archivedTaskFile,
-									lifecycle: "archived",
-									updatedAt: timestamp,
-									archivedAt: Option.some(timestamp),
-									ownership: {
-										controller: Option.none(),
-										child: Option.none(),
-									},
-									ralph: {
-										...state.ralph,
-										pendingDecision: Option.none(),
-									},
-								}
-							: {
-									...state,
-									taskFile: archivedTaskFile,
-									lifecycle: "archived",
-									updatedAt: timestamp,
-									archivedAt: Option.some(timestamp),
-									ownership: {
-										controller: Option.none(),
-										child: Option.none(),
-									},
-								};
+						: {
+								...state,
+								taskFile: archivedTaskFile,
+								lifecycle: "archived",
+								updatedAt: timestamp,
+								archivedAt: Option.some(timestamp),
+								ownership: {
+									controller: Option.none(),
+									child: Option.none(),
+								},
+								ralph: {
+									...state.ralph,
+									pendingDecision: Option.none(),
+								},
+							};
 
 				yield* validateLoopOwnership(archivedState);
 				yield* repo.archiveTaskArtifacts(cwd, state.taskId);
@@ -1158,8 +800,6 @@ export const LoopEngineLive = Layer.effect(
 
 				yield* repo.deleteState(cwd, state.taskId);
 				yield* repo.deleteTaskFile(cwd, state.taskId);
-				yield* repo.deletePhaseDirectory(cwd, state.taskId);
-				yield* repo.deleteRunDirectory(cwd, state.taskId);
 			},
 		);
 
@@ -1177,8 +817,6 @@ export const LoopEngineLive = Layer.effect(
 					yield* repo.deleteState(cwd, state.taskId);
 					if (all) {
 						yield* repo.deleteTaskFile(cwd, state.taskId);
-						yield* repo.deletePhaseDirectory(cwd, state.taskId);
-						yield* repo.deleteRunDirectory(cwd, state.taskId);
 					}
 					cleanedTaskIds.push(state.taskId);
 				}

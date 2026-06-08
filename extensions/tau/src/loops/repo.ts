@@ -4,28 +4,17 @@ import { Effect, FileSystem, Layer, Option, Context } from "effect";
 
 import { StorageError, atomicWriteFileString, toStorageError } from "../shared/atomic-write.js";
 import {
-	decodeAutoresearchPhaseSnapshotJson,
 	decodeLoopPersistedStateJsonWithMigration,
-	encodeAutoresearchPhaseSnapshotJson,
 	encodeLoopPersistedStateJson,
-	type AutoresearchPhaseSnapshot,
 	type LoopPersistedState,
 } from "./schema.js";
 import { LoopContractValidationError } from "./errors.js";
 import {
 	LOOPS_DIR,
-	LOOPS_ARCHIVE_PHASES_DIR,
-	LOOPS_ARCHIVE_RUNS_DIR,
 	LOOPS_ARCHIVE_STATE_DIR,
 	LOOPS_ARCHIVE_TASKS_DIR,
-	LOOPS_PHASES_DIR,
-	LOOPS_RUNS_DIR,
 	LOOPS_STATE_DIR,
 	LOOPS_TASKS_DIR,
-	loopPhaseDirectory,
-	loopPhaseFile,
-	loopRunDirectory,
-	loopRunsDirectory,
 	loopStateFile,
 	loopTaskFile,
 } from "./paths.js";
@@ -69,32 +58,6 @@ function resolveTaskPath(cwd: string, taskId: string, archived = false): string 
 
 function resolveStatePath(cwd: string, taskId: string, archived = false): string {
 	return resolveLoopWorkspacePath(cwd, loopStateFile(taskId, archived));
-}
-
-function resolvePhaseDirectory(cwd: string, taskId: string, archived = false): string {
-	return resolveLoopWorkspacePath(cwd, loopPhaseDirectory(taskId, archived));
-}
-
-function resolvePhasePath(
-	cwd: string,
-	taskId: string,
-	phaseId: string,
-	archived = false,
-): string {
-	return resolveLoopWorkspacePath(cwd, loopPhaseFile(taskId, phaseId, archived));
-}
-
-function resolveRunsDirectory(cwd: string, taskId: string, archived = false): string {
-	return resolveLoopWorkspacePath(cwd, loopRunsDirectory(taskId, archived));
-}
-
-function resolveRunDirectory(
-	cwd: string,
-	taskId: string,
-	runId: string,
-	archived = false,
-): string {
-	return resolveLoopWorkspacePath(cwd, loopRunDirectory(taskId, runId, archived));
 }
 
 const readOptionalFile = (
@@ -172,38 +135,6 @@ interface LoopRepoService {
 		taskId: string,
 		archived?: boolean,
 	) => Effect.Effect<void, StorageError, never>;
-	readonly savePhaseSnapshot: (
-		cwd: string,
-		snapshot: AutoresearchPhaseSnapshot,
-		archived?: boolean,
-	) => Effect.Effect<void, LoopContractValidationError | StorageError, never>;
-	readonly loadPhaseSnapshot: (
-		cwd: string,
-		taskId: string,
-		phaseId: string,
-		archived?: boolean,
-	) => Effect.Effect<Option.Option<AutoresearchPhaseSnapshot>, LoopContractValidationError | StorageError, never>;
-	readonly listPhaseSnapshots: (
-		cwd: string,
-		taskId: string,
-		archived?: boolean,
-	) => Effect.Effect<ReadonlyArray<AutoresearchPhaseSnapshot>, LoopContractValidationError | StorageError, never>;
-	readonly ensureRunDirectory: (
-		cwd: string,
-		taskId: string,
-		runId: string,
-		archived?: boolean,
-	) => Effect.Effect<string, StorageError, never>;
-	readonly deletePhaseDirectory: (
-		cwd: string,
-		taskId: string,
-		archived?: boolean,
-	) => Effect.Effect<void, StorageError, never>;
-	readonly deleteRunDirectory: (
-		cwd: string,
-		taskId: string,
-		archived?: boolean,
-	) => Effect.Effect<void, StorageError, never>;
 	readonly archiveTaskArtifacts: (cwd: string, taskId: string) => Effect.Effect<void, StorageError, never>;
 	readonly existsLoopsDirectory: (cwd: string) => Effect.Effect<boolean, StorageError, never>;
 	readonly removeLoopsDirectory: (cwd: string) => Effect.Effect<void, StorageError, never>;
@@ -233,20 +164,6 @@ export const LoopRepoLive = Layer.effect(
 						),
 					);
 				yield* fs
-					.makeDirectory(resolveLoopWorkspacePath(cwd, LOOPS_PHASES_DIR), { recursive: true })
-					.pipe(
-						Effect.mapError((error) =>
-							toStorageError("mkdir-loops-phases", resolveLoopWorkspacePath(cwd, LOOPS_PHASES_DIR), `Failed to create ${LOOPS_PHASES_DIR}`, error),
-						),
-					);
-				yield* fs
-					.makeDirectory(resolveLoopWorkspacePath(cwd, LOOPS_RUNS_DIR), { recursive: true })
-					.pipe(
-						Effect.mapError((error) =>
-							toStorageError("mkdir-loops-runs", resolveLoopWorkspacePath(cwd, LOOPS_RUNS_DIR), `Failed to create ${LOOPS_RUNS_DIR}`, error),
-						),
-					);
-				yield* fs
 					.makeDirectory(resolveLoopWorkspacePath(cwd, LOOPS_ARCHIVE_TASKS_DIR), { recursive: true })
 					.pipe(
 						Effect.mapError((error) =>
@@ -258,20 +175,6 @@ export const LoopRepoLive = Layer.effect(
 					.pipe(
 						Effect.mapError((error) =>
 							toStorageError("mkdir-loops-archive-state", resolveLoopWorkspacePath(cwd, LOOPS_ARCHIVE_STATE_DIR), `Failed to create ${LOOPS_ARCHIVE_STATE_DIR}`, error),
-						),
-					);
-				yield* fs
-					.makeDirectory(resolveLoopWorkspacePath(cwd, LOOPS_ARCHIVE_PHASES_DIR), { recursive: true })
-					.pipe(
-						Effect.mapError((error) =>
-							toStorageError("mkdir-loops-archive-phases", resolveLoopWorkspacePath(cwd, LOOPS_ARCHIVE_PHASES_DIR), `Failed to create ${LOOPS_ARCHIVE_PHASES_DIR}`, error),
-						),
-					);
-				yield* fs
-					.makeDirectory(resolveLoopWorkspacePath(cwd, LOOPS_ARCHIVE_RUNS_DIR), { recursive: true })
-					.pipe(
-						Effect.mapError((error) =>
-							toStorageError("mkdir-loops-archive-runs", resolveLoopWorkspacePath(cwd, LOOPS_ARCHIVE_RUNS_DIR), `Failed to create ${LOOPS_ARCHIVE_RUNS_DIR}`, error),
 						),
 					);
 			});
@@ -402,108 +305,6 @@ export const LoopRepoLive = Layer.effect(
 			},
 		);
 
-		const savePhaseSnapshot: LoopRepoService["savePhaseSnapshot"] = Effect.fn(
-			"LoopRepo.savePhaseSnapshot",
-		)(function* (cwd, snapshot, archived = false) {
-			yield* ensureLayout(cwd);
-			const filePath = resolvePhasePath(cwd, snapshot.taskId, snapshot.phaseId, archived);
-			const encoded = yield* encodeAutoresearchPhaseSnapshotJson(snapshot);
-			yield* atomicWriteFileString(fs, filePath, encoded);
-		});
-
-		const loadPhaseSnapshot: LoopRepoService["loadPhaseSnapshot"] = Effect.fn(
-			"LoopRepo.loadPhaseSnapshot",
-		)(function* (cwd, taskId, phaseId, archived = false) {
-			const filePath = resolvePhasePath(cwd, taskId, phaseId, archived);
-			const contentOption = yield* readOptionalFile(fs, filePath);
-			if (Option.isNone(contentOption)) {
-				return Option.none();
-			}
-			const snapshot = yield* decodeAutoresearchPhaseSnapshotJson(contentOption.value).pipe(
-				Effect.mapError((error) => withFileContext(cwd, filePath, error)),
-			);
-			return Option.some(snapshot);
-		});
-
-		const listPhaseSnapshots: LoopRepoService["listPhaseSnapshots"] = Effect.fn(
-			"LoopRepo.listPhaseSnapshots",
-		)(function* (cwd, taskId, archived = false) {
-			const dir = resolvePhaseDirectory(cwd, taskId, archived);
-			const exists = yield* fs.exists(dir).pipe(
-				Effect.mapError((error) => toStorageError("exists-phase-dir", dir, `Failed to inspect ${dir}`, error)),
-			);
-			if (!exists) {
-				return [];
-			}
-
-			const entries = yield* fs.readDirectory(dir).pipe(
-				Effect.mapError((error) => toStorageError("read-phase-dir", dir, `Failed to read ${dir}`, error)),
-			);
-			const snapshots: AutoresearchPhaseSnapshot[] = [];
-			for (const entry of [...entries].sort((left, right) => left.localeCompare(right))) {
-				if (!entry.endsWith(".json")) {
-					continue;
-				}
-				const filePath = path.join(dir, entry);
-				const contentOption = yield* readOptionalFile(fs, filePath);
-				if (Option.isNone(contentOption)) {
-					continue;
-				}
-				snapshots.push(
-					yield* decodeAutoresearchPhaseSnapshotJson(contentOption.value).pipe(
-						Effect.mapError((error) => withFileContext(cwd, filePath, error)),
-					),
-				);
-			}
-
-			return snapshots;
-		});
-
-		const ensureRunDirectory: LoopRepoService["ensureRunDirectory"] = Effect.fn(
-			"LoopRepo.ensureRunDirectory",
-		)(function* (cwd, taskId, runId, archived = false) {
-			yield* ensureLayout(cwd);
-			const runDir = resolveRunDirectory(cwd, taskId, runId, archived);
-			yield* fs.makeDirectory(runDir, { recursive: true }).pipe(
-				Effect.mapError((error) => toStorageError("mkdir-run-dir", runDir, `Failed to create ${runDir}`, error)),
-			);
-			return runDir;
-		});
-
-		const deletePhaseDirectory: LoopRepoService["deletePhaseDirectory"] = Effect.fn(
-			"LoopRepo.deletePhaseDirectory",
-		)(function* (cwd, taskId, archived = false) {
-			yield* fs
-				.remove(resolvePhaseDirectory(cwd, taskId, archived), { recursive: true, force: true })
-				.pipe(
-					Effect.mapError((error) =>
-						toStorageError(
-							"remove-phase-dir",
-							resolvePhaseDirectory(cwd, taskId, archived),
-							`Failed to remove ${resolvePhaseDirectory(cwd, taskId, archived)}`,
-							error,
-						),
-					),
-				);
-		});
-
-		const deleteRunDirectory: LoopRepoService["deleteRunDirectory"] = Effect.fn(
-			"LoopRepo.deleteRunDirectory",
-		)(function* (cwd, taskId, archived = false) {
-			yield* fs
-				.remove(resolveRunsDirectory(cwd, taskId, archived), { recursive: true, force: true })
-				.pipe(
-					Effect.mapError((error) =>
-						toStorageError(
-							"remove-run-dir",
-							resolveRunsDirectory(cwd, taskId, archived),
-							`Failed to remove ${resolveRunsDirectory(cwd, taskId, archived)}`,
-							error,
-						),
-					),
-				);
-		});
-
 		const archiveTaskArtifacts: LoopRepoService["archiveTaskArtifacts"] = Effect.fn(
 			"LoopRepo.archiveTaskArtifacts",
 		)(function* (cwd, taskId) {
@@ -513,16 +314,6 @@ export const LoopRepoLive = Layer.effect(
 				fs,
 				resolveTaskPath(cwd, taskId, false),
 				resolveTaskPath(cwd, taskId, true),
-			);
-			yield* renameIfExists(
-				fs,
-				resolvePhaseDirectory(cwd, taskId, false),
-				resolvePhaseDirectory(cwd, taskId, true),
-			);
-			yield* renameIfExists(
-				fs,
-				resolveRunsDirectory(cwd, taskId, false),
-				resolveRunsDirectory(cwd, taskId, true),
 			);
 		});
 
@@ -551,12 +342,6 @@ export const LoopRepoLive = Layer.effect(
 			ensureTaskFile,
 			deleteState,
 			deleteTaskFile,
-			savePhaseSnapshot,
-			loadPhaseSnapshot,
-			listPhaseSnapshots,
-			ensureRunDirectory,
-			deletePhaseDirectory,
-			deleteRunDirectory,
 			archiveTaskArtifacts,
 			existsLoopsDirectory,
 			removeLoopsDirectory,

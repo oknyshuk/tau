@@ -7,10 +7,6 @@ import { Effect, Layer, Option } from "effect";
 import { NodeFileSystem } from "@effect/platform-node";
 
 import { LoopRepo, LoopRepoLive } from "../src/loops/repo.js";
-import {
-	parseAutoresearchTaskDocument,
-	renderAutoresearchTaskDocument,
-} from "../src/autoresearch/task-contract.js";
 import { LoopAmbiguousOwnershipError, LoopOwnershipValidationError } from "../src/loops/errors.js";
 import type { LoopPersistedState, LoopSessionRef } from "../src/loops/schema.js";
 import { LoopEngine, LoopEngineLive } from "../src/services/loop-engine.js";
@@ -190,257 +186,6 @@ describe("loop engine service", () => {
 		);
 	});
 
-	it("writes strict autoresearch task docs and materializes phase snapshots on start", async () => {
-		const cwd = makeTempDir();
-		tempDirs.push(cwd);
-
-		const controller = makeSession("controller-ar", "controller-ar.session.json");
-
-		const result = await Effect.runPromise(
-			Effect.gen(function* () {
-				const engine = yield* LoopEngine;
-				const repo = yield* LoopRepo;
-
-				yield* engine.createLoop(cwd, {
-					kind: "autoresearch",
-					taskId: "ar-loop",
-					title: "Autoresearch loop",
-					taskContent: "Lower parser latency without changing workload semantics.",
-					benchmarkCommand: "bash scripts/bench.sh",
-					checksCommand: Option.some("bash scripts/checks.sh"),
-					metricName: "latency_ms",
-					metricUnit: "ms",
-					metricDirection: "lower",
-					scopeRoot: "packages/app",
-					scopePaths: ["src", "./src/../bench"],
-					offLimits: ["vendor", "./vendor"],
-					constraints: ["no-new-deps", "no-new-deps"],
-					maxIterations: Option.some(20),
-					executionProfile: makeExecutionProfile(),
-				});
-
-				const started = yield* engine.startLoop(cwd, "ar-loop", controller);
-				if (started.kind !== "autoresearch") {
-					throw new Error("expected autoresearch state");
-				}
-
-				const phaseId = Option.match(started.autoresearch.phaseId, {
-					onNone: () => {
-						throw new Error("missing phase id after autoresearch start");
-					},
-					onSome: (value) => value,
-				});
-
-				const taskContent = yield* repo.readTaskFile(cwd, "ar-loop");
-				if (Option.isNone(taskContent)) {
-					throw new Error("missing task file");
-				}
-				const parsedContract = parseAutoresearchTaskDocument(
-					taskContent.value,
-					".pi/loops/tasks/ar-loop.md",
-				);
-
-				const snapshot = yield* repo.loadPhaseSnapshot(cwd, "ar-loop", phaseId);
-				if (Option.isNone(snapshot)) {
-					throw new Error("missing phase snapshot");
-				}
-
-				return {
-					started,
-					phaseId,
-					parsedContract,
-					snapshot: snapshot.value,
-				};
-			}).pipe(Effect.provide(loopEngineLayer)),
-		);
-
-		expect(result.started.autoresearch.scopePaths).toEqual(["bench", "src"]);
-		expect(result.started.autoresearch.offLimits).toEqual(["vendor"]);
-		expect(Option.getOrUndefined(result.started.autoresearch.maxIterations)).toBe(20);
-		expect(result.parsedContract.scope.paths).toEqual(["bench", "src"]);
-		expect(result.snapshot.phaseId).toBe(result.phaseId);
-		expect(result.snapshot.metric.name).toBe("latency_ms");
-		expect(
-			fs.existsSync(
-				path.join(cwd, ".pi", "loops", "phases", "ar-loop", `${result.phaseId}.json`),
-			),
-		).toBe(true);
-	});
-
-	it("starts a new autoresearch phase when phase-defining frontmatter fields change", async () => {
-		const cwd = makeTempDir();
-		tempDirs.push(cwd);
-
-		const controller = makeSession("controller-ar2", "controller-ar2.session.json");
-
-		const phaseIds = await Effect.runPromise(
-			Effect.gen(function* () {
-				const engine = yield* LoopEngine;
-
-				yield* engine.createLoop(cwd, {
-					kind: "autoresearch",
-					taskId: "ar-phase-shift",
-					title: "Autoresearch phase shift",
-					taskContent: "Optimize parser throughput.",
-					benchmarkCommand: "bash scripts/bench.sh",
-					checksCommand: Option.none(),
-					metricName: "latency_ms",
-					metricUnit: "ms",
-					metricDirection: "lower",
-					scopeRoot: ".",
-					scopePaths: ["src"],
-					offLimits: ["dist"],
-					constraints: ["no-new-deps"],
-					maxIterations: Option.none(),
-					executionProfile: makeExecutionProfile(),
-				});
-
-				const started = yield* engine.startLoop(cwd, "ar-phase-shift", controller);
-				if (started.kind !== "autoresearch") {
-					throw new Error("expected autoresearch state");
-				}
-
-				const firstPhaseId = Option.match(started.autoresearch.phaseId, {
-					onNone: () => {
-						throw new Error("missing initial phase id");
-					},
-					onSome: (value) => value,
-				});
-
-				yield* engine.pauseLoop(cwd, "ar-phase-shift");
-
-				const taskPath = path.join(cwd, ".pi", "loops", "tasks", "ar-phase-shift.md");
-				const originalTask = fs.readFileSync(taskPath, "utf-8");
-				const parsedContract = parseAutoresearchTaskDocument(
-					originalTask,
-					".pi/loops/tasks/ar-phase-shift.md",
-				);
-
-				const updatedTask = renderAutoresearchTaskDocument(
-					{
-						...parsedContract,
-						metric: {
-							...parsedContract.metric,
-							name: "throughput_rps",
-						},
-					},
-					"Optimize parser throughput with stable behavior.",
-				);
-				fs.writeFileSync(taskPath, updatedTask, "utf-8");
-
-				const resumed = yield* engine.resumeLoop(cwd, "ar-phase-shift", controller);
-				if (resumed.kind !== "autoresearch") {
-					throw new Error("expected autoresearch state after resume");
-				}
-
-				const secondPhaseId = Option.match(resumed.autoresearch.phaseId, {
-					onNone: () => {
-						throw new Error("missing resumed phase id");
-					},
-					onSome: (value) => value,
-				});
-
-				return { firstPhaseId, secondPhaseId };
-			}).pipe(Effect.provide(loopEngineLayer)),
-		);
-
-		expect(phaseIds.secondPhaseId).not.toBe(phaseIds.firstPhaseId);
-		expect(
-			fs.existsSync(
-				path.join(
-					cwd,
-					".pi",
-					"loops",
-					"phases",
-					"ar-phase-shift",
-					`${phaseIds.firstPhaseId}.json`,
-				),
-			),
-		).toBe(true);
-		expect(
-			fs.existsSync(
-				path.join(
-					cwd,
-					".pi",
-					"loops",
-					"phases",
-					"ar-phase-shift",
-					`${phaseIds.secondPhaseId}.json`,
-				),
-			),
-		).toBe(true);
-	});
-
-	it("captures autoresearch execution profile at phase start", async () => {
-		const cwd = makeTempDir();
-		tempDirs.push(cwd);
-
-		const controller = makeSession("controller-profile", "controller-profile.session.json");
-		const profileAtCreate = makeExecutionProfile({
-			model: "anthropic/claude-opus-4-5",
-			thinking: "medium",
-		});
-		const profileAtStart = makeExecutionProfile({
-			model: "openai/gpt-5-mini",
-			thinking: "low",
-		});
-
-		const result = await Effect.runPromise(
-			Effect.gen(function* () {
-				const engine = yield* LoopEngine;
-				const repo = yield* LoopRepo;
-
-				yield* engine.createLoop(cwd, {
-					kind: "autoresearch",
-					taskId: "ar-profile-capture",
-					title: "Autoresearch profile capture",
-					taskContent: "Validate phase-start execution profile pinning.",
-					benchmarkCommand: "bash scripts/bench.sh",
-					checksCommand: Option.none(),
-					metricName: "latency_ms",
-					metricUnit: "ms",
-					metricDirection: "lower",
-					scopeRoot: ".",
-					scopePaths: ["src"],
-					offLimits: [],
-					constraints: ["no-new-deps"],
-					maxIterations: Option.none(),
-					executionProfile: profileAtCreate,
-				});
-
-				const started = yield* engine.startLoop(
-					cwd,
-					"ar-profile-capture",
-					controller,
-					profileAtStart,
-				);
-				if (started.kind !== "autoresearch") {
-					throw new Error("expected autoresearch state");
-				}
-
-				const phaseId = Option.match(started.autoresearch.phaseId, {
-					onNone: () => {
-						throw new Error("missing phase id");
-					},
-					onSome: (value) => value,
-				});
-
-				const snapshot = yield* repo.loadPhaseSnapshot(cwd, "ar-profile-capture", phaseId);
-				if (Option.isNone(snapshot)) {
-					throw new Error("missing phase snapshot");
-				}
-
-				return {
-					started,
-					snapshot: snapshot.value,
-				};
-			}).pipe(Effect.provide(loopEngineLayer)),
-		);
-
-		expect(result.started.autoresearch.pinnedExecutionProfile).toEqual(profileAtStart);
-		expect(result.snapshot.pinnedExecutionProfile).toEqual(profileAtStart);
-	});
-
 	it("fails fast when ownership resolution is ambiguous", async () => {
 		const cwd = makeTempDir();
 		tempDirs.push(cwd);
@@ -533,7 +278,7 @@ describe("loop engine service", () => {
 		).rejects.toBeInstanceOf(LoopOwnershipValidationError);
 	});
 
-	it("cleans completed loops by workflow kind", async () => {
+	it("cleans completed ralph loops", async () => {
 		const cwd = makeTempDir();
 		tempDirs.push(cwd);
 
@@ -561,30 +306,6 @@ describe("loop engine service", () => {
 				);
 				yield* engine.stopLoop(cwd, "clean-ralph");
 
-				yield* engine.createLoop(cwd, {
-					kind: "autoresearch",
-					taskId: "clean-autoresearch",
-					title: "Clean Autoresearch",
-					taskContent: "Autoresearch cleanup scope.",
-					benchmarkCommand: "bash scripts/bench.sh",
-					checksCommand: Option.none(),
-					metricName: "latency_ms",
-					metricUnit: "ms",
-					metricDirection: "lower",
-					scopeRoot: ".",
-					scopePaths: ["src"],
-					offLimits: ["dist"],
-					constraints: ["no-new-deps"],
-					maxIterations: Option.none(),
-					executionProfile: makeExecutionProfile(),
-				});
-				yield* engine.startLoop(
-					cwd,
-					"clean-autoresearch",
-					makeSession("c-ar", "c-ar.session.json"),
-				);
-				yield* engine.stopLoop(cwd, "clean-autoresearch");
-
 				yield* engine.cleanLoops(cwd, false, "ralph");
 			}).pipe(Effect.provide(loopEngineLayer)),
 		);
@@ -592,9 +313,6 @@ describe("loop engine service", () => {
 		expect(fs.existsSync(path.join(cwd, ".pi", "loops", "state", "clean-ralph.json"))).toBe(
 			false,
 		);
-		expect(
-			fs.existsSync(path.join(cwd, ".pi", "loops", "state", "clean-autoresearch.json")),
-		).toBe(true);
 	});
 
 	it("preserves pre-block loop state snapshot for manual resolution recovery", async () => {
@@ -606,31 +324,27 @@ describe("loop engine service", () => {
 				const engine = yield* LoopEngine;
 
 				yield* engine.createLoop(cwd, {
-					kind: "autoresearch",
-					taskId: "blocked-autoresearch",
-					title: "Blocked autoresearch",
+					kind: "ralph",
+					taskId: "blocked-ralph",
+					title: "Blocked ralph",
 					taskContent: "Exercise manual resolution snapshot preservation.",
-					benchmarkCommand: "bash scripts/bench.sh",
-					checksCommand: Option.none(),
-					metricName: "latency_ms",
-					metricUnit: "ms",
-					metricDirection: "lower",
-					scopeRoot: ".",
-					scopePaths: ["src"],
-					offLimits: [],
-					constraints: ["no-new-deps"],
-					maxIterations: Option.none(),
+					maxIterations: 5,
+					itemsPerIteration: 1,
+					reflectEvery: 2,
+					reflectInstructions: "reflect",
 					executionProfile: makeExecutionProfile(),
+					sandboxProfile: makeSandboxProfile(),
+					capabilityContract: makeCapabilityContract(),
 				});
 
 				yield* engine.startLoop(
 					cwd,
-					"blocked-autoresearch",
+					"blocked-ralph",
 					makeSession("blocked-controller", "blocked-controller.session.json"),
 				);
 
-				return yield* engine.blockLoopForManualResolution(cwd, "blocked-autoresearch", {
-					reasonCode: "autoresearch.vcs.manual_resolution",
+				return yield* engine.blockLoopForManualResolution(cwd, "blocked-ralph", {
+					reasonCode: "ralph.vcs.manual_resolution",
 					message: "manual recovery required",
 					recoveryActions: ["inspect checkout"],
 					recoveryNotes: ["pending_run=run-0001"],
@@ -649,79 +363,7 @@ describe("loop engine service", () => {
 		const encoded = preservedNote.slice("preserved_state_base64=".length);
 		const decoded = Buffer.from(encoded, "base64").toString("utf-8");
 		const parsed = JSON.parse(decoded) as { readonly kind?: unknown };
-		expect(parsed.kind).toBe("autoresearch");
-	});
-
-	it("blocks autoresearch for manual resolution when a pending run would lose child ownership", async () => {
-		const operations = ["pause", "stop", "clear_child"] as const;
-
-		for (const operation of operations) {
-			const cwd = makeTempDir();
-			tempDirs.push(cwd);
-			const taskId = `pending-${operation.replace("_", "-")}`;
-			const controller = makeSession(
-				`${operation}-controller`,
-				`${operation}-controller.session.json`,
-			);
-			const child = makeSession(`${operation}-child`, `${operation}-child.session.json`);
-
-			const blocked = await Effect.runPromise(
-				Effect.gen(function* () {
-					const engine = yield* LoopEngine;
-					const repo = yield* LoopRepo;
-
-					yield* engine.createLoop(cwd, {
-						kind: "autoresearch",
-						taskId,
-						title: "Pending autoresearch",
-						taskContent: "Exercise pending run child ownership loss.",
-						benchmarkCommand: "bash scripts/bench.sh",
-						checksCommand: Option.none(),
-						metricName: "latency_ms",
-						metricUnit: "ms",
-						metricDirection: "lower",
-						scopeRoot: ".",
-						scopePaths: ["src"],
-						offLimits: [],
-						constraints: [],
-						maxIterations: Option.none(),
-						executionProfile: makeExecutionProfile(),
-					});
-
-					yield* engine.startLoop(cwd, taskId, controller);
-					const withChild = yield* engine.attachChildSession(cwd, taskId, child);
-					if (withChild.kind !== "autoresearch") {
-						throw new Error("expected autoresearch state");
-					}
-
-					yield* repo.saveState(cwd, {
-						...withChild,
-						autoresearch: {
-							...withChild.autoresearch,
-							pendingRunId: Option.some("run-0001"),
-						},
-					});
-
-					if (operation === "pause") {
-						return yield* engine.pauseLoop(cwd, taskId);
-					}
-					if (operation === "stop") {
-						return yield* engine.stopLoop(cwd, taskId);
-					}
-					return yield* engine.clearChildSession(cwd, taskId, child);
-				}).pipe(Effect.provide(loopEngineLayer)),
-			);
-
-			expect(blocked.kind).toBe("blocked_manual_resolution");
-			if (blocked.kind !== "blocked_manual_resolution") {
-				throw new Error("expected blocked state");
-			}
-			expect(blocked.previousKind).toBe("autoresearch");
-			expect(blocked.blocked.reasonCode).toBe("autoresearch.pending_run_child_lost");
-			expect(blocked.blocked.recoveryNotes).toContain("pending_run_id=run-0001");
-			expect(blocked.blocked.recoveryNotes).toContain(`operation=${operation}`);
-			expect(Option.isNone(blocked.ownership.child)).toBe(true);
-		}
+		expect(parsed.kind).toBe("ralph");
 	});
 
 	it("stores loop state at the nearest workspace root when invoked from nested directories", async () => {
@@ -736,21 +378,17 @@ describe("loop engine service", () => {
 				const engine = yield* LoopEngine;
 
 				yield* engine.createLoop(nested, {
-					kind: "autoresearch",
+					kind: "ralph",
 					taskId: "nested-root",
 					title: "Nested root",
 					taskContent: "Verify nested loop storage root.",
-					benchmarkCommand: "bash scripts/bench.sh",
-					checksCommand: Option.none(),
-					metricName: "latency_ms",
-					metricUnit: "ms",
-					metricDirection: "lower",
-					scopeRoot: ".",
-					scopePaths: ["src"],
-					offLimits: [],
-					constraints: [],
-					maxIterations: Option.none(),
+					maxIterations: 5,
+					itemsPerIteration: 1,
+					reflectEvery: 2,
+					reflectInstructions: "reflect",
 					executionProfile: makeExecutionProfile(),
+					sandboxProfile: makeSandboxProfile(),
+					capabilityContract: makeCapabilityContract(),
 				});
 
 				return yield* engine.listLoops(cwd);

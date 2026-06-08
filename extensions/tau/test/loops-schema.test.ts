@@ -3,10 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import { LoopContractValidationError, LoopOwnershipValidationError } from "../src/loops/errors.js";
 import {
-	decodeAutoresearchPhaseSnapshot,
 	decodeLoopPersistedState,
 	decodeLoopPersistedStateWithMigration,
-	encodeAutoresearchPhaseSnapshot,
 	encodeLoopPersistedState,
 	type EncodedLoopPersistedState,
 	validateLoopOwnership,
@@ -99,36 +97,6 @@ describe("loops schema", () => {
 				expect(failure.value).toBeInstanceOf(LoopContractValidationError);
 			}
 		}
-	});
-
-	it("roundtrips autoresearch phase snapshots", async () => {
-		const snapshot = {
-			kind: "autoresearch" as const,
-			taskId: "phase-loop",
-			phaseId: "phase-001",
-			fingerprint: "phase-fingerprint",
-			createdAt: "2026-01-01T00:00:00.000Z",
-			benchmark: {
-				command: "npm run bench",
-				checksCommand: Option.some("npm run test:quick"),
-			},
-			metric: {
-				name: "latency_ms",
-				unit: "ms",
-				direction: "lower" as const,
-			},
-			scope: {
-				root: ".",
-				paths: ["src"],
-				offLimits: ["vendor"],
-			},
-			constraints: ["no-new-deps"],
-			pinnedExecutionProfile: makeExecutionProfile(),
-		};
-
-		const encoded = await Effect.runPromise(encodeAutoresearchPhaseSnapshot(snapshot));
-		const decoded = await Effect.runPromise(decodeAutoresearchPhaseSnapshot(encoded));
-		expect(decoded).toEqual(snapshot);
 	});
 
 	it("fails ownership validation when child ownership is set without a controller", async () => {

@@ -9,7 +9,6 @@ import { NodeFileSystem } from "@effect/platform-node";
 import { LoopRepo, LoopRepoLive } from "../src/loops/repo.js";
 import { LoopContractValidationError } from "../src/loops/errors.js";
 import type {
-	AutoresearchPhaseSnapshot,
 	LoopPersistedState,
 	LoopSessionRef,
 } from "../src/loops/schema.js";
@@ -67,32 +66,6 @@ function makeLoopState(taskId: string): LoopPersistedState {
 			capabilityContract: makeCapabilityContract(),
 			deferredConfigMutations: [],
 		},
-	};
-}
-
-function makePhaseSnapshot(taskId: string, phaseId: string): AutoresearchPhaseSnapshot {
-	return {
-		kind: "autoresearch",
-		taskId,
-		phaseId,
-		fingerprint: `${taskId}-${phaseId}`,
-		createdAt: "2026-01-01T00:00:00.000Z",
-		benchmark: {
-			command: "npm run bench",
-			checksCommand: Option.some("npm run test:quick"),
-		},
-		metric: {
-			name: "latency_ms",
-			unit: "ms",
-			direction: "lower",
-		},
-		scope: {
-			root: ".",
-			paths: ["src"],
-			offLimits: ["vendor"],
-		},
-		constraints: ["no-new-deps"],
-		pinnedExecutionProfile: makeExecutionProfile(),
 	};
 }
 
@@ -200,53 +173,16 @@ describe("loop repo", () => {
 		).rejects.toBeInstanceOf(LoopContractValidationError);
 	});
 
-	it("persists phase snapshots under .pi/loops/phases/<task-id>", async () => {
-		const cwd = makeTempDir();
-		tempDirs.push(cwd);
-
-		const snapshot = makePhaseSnapshot("phase-loop", "phase-001");
-		const loaded = await Effect.runPromise(
-			Effect.gen(function* () {
-				const repo = yield* LoopRepo;
-				yield* repo.savePhaseSnapshot(cwd, snapshot);
-				return yield* repo.loadPhaseSnapshot(cwd, snapshot.taskId, snapshot.phaseId);
-			}).pipe(Effect.provide(loopRepoLayer)),
-		);
-
-		expect(Option.isSome(loaded)).toBe(true);
-		if (Option.isSome(loaded)) {
-			expect(loaded.value).toEqual(snapshot);
-		}
-		expect(
-			fs.existsSync(
-				path.join(
-					cwd,
-					".pi",
-					"loops",
-					"phases",
-					snapshot.taskId,
-					`${snapshot.phaseId}.json`,
-				),
-			),
-		).toBe(true);
-	});
-
-	it("archives task, state, phase, and run artifacts under .pi/loops/archive", async () => {
+	it("archives task and state artifacts under .pi/loops/archive", async () => {
 		const cwd = makeTempDir();
 		tempDirs.push(cwd);
 
 		const loopState = makeLoopState("archive-loop");
-		const snapshot = makePhaseSnapshot(loopState.taskId, "phase-001");
 		await Effect.runPromise(
 			Effect.gen(function* () {
 				const repo = yield* LoopRepo;
 				yield* repo.writeTaskFile(cwd, loopState.taskId, "# Task\n");
 				yield* repo.saveState(cwd, loopState);
-				yield* repo.savePhaseSnapshot(cwd, snapshot);
-				const runDir = yield* repo.ensureRunDirectory(cwd, loopState.taskId, "run-001");
-				yield* Effect.sync(() => {
-					fs.writeFileSync(path.join(runDir, "benchmark.log"), "ok\n", "utf-8");
-				});
 				yield* repo.archiveTaskArtifacts(cwd, loopState.taskId);
 				yield* repo.saveState(
 					cwd,
@@ -274,41 +210,12 @@ describe("loop repo", () => {
 		expect(fs.existsSync(path.join(cwd, ".pi", "loops", "tasks", "archive-loop.md"))).toBe(
 			false,
 		);
-		expect(fs.existsSync(path.join(cwd, ".pi", "loops", "phases", "archive-loop"))).toBe(false);
-		expect(fs.existsSync(path.join(cwd, ".pi", "loops", "runs", "archive-loop"))).toBe(false);
 
 		expect(
 			fs.existsSync(path.join(cwd, ".pi", "loops", "archive", "state", "archive-loop.json")),
 		).toBe(true);
 		expect(
 			fs.existsSync(path.join(cwd, ".pi", "loops", "archive", "tasks", "archive-loop.md")),
-		).toBe(true);
-		expect(
-			fs.existsSync(
-				path.join(
-					cwd,
-					".pi",
-					"loops",
-					"archive",
-					"phases",
-					"archive-loop",
-					"phase-001.json",
-				),
-			),
-		).toBe(true);
-		expect(
-			fs.existsSync(
-				path.join(
-					cwd,
-					".pi",
-					"loops",
-					"archive",
-					"runs",
-					"archive-loop",
-					"run-001",
-					"benchmark.log",
-				),
-			),
 		).toBe(true);
 	});
 });

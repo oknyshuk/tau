@@ -52,10 +52,6 @@ const optionContains = (option: Option.Option<string>, value: string | undefined
 
 
 
-function isSafeRawTaskDirectoryName(taskId: string): boolean {
-	return taskId.length > 0 && taskId !== "." && taskId !== "..";
-}
-
 function rawRalphTaskId(value: unknown, expectedTaskId: string): string | undefined {
 	if (!isRecord(value)) {
 		return undefined;
@@ -71,7 +67,6 @@ function rawRalphTaskId(value: unknown, expectedTaskId: string): string | undefi
 
 interface RawRalphStateFile {
 	readonly taskId: string;
-	readonly safeForDirectoryDeletion: boolean;
 }
 
 function toContractError(entity: string, reason: string): RalphContractValidationError {
@@ -584,7 +579,6 @@ const RalphRepoBase = Layer.effect(
 					if (taskId !== undefined) {
 						stateFiles.push({
 							taskId,
-							safeForDirectoryDeletion: isSafeRawTaskDirectoryName(taskId),
 						});
 					}
 				}
@@ -596,20 +590,12 @@ const RalphRepoBase = Layer.effect(
 			for (const stateFile of activeStateFiles) {
 				yield* loopRepo.deleteState(cwd, stateFile.taskId, false);
 				yield* loopRepo.deleteTaskFile(cwd, stateFile.taskId, false);
-				if (stateFile.safeForDirectoryDeletion) {
-					yield* loopRepo.deletePhaseDirectory(cwd, stateFile.taskId, false);
-					yield* loopRepo.deleteRunDirectory(cwd, stateFile.taskId, false);
-				}
 			}
 
 			const archivedStateFiles = yield* readRawRalphStateFiles(RALPH_ARCHIVE_STATE_DIR);
 			for (const stateFile of archivedStateFiles) {
 				yield* loopRepo.deleteState(cwd, stateFile.taskId, true);
 				yield* loopRepo.deleteTaskFile(cwd, stateFile.taskId, true);
-				if (stateFile.safeForDirectoryDeletion) {
-					yield* loopRepo.deletePhaseDirectory(cwd, stateFile.taskId, true);
-					yield* loopRepo.deleteRunDirectory(cwd, stateFile.taskId, true);
-				}
 			}
 		});
 
