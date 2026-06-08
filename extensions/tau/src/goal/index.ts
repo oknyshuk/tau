@@ -863,6 +863,44 @@ async function dispatchGoalContinuation(
 	);
 }
 
+/**
+ * Schedule a goal continuation to fire once the run is actually idle.
+ *
+ * pi emits `agent_end` while the run is still marked as streaming and only
+ * clears `isStreaming` (which backs `ctx.isIdle()`) after every `agent_end`
+ * listener resolves. Dispatching synchronously from `agent_end` therefore always
+ * observes a non-idle session and never nudges. Deferring past the current tick
+ * lets the run settle to idle first, so `shouldAutoContinue` sees `isIdle()` and
+ * `pi.sendMessage` starts a fresh turn.
+ */
+function scheduleGoalContinuation(
+	pi: ExtensionAPI,
+	runtime: GoalRuntime,
+	ctx: ExtensionContext,
+	sessionId: string,
+): void {
+	runtime.runFork(
+		Effect.sleep("0 millis").pipe(
+			Effect.andThen(() =>
+				Effect.promise(async () => {
+					try {
+						const snapshot = await withGoal(runtime, (goal) => goal.get(sessionId));
+						await dispatchGoalContinuation(pi, runtime, ctx, snapshot);
+					} catch (error) {
+						if (isRuntimeShutdownError(error) || isStaleExtensionContextError(error)) {
+							return;
+						}
+						throw error;
+					}
+				}),
+			),
+			Effect.catchCause((cause) =>
+				Effect.logWarning("Goal continuation dispatch failed", cause),
+			),
+		),
+	);
+}
+
 async function steerActiveGoal(
 	pi: ExtensionAPI,
 	runtime: GoalRuntime,
@@ -1789,10 +1827,10 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			}
 			clearGoalErrorRetry(sessionId);
 
-			if (!shouldAutoContinue(result.snapshot, ctx)) {
+			if (result.snapshot?.status !== "active") {
 				return;
 			}
-			await dispatchGoalContinuation(pi, runtime, ctx, result.snapshot);
+			scheduleGoalContinuation(pi, runtime, ctx, sessionId);
 		} catch (error) {
 			if (isRuntimeShutdownError(error) || isStaleExtensionContextError(error)) {
 				return;

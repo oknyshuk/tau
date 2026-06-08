@@ -1775,6 +1775,7 @@ describe("goal adapter", () => {
 			type: "agent_end",
 			messages: [makeAssistantMessage(10)],
 		});
+		await flushPromises();
 
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
@@ -1786,6 +1787,36 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages).toHaveLength(2);
 		expect(harness.sentMessages[0]?.options).toEqual({ deliverAs: "steer" });
 		expect(harness.sentMessages[1]?.message.customType).toBe("tau:goal-continuation");
+	});
+
+	it("dispatches the continuation after the run goes idle even when agent_end fires mid-stream", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		// pi clears isStreaming (which backs ctx.isIdle()) only after every agent_end
+		// listener resolves, so the agent_end handler always observes a non-idle
+		// session. The continuation must still fire once the run settles to idle.
+		let streaming = true;
+		const streamingCtx = {
+			...harness.ctx,
+			isIdle: () => !streaming,
+		} as ExtensionContext;
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(
+			harness,
+			"agent_end",
+			{ type: "agent_end", messages: [makeAssistantToolCallMessage()] },
+			streamingCtx,
+		);
+		// No continuation yet: the session still reports streaming during agent_end.
+		expect(harness.sentMessages).toHaveLength(0);
+
+		// pi finishes the run and marks it idle; the deferred continuation then fires.
+		streaming = false;
+		await flushPromises();
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
 	});
 
 	it("starts an idle agent turn after /goal resume", async () => {
@@ -2361,6 +2392,7 @@ describe("goal adapter", () => {
 			type: "agent_end",
 			messages: [makeAssistantMessage(10)],
 		});
+		await flushPromises();
 
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
@@ -3282,6 +3314,7 @@ describe("goal adapter", () => {
 			type: "agent_end",
 			messages: [makeAssistantToolCallMessage()],
 		});
+		await flushPromises();
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
 				const goal = yield* Goal;
@@ -3481,6 +3514,7 @@ describe("goal adapter", () => {
 		await runGoalCommand(harness, "ship the feature");
 		harness.sentMessages.length = 0;
 		await fireEvent(harness, "agent_end", agentEnd);
+		await flushPromises();
 
 		const snapshot = await harness.run(
 			Effect.gen(function* () {
