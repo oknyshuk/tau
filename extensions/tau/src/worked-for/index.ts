@@ -165,18 +165,41 @@ export default function initWorkedFor(pi: ExtensionAPI, persistence: PersistedAc
 		if (promptStartTimestamp === undefined) return;
 		const elapsedMs = Math.max(0, Date.now() - promptStartTimestamp);
 
-		// UI-only history entry (Codex-like). Must not trigger a new turn.
-		pi.sendMessage(
-			{
-				customType: WORKED_FOR_MESSAGE_TYPE,
-				content: "",
-				display: true,
-				details: { elapsedMs } satisfies WorkedForDetails,
-			},
-			{ triggerTurn: false },
-		);
-
+		// Clear the live "Working..."-style widget immediately; the persistent
+		// separator below is emitted once the agent run has fully settled.
 		clearWorkedForWidget(ctx);
+
+		// This runs from the `agent_end` handler, where the agent loop is still
+		// streaming (isStreaming === true): pi only flips it back to false in
+		// finishRun() *after* the loop executor returns. In that streaming state
+		// pi.sendMessage() ignores `triggerTurn: false` and *queues* the message
+		// (steer), then runs a continuation turn to deliver it. Because our
+		// `context` handler strips this UI-only separator from the model context,
+		// that continuation request ends on the previous assistant message, which
+		// strict providers (e.g. Bedrock Claude inference profiles) reject with:
+		//   "This model does not support assistant message prefill.
+		//    The conversation must end with a user message."
+		//
+		// Deferring to the next macrotask lets the run finish so isStreaming is
+		// false; the message is then appended (not queued) and triggers no turn.
+		// If a new run has already started, skip the now-stale separator.
+		setTimeout(() => {
+			try {
+				if (!ctx.isIdle()) return;
+				// UI-only history entry (Codex-like). Must not trigger a new turn.
+				pi.sendMessage(
+					{
+						customType: WORKED_FOR_MESSAGE_TYPE,
+						content: "",
+						display: true,
+						details: { elapsedMs } satisfies WorkedForDetails,
+					},
+					{ triggerTurn: false },
+				);
+			} catch {
+				// Session/context may have been torn down before the deferred send ran.
+			}
+		}, 0);
 	}
 
 	pi.registerMessageRenderer<WorkedForDetails>(
