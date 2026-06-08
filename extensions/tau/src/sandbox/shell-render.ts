@@ -141,12 +141,40 @@ function renderOutput(
 	return rendered;
 }
 
-export function renderShellCall(args: unknown, theme: Theme): Text {
-	// The result renderer carries the command and status. Rendering the call too
-	// duplicates the command in pi's transcript.
-	void args;
-	void theme;
-	return new Text("", 0, 0);
+function renderCallLine(theme: Theme, title: string, inline: string, status: string): string {
+	return (
+		`${theme.fg("accent", "⋯")} ${theme.fg("toolTitle", title)} ` +
+		`${theme.fg("muted", "·")} ${theme.fg("toolOutput", inline)}` +
+		`${theme.fg("dim", `  (${status})`)}`
+	);
+}
+
+export function renderShellCall(
+	args: unknown,
+	theme: Theme,
+	context?: { readonly isPartial: boolean },
+): Text {
+	// Once the final result is in, the result renderer carries the command and
+	// status, so rendering the call too would duplicate it. While the call is
+	// still in flight (isPartial), render a progress line so long-running commands
+	// and polls don't make pi look like it has hung with nothing on screen.
+	if (context?.isPartial === false) {
+		return new Text("", 0, 0);
+	}
+	const record = isRecord(args) ? args : {};
+	const cmd = stringField(record, "cmd");
+	if (cmd !== undefined) {
+		const inline = truncate(oneLine(cmd), MAX_COMMAND_CHARS);
+		return new Text(renderCallLine(theme, "exec_command", inline, "running…"), 0, 0);
+	}
+	const sessionId = numberField(record, "session_id");
+	const chars = stringField(record, "chars");
+	if (chars === undefined || chars.length === 0) {
+		const inline = sessionId !== undefined ? `session ${sessionId}` : "no input";
+		return new Text(renderCallLine(theme, "poll", inline, "waiting for output…"), 0, 0);
+	}
+	const inline = truncate(oneLine(chars), MAX_COMMAND_CHARS);
+	return new Text(renderCallLine(theme, "stdin", inline, "running…"), 0, 0);
 }
 
 function renderShellCallInline(details: ShellToolDetails, expanded: boolean): string {

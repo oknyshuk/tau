@@ -1240,8 +1240,8 @@ export default function initSandbox(
 				Type.Array(Type.String({ description: "Suggested command prefix rule" })),
 			),
 		}),
-		renderCall(args, theme) {
-			return renderShellCall(args, theme);
+		renderCall(args, theme, context) {
+			return renderShellCall(args, theme, context);
 		},
 		renderResult(result, options, theme) {
 			return renderShellResult(result, options, theme);
@@ -1282,8 +1282,8 @@ export default function initSandbox(
 				}),
 			),
 		}),
-		renderCall(args, theme) {
-			return renderShellCall(args, theme);
+		renderCall(args, theme, context) {
+			return renderShellCall(args, theme, context);
 		},
 		renderResult(result, options, theme) {
 			return renderShellResult(result, options, theme);
