@@ -7,12 +7,32 @@ export const GOAL_ENTRY_TYPE = "tau:goal";
 
 const NonNegativeIntSchema = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 const PositiveIntSchema = Schema.Int.check(Schema.isGreaterThan(0));
+export const MAX_GOAL_OBJECTIVE_CHARS = 4_000;
 
-const GoalStatusSchema = Schema.Literals(["active", "paused", "budget_limited", "complete"]);
+export function goalObjectiveCharCount(objective: string): number {
+	return [...objective].length;
+}
+
+const GoalObjectiveSchema = Schema.NonEmptyString.check(
+	Schema.makeFilter(
+		(value) =>
+			goalObjectiveCharCount(value) <= MAX_GOAL_OBJECTIVE_CHARS ||
+			`goal objective must be at most ${MAX_GOAL_OBJECTIVE_CHARS} characters`,
+	),
+);
+
+export const GoalStatusSchema = Schema.Literals([
+	"active",
+	"paused",
+	"blocked",
+	"usage_limited",
+	"budget_limited",
+	"complete",
+]);
 export type GoalStatus = Schema.Schema.Type<typeof GoalStatusSchema>;
 
-const GoalSnapshotSchema = Schema.Struct({
-	objective: Schema.NonEmptyString.check(Schema.isMaxLength(4_000)),
+export const GoalSnapshotSchema = Schema.Struct({
+	objective: GoalObjectiveSchema,
 	status: GoalStatusSchema,
 	tokenBudget: Schema.NullOr(PositiveIntSchema),
 	timeBudgetSeconds: Schema.NullOr(PositiveIntSchema),
@@ -20,16 +40,15 @@ const GoalSnapshotSchema = Schema.Struct({
 	timeUsedSeconds: NonNegativeIntSchema,
 	createdAt: Schema.String,
 	updatedAt: Schema.String,
-	continuationSuppressed: Schema.Boolean,
 	budgetLimitPromptSent: Schema.Boolean,
 });
 export type GoalSnapshot = Schema.Schema.Type<typeof GoalSnapshotSchema>;
 
-const GoalEntrySchema = Schema.Struct({
+export const GoalEntrySchema = Schema.Struct({
 	version: Schema.Literal(2),
 	snapshot: Schema.NullOr(GoalSnapshotSchema),
 });
-type GoalEntry = Schema.Schema.Type<typeof GoalEntrySchema>;
+export type GoalEntry = Schema.Schema.Type<typeof GoalEntrySchema>;
 
 const decodeGoalEntry = Schema.decodeUnknownEffect(GoalEntrySchema);
 
@@ -47,7 +66,7 @@ function entryVersion(value: unknown): number | null {
 	return typeof version === "number" ? version : null;
 }
 
-const decodeGoalEntryData = (
+export const decodeGoalEntryData = (
 	value: unknown,
 ): Effect.Effect<GoalEntry, GoalValidationError, never> =>
 	Effect.gen(function* () {
@@ -94,6 +113,5 @@ export const makeGoalSnapshot = (
 	timeUsedSeconds: 0,
 	createdAt: nowIso,
 	updatedAt: nowIso,
-	continuationSuppressed: false,
 	budgetLimitPromptSent: false,
 });

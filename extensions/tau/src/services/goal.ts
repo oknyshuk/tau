@@ -7,7 +7,9 @@ import { PiAPI } from "../effect/pi.js";
 import { GoalConflictError, type GoalError } from "../goal/errors.js";
 import {
 	GOAL_ENTRY_TYPE,
+	MAX_GOAL_OBJECTIVE_CHARS,
 	goalFromBranch,
+	goalObjectiveCharCount,
 	makeGoalSnapshot,
 	type GoalSnapshot,
 	type GoalStatus,
@@ -16,7 +18,7 @@ import {
 type GoalRuntime = {
 	readonly snapshot: GoalSnapshot | null;
 	readonly activeTurnStartedAtMs: number | null;
-	readonly continuationInFlight: boolean;
+	readonly terminalTurnAccountingPending: boolean;
 };
 
 type GoalAgentEndResult = {
@@ -39,12 +41,42 @@ export interface GoalService {
 		objective: string,
 		tokenBudget: number | null,
 		timeBudgetSeconds?: number | null,
-		options?: { readonly failIfExists?: boolean },
+		options?: {
+			readonly failIfExists?: boolean;
+			readonly startActiveAccountingAtMs?: number;
+		},
 	) => Effect.Effect<GoalSnapshot, GoalError, never>;
+	readonly edit: (
+		sessionId: string,
+		objective: string,
+		status: GoalStatus,
+		tokenBudget: number | null,
+		timeBudgetSeconds: number | null,
+		options?: {
+			readonly startActiveAccountingAtMs?: number;
+		},
+	) => Effect.Effect<GoalSnapshot | null, GoalError, never>;
 	readonly setStatus: (
 		sessionId: string,
 		status: GoalStatus,
+		options?: {
+			readonly accountCurrentTurn?: boolean;
+			readonly startActiveAccountingAtMs?: number;
+		},
 	) => Effect.Effect<GoalSnapshot | null, GoalError, never>;
+	readonly prepareExternalMutation: (
+		sessionId: string,
+		nowMs: number,
+	) => Effect.Effect<GoalAgentEndResult, never, never>;
+	readonly markUsageLimited: (
+		sessionId: string,
+		message: AgentMessage,
+		nowMs: number,
+	) => Effect.Effect<GoalSnapshot | null, GoalError, never>;
+	readonly restoreAfterResume: (
+		sessionId: string,
+		nowMs: number,
+	) => Effect.Effect<GoalSnapshot | null, never, never>;
 	readonly clear: (sessionId: string) => Effect.Effect<void, never, never>;
 	readonly markAgentStart: (
 		sessionId: string,
@@ -60,9 +92,6 @@ export interface GoalService {
 		message: AgentMessage,
 		nowMs: number,
 	) => Effect.Effect<GoalAgentEndResult, never, never>;
-	readonly markContinuationDispatched: (
-		sessionId: string,
-	) => Effect.Effect<GoalSnapshot | null, never, never>;
 	readonly markBudgetLimitPromptSent: (
 		sessionId: string,
 	) => Effect.Effect<GoalSnapshot | null, never, never>;
@@ -73,14 +102,14 @@ export class Goal extends Context.Service<Goal, GoalService>()("Goal") {}
 const emptyRuntime: GoalRuntime = {
 	snapshot: null,
 	activeTurnStartedAtMs: null,
-	continuationInFlight: false,
+	terminalTurnAccountingPending: false,
 };
 
 function runtimeWithSnapshot(snapshot: GoalSnapshot | null): GoalRuntime {
 	return {
 		snapshot,
 		activeTurnStartedAtMs: null,
-		continuationInFlight: false,
+		terminalTurnAccountingPending: false,
 	};
 }
 
@@ -107,7 +136,43 @@ function withRuntime(
 }
 
 function normalizeObjective(objective: string): string {
-	return objective.replace(/\s+/g, " ").trim();
+	return objective.trim();
+}
+
+type GoalObjectiveValidationResult =
+	| { readonly valid: true; readonly objective: string }
+	| { readonly valid: false; readonly error: GoalConflictError };
+
+function validateGoalObjectiveResult(objectiveInput: string): GoalObjectiveValidationResult {
+	const objective = normalizeObjective(objectiveInput);
+	if (objective.length === 0) {
+		return {
+			valid: false,
+			error: new GoalConflictError({ reason: "goal objective must not be empty" }),
+		};
+	}
+	if (goalObjectiveCharCount(objective) > MAX_GOAL_OBJECTIVE_CHARS) {
+		return {
+			valid: false,
+			error: new GoalConflictError({
+				reason: "goal objective must be at most 4000 characters",
+			}),
+		};
+	}
+	return { valid: true, objective };
+}
+
+export function validateGoalObjective(objectiveInput: string): string {
+	const result = validateGoalObjectiveResult(objectiveInput);
+	if (!result.valid) {
+		throw result.error;
+	}
+	return result.objective;
+}
+
+function validateObjective(objectiveInput: string): Effect.Effect<string, GoalConflictError, never> {
+	const result = validateGoalObjectiveResult(objectiveInput);
+	return result.valid ? Effect.succeed(result.objective) : Effect.fail(result.error);
 }
 
 function validateTokenBudget(
@@ -118,7 +183,7 @@ function validateTokenBudget(
 	}
 	if (!Number.isInteger(tokenBudget) || tokenBudget <= 0) {
 		return Effect.fail(
-			new GoalConflictError({ reason: "token_budget must be a positive integer" }),
+			new GoalConflictError({ reason: "goal budgets must be positive when provided" }),
 		);
 	}
 	return Effect.succeed(tokenBudget);
@@ -138,38 +203,48 @@ function validateTimeBudgetSeconds(
 	return Effect.succeed(timeBudgetSeconds);
 }
 
-function assistantMessageUsageTokens(message: AgentMessage): number {
+function assistantUsageTokens(message: AgentMessage): number {
 	if (message.role !== "assistant") {
 		return 0;
 	}
-	if (message.stopReason === "error") {
+	const { usage } = message;
+	return usage.input + usage.cacheWrite + usage.output;
+}
+
+function assistantMessageUsageTokens(message: AgentMessage): number {
+	if (message.role === "assistant" && message.stopReason === "error") {
 		return 0;
 	}
-	const { usage } = message;
-	return usage.totalTokens || usage.input + usage.output + usage.cacheRead + usage.cacheWrite;
+	return assistantUsageTokens(message);
 }
 
-function hasAssistantToolCall(event: AgentEndEvent): boolean {
-	for (const message of event.messages) {
-		if (message.role !== "assistant") {
-			continue;
-		}
-		for (const content of message.content) {
-			if (content.type === "toolCall") {
-				return true;
-			}
-		}
-	}
-	return false;
+function runtimeCanAccountActiveTurn(runtime: GoalRuntime): boolean {
+	const status = runtime.snapshot?.status;
+	return (
+		status === "active" ||
+		status === "budget_limited" ||
+		((status === "complete" || status === "blocked") &&
+			runtime.terminalTurnAccountingPending)
+	);
 }
 
-function hasAssistantError(event: AgentEndEvent): boolean {
-	for (const message of event.messages) {
-		if (message.role === "assistant" && message.stopReason === "error") {
-			return true;
-		}
+function statusStopsActiveTurn(status: GoalStatus): boolean {
+	return status === "complete" || status === "blocked";
+}
+
+function statusAfterBudgetLimit(snapshot: GoalSnapshot, status: GoalStatus): GoalStatus {
+	const tokenBudgetReached =
+		snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget;
+	const timeBudgetReached =
+		snapshot.timeBudgetSeconds !== null &&
+		snapshot.timeUsedSeconds >= snapshot.timeBudgetSeconds;
+	if (
+		(tokenBudgetReached || timeBudgetReached) &&
+		(status === "active" || status === "paused" || status === "blocked")
+	) {
+		return "budget_limited";
 	}
-	return false;
+	return status;
 }
 
 function elapsedSeconds(runtime: GoalRuntime, nowMs: number): number {
@@ -204,6 +279,14 @@ function withUpdatedSnapshot(
 	};
 }
 
+function goalBudgetLimitReached(snapshot: GoalSnapshot): boolean {
+	return (
+		(snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget) ||
+		(snapshot.timeBudgetSeconds !== null &&
+			snapshot.timeUsedSeconds >= snapshot.timeBudgetSeconds)
+	);
+}
+
 export const GoalLive = Layer.effect(
 	Goal,
 	Effect.gen(function* () {
@@ -215,7 +298,13 @@ export const GoalLive = Layer.effect(
 
 		const rehydrate: GoalService["rehydrate"] = Effect.fn("Goal.rehydrate")(
 			function* (sessionId, entries) {
-				const snapshot = yield* goalFromBranch(entries);
+				const branchSnapshot = yield* goalFromBranch(entries);
+				const snapshot =
+					branchSnapshot?.status === "active" && goalBudgetLimitReached(branchSnapshot)
+						? withUpdatedSnapshot(branchSnapshot, new Date().toISOString(), {
+								status: "budget_limited",
+							})
+						: branchSnapshot;
 				yield* Ref.update(runtimes, (state) =>
 					withRuntime(state, sessionId, () => runtimeWithSnapshot(snapshot)),
 				);
@@ -235,19 +324,7 @@ export const GoalLive = Layer.effect(
 
 		const create: GoalService["create"] = Effect.fn("Goal.create")(
 			function* (sessionId, objectiveInput, tokenBudgetInput, timeBudgetSecondsInput, options) {
-				const objective = normalizeObjective(objectiveInput);
-				if (objective.length === 0) {
-					return yield* Effect.fail(
-						new GoalConflictError({ reason: "objective must be non-empty" }),
-					);
-				}
-				if (objective.length > 4_000) {
-					return yield* Effect.fail(
-						new GoalConflictError({
-							reason: "objective must be at most 4000 characters",
-						}),
-					);
-				}
+				const objective = yield* validateObjective(objectiveInput);
 				const tokenBudget = yield* validateTokenBudget(tokenBudgetInput);
 				const timeBudgetSeconds = yield* validateTimeBudgetSeconds(
 					timeBudgetSecondsInput ?? null,
@@ -256,61 +333,178 @@ export const GoalLive = Layer.effect(
 				const snapshot = makeGoalSnapshot(objective, tokenBudget, timeBudgetSeconds, nowIso);
 				const failIfExists = options?.failIfExists === true;
 				const existing = yield* get(sessionId);
-				if (failIfExists && existing !== null && existing.status !== "complete") {
+				if (failIfExists && existing !== null) {
 					return yield* Effect.fail(
-						new GoalConflictError({ reason: "a thread goal already exists" }),
+						new GoalConflictError({
+							reason:
+								"cannot create a new goal because this thread already has a goal; use update_goal only when the existing goal is complete",
+						}),
 					);
 				}
-				if (
-					existing !== null &&
-					existing.objective === objective &&
-					existing.status !== "complete"
-				) {
-					const nextSnapshot = withUpdatedSnapshot(existing, nowIso, {
-						status: "active",
-						tokenBudget,
-						timeBudgetSeconds,
-						continuationSuppressed: false,
-						budgetLimitPromptSent: false,
-					});
+				if (existing !== null) {
+					const unchangedActiveGoal =
+						existing.status === "active" &&
+						existing.objective === objective &&
+						existing.tokenBudget === tokenBudget &&
+						existing.timeBudgetSeconds === timeBudgetSeconds &&
+						existing.budgetLimitPromptSent === false;
+					const activeSnapshot = unchangedActiveGoal
+						? existing
+						: withUpdatedSnapshot(existing, nowIso, {
+								objective,
+								status: "active",
+								tokenBudget,
+								timeBudgetSeconds,
+								budgetLimitPromptSent: false,
+							});
+					const budgetLimitStatusChanged =
+						activeSnapshot.status === "active" && goalBudgetLimitReached(activeSnapshot);
+					const nextSnapshot = budgetLimitStatusChanged
+						? withUpdatedSnapshot(activeSnapshot, nowIso, { status: "budget_limited" })
+						: activeSnapshot;
 					yield* Ref.update(runtimes, (state) =>
-						withRuntime(state, sessionId, () => runtimeWithSnapshot(nextSnapshot)),
+						withRuntime(state, sessionId, () => ({
+							...runtimeWithSnapshot(nextSnapshot),
+							activeTurnStartedAtMs: options?.startActiveAccountingAtMs ?? null,
+						})),
 					);
-					yield* saveSnapshot(nextSnapshot);
+					if (!unchangedActiveGoal || budgetLimitStatusChanged) {
+						yield* saveSnapshot(nextSnapshot);
+					}
 					return nextSnapshot;
 				}
 				yield* Ref.update(runtimes, (state) =>
-					withRuntime(state, sessionId, () => runtimeWithSnapshot(snapshot)),
+					withRuntime(state, sessionId, () => ({
+						...runtimeWithSnapshot(snapshot),
+						activeTurnStartedAtMs: options?.startActiveAccountingAtMs ?? null,
+					})),
 				);
 				yield* saveSnapshot(snapshot);
 				return snapshot;
 			},
 		);
 
-		const setStatus: GoalService["setStatus"] = Effect.fn("Goal.setStatus")(
-			function* (sessionId, status) {
+		const edit: GoalService["edit"] = Effect.fn("Goal.edit")(
+			function* (
+				sessionId,
+				objectiveInput,
+				status,
+				tokenBudgetInput,
+				timeBudgetSecondsInput,
+				options,
+			) {
+				const objective = yield* validateObjective(objectiveInput);
+				const tokenBudget = yield* validateTokenBudget(tokenBudgetInput);
+				const timeBudgetSeconds = yield* validateTimeBudgetSeconds(timeBudgetSecondsInput);
 				const nowIso = new Date().toISOString();
 				let nextSnapshot: GoalSnapshot | null = null;
+				let shouldPersist = false;
 				yield* Ref.update(runtimes, (state) =>
 					withRuntime(state, sessionId, (runtime) => {
 						if (runtime.snapshot === null) {
 							return runtime;
 						}
-						const patch: Partial<GoalSnapshot> = {
+						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, {
+							objective,
 							status,
+							tokenBudget,
+							timeBudgetSeconds,
 							...(status === "active"
-								? { continuationSuppressed: false, budgetLimitPromptSent: false }
+								? { budgetLimitPromptSent: false }
 								: {}),
-						};
-						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, patch);
+						});
+						shouldPersist = true;
 						return {
-							...runtime,
 							snapshot: nextSnapshot,
-							continuationInFlight: false,
+							activeTurnStartedAtMs:
+								status === "active"
+									? (options?.startActiveAccountingAtMs ??
+										(runtime.snapshot.status === "active"
+											? runtime.activeTurnStartedAtMs
+											: null))
+									: null,
+							terminalTurnAccountingPending: false,
 						};
 					}),
 				);
-				if (nextSnapshot !== null) {
+				if (shouldPersist) {
+					yield* saveSnapshot(nextSnapshot);
+				}
+				return nextSnapshot;
+			},
+		);
+
+		const setStatus: GoalService["setStatus"] = Effect.fn("Goal.setStatus")(
+			function* (sessionId, status, options) {
+				const requestedStatus = status;
+				const nowIso = new Date().toISOString();
+				let nextSnapshot: GoalSnapshot | null = null;
+				let shouldPersist = false;
+				yield* Ref.update(runtimes, (state) =>
+					withRuntime(state, sessionId, (runtime) => {
+						if (runtime.snapshot === null) {
+							return runtime;
+						}
+						const status = statusAfterBudgetLimit(runtime.snapshot, requestedStatus);
+						const unchangedActiveStatus =
+							status === "active" &&
+							runtime.snapshot.status === "active" &&
+							runtime.snapshot.budgetLimitPromptSent === false;
+						if (
+							unchangedActiveStatus ||
+							(runtime.snapshot.status === status &&
+								requestedStatus === status &&
+								status !== "active" &&
+								status !== "complete")
+						) {
+							const terminalTurnAccountingPending =
+								status === "active"
+									? false
+									: status === "blocked" && options?.accountCurrentTurn === true
+										? true
+										: runtime.terminalTurnAccountingPending;
+							const activeTurnStartedAtMs =
+								status === "active"
+									? (options?.startActiveAccountingAtMs ?? runtime.activeTurnStartedAtMs)
+									: status === "blocked" && options?.accountCurrentTurn === true
+										? runtime.activeTurnStartedAtMs
+										: null;
+							nextSnapshot = runtime.snapshot;
+							return {
+								...runtime,
+								activeTurnStartedAtMs,
+								terminalTurnAccountingPending,
+							};
+						}
+						const patch: Partial<GoalSnapshot> = {
+							status,
+							...(status === "active"
+								? { budgetLimitPromptSent: false }
+								: {}),
+						};
+						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, patch);
+						shouldPersist = true;
+						const activeTurnStartedAtMs =
+							status === "active"
+								? (options?.startActiveAccountingAtMs ??
+									(runtime.snapshot.status === "active"
+										? runtime.activeTurnStartedAtMs
+										: null))
+								: (status === "complete" || status === "blocked") &&
+										options?.accountCurrentTurn === true
+									? runtime.activeTurnStartedAtMs
+									: null;
+						return {
+							...runtime,
+							snapshot: nextSnapshot,
+							activeTurnStartedAtMs,
+							terminalTurnAccountingPending:
+								(status === "complete" || status === "blocked") &&
+								options?.accountCurrentTurn === true,
+						};
+					}),
+				);
+				if (shouldPersist) {
 					yield* saveSnapshot(nextSnapshot);
 				}
 				return nextSnapshot;
@@ -318,9 +512,34 @@ export const GoalLive = Layer.effect(
 		);
 
 		const clear: GoalService["clear"] = (sessionId) =>
-			Ref.update(runtimes, (state) =>
-				withRuntime(state, sessionId, () => runtimeWithSnapshot(null)),
-			).pipe(Effect.andThen(saveSnapshot(null)));
+			Effect.gen(function* () {
+				let shouldPersist = false;
+				yield* Ref.update(runtimes, (state) =>
+					withRuntime(state, sessionId, (runtime) => {
+						shouldPersist = runtime.snapshot !== null;
+						return runtimeWithSnapshot(null);
+					}),
+				);
+				if (shouldPersist) {
+					yield* saveSnapshot(null);
+				}
+			});
+
+		const restoreAfterResume: GoalService["restoreAfterResume"] = (sessionId, nowMs) =>
+			Ref.modify(runtimes, (state) => {
+				let snapshot: GoalSnapshot | null = null;
+				const next = withRuntime(state, sessionId, (runtime) => {
+					snapshot = runtime.snapshot;
+					if (runtime.snapshot?.status !== "active") {
+						return { ...runtime, activeTurnStartedAtMs: null };
+					}
+					return {
+						...runtime,
+						activeTurnStartedAtMs: runtime.activeTurnStartedAtMs ?? nowMs,
+					};
+				});
+				return [snapshot, next];
+			});
 
 		const markAgentStart: GoalService["markAgentStart"] = (sessionId, nowMs) =>
 			Ref.update(runtimes, (state) =>
@@ -331,7 +550,10 @@ export const GoalLive = Layer.effect(
 					) {
 						return runtime;
 					}
-					return { ...runtime, activeTurnStartedAtMs: nowMs };
+					return {
+						...runtime,
+						activeTurnStartedAtMs: runtime.activeTurnStartedAtMs ?? nowMs,
+					};
 				}),
 			);
 
@@ -341,7 +563,6 @@ export const GoalLive = Layer.effect(
 			nowMs: number,
 			options: {
 				readonly finishActiveAccounting: boolean;
-				readonly continuationHadToolCall: boolean | null;
 			},
 		): Effect.Effect<GoalAgentEndResult, never, never> =>
 			Effect.gen(function* () {
@@ -358,19 +579,18 @@ export const GoalLive = Layer.effect(
 								activeTurnStartedAtMs: options.finishActiveAccounting
 									? null
 									: runtime.activeTurnStartedAtMs,
-								continuationInFlight: false,
+								terminalTurnAccountingPending: false,
 							};
 						}
-						if (
-							runtime.snapshot.status !== "active" &&
-							runtime.snapshot.status !== "budget_limited"
-						) {
+						if (!runtimeCanAccountActiveTurn(runtime)) {
 							return {
 								...runtime,
 								activeTurnStartedAtMs: options.finishActiveAccounting
 									? null
 									: runtime.activeTurnStartedAtMs,
-								continuationInFlight: false,
+								terminalTurnAccountingPending: options.finishActiveAccounting
+									? false
+									: runtime.terminalTurnAccountingPending,
 							};
 						}
 
@@ -379,35 +599,20 @@ export const GoalLive = Layer.effect(
 							tokensUsed: runtime.snapshot.tokensUsed + tokens,
 							timeUsedSeconds: runtime.snapshot.timeUsedSeconds + seconds,
 						});
-						if (
-							runtime.continuationInFlight &&
-							options.continuationHadToolCall === false
-						) {
-							snapshot = withUpdatedSnapshot(snapshot, nowIso, {
-								continuationSuppressed: true,
-							});
-						}
-						const tokenBudgetReached =
-							snapshot.tokenBudget !== null && snapshot.tokensUsed >= snapshot.tokenBudget;
-						const timeBudgetReached =
-							snapshot.timeBudgetSeconds !== null &&
-							snapshot.timeUsedSeconds >= snapshot.timeBudgetSeconds;
-						if (snapshot.status === "active" && (tokenBudgetReached || timeBudgetReached)) {
+						if (snapshot.status === "active" && goalBudgetLimitReached(snapshot)) {
 							snapshot = withUpdatedSnapshot(snapshot, nowIso, {
 								status: "budget_limited",
 							});
 							budgetLimitReached = !snapshot.budgetLimitPromptSent;
 						}
+						const stopActiveTurn = statusStopsActiveTurn(snapshot.status);
 						nextSnapshot = snapshot;
-						shouldPersist =
-							tokens > 0 ||
-							seconds > 0 ||
-							runtime.continuationInFlight ||
-							budgetLimitReached;
+						shouldPersist = tokens > 0 || seconds > 0 || budgetLimitReached;
 						return {
 							snapshot,
-							activeTurnStartedAtMs: options.finishActiveAccounting ? null : nowMs,
-							continuationInFlight: false,
+							activeTurnStartedAtMs:
+								options.finishActiveAccounting || stopActiveTurn ? null : nowMs,
+							terminalTurnAccountingPending: false,
 						};
 					}),
 				);
@@ -420,44 +625,52 @@ export const GoalLive = Layer.effect(
 		const accountTurnEnd: GoalService["accountTurnEnd"] = (sessionId, message, nowMs) =>
 			accountUsage(sessionId, assistantMessageUsageTokens(message), nowMs, {
 				finishActiveAccounting: false,
-				continuationHadToolCall: null,
 			});
 
-		const accountAgentEnd: GoalService["accountAgentEnd"] = (sessionId, event, nowMs) =>
+		const accountAgentEnd: GoalService["accountAgentEnd"] = (sessionId, _event, nowMs) =>
 			accountUsage(sessionId, 0, nowMs, {
 				finishActiveAccounting: true,
-				continuationHadToolCall: hasAssistantError(event) ? null : hasAssistantToolCall(event),
 			});
 
-		const markContinuationDispatched: GoalService["markContinuationDispatched"] = (sessionId) =>
-			Ref.modify(runtimes, (state) => {
-				let snapshot: GoalSnapshot | null = null;
-				const next = withRuntime(state, sessionId, (runtime) => {
-					snapshot = runtime.snapshot;
-					if (runtime.snapshot?.status !== "active") {
-						return runtime;
-					}
-					return { ...runtime, continuationInFlight: true };
-				});
-				return [snapshot, next];
+		const prepareExternalMutation: GoalService["prepareExternalMutation"] = (
+			sessionId,
+			nowMs,
+		) =>
+			accountUsage(sessionId, 0, nowMs, {
+				finishActiveAccounting: true,
 			});
+
+		const markUsageLimited: GoalService["markUsageLimited"] = Effect.fn(
+			"Goal.markUsageLimited",
+		)(function* (sessionId, message, nowMs) {
+			yield* accountUsage(sessionId, assistantUsageTokens(message), nowMs, {
+				finishActiveAccounting: true,
+			});
+			return yield* setStatus(sessionId, "usage_limited");
+		});
 
 		const markBudgetLimitPromptSent: GoalService["markBudgetLimitPromptSent"] = (sessionId) =>
 			Effect.gen(function* () {
 				const nowIso = new Date().toISOString();
 				let nextSnapshot: GoalSnapshot | null = null;
+				let shouldPersist = false;
 				yield* Ref.update(runtimes, (state) =>
 					withRuntime(state, sessionId, (runtime) => {
 						if (runtime.snapshot === null) {
 							return runtime;
 						}
+						if (runtime.snapshot.budgetLimitPromptSent) {
+							nextSnapshot = runtime.snapshot;
+							return runtime;
+						}
 						nextSnapshot = withUpdatedSnapshot(runtime.snapshot, nowIso, {
 							budgetLimitPromptSent: true,
 						});
+						shouldPersist = true;
 						return { ...runtime, snapshot: nextSnapshot };
 					}),
 				);
-				if (nextSnapshot !== null) {
+				if (shouldPersist) {
 					yield* saveSnapshot(nextSnapshot);
 				}
 				return nextSnapshot;
@@ -468,12 +681,15 @@ export const GoalLive = Layer.effect(
 			get,
 			liveSnapshot,
 			create,
+			edit,
 			setStatus,
+			prepareExternalMutation,
+			markUsageLimited,
+			restoreAfterResume,
 			clear,
 			markAgentStart,
 			accountAgentEnd,
 			accountTurnEnd,
-			markContinuationDispatched,
 			markBudgetLimitPromptSent,
 		});
 	}),
