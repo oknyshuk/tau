@@ -162,8 +162,8 @@ describe("runTau runtime", () => {
 			expect(pi.__registeredTools).toContain("get_goal");
 			expect(pi.__registeredTools).toContain("create_goal");
 			expect(pi.__registeredTools).toContain("update_goal");
-			expect(pi.__registeredTools).toContain("autoresearch_run");
-			expect(pi.__registeredTools).toContain("autoresearch_done");
+			expect(pi.__registeredTools).not.toContain("autoresearch_run");
+			expect(pi.__registeredTools).not.toContain("autoresearch_done");
 			expect(pi.__registeredTools).not.toContain("find_thread");
 			expect(pi.__registeredTools).not.toContain("read_thread");
 			expect(pi.__registeredTools).not.toContain("init_experiment");

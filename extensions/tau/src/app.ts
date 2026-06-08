@@ -22,7 +22,6 @@ import initEditor from "./editor/index.js";
 import initAgent from "./agent/index.js";
 import initRequestUserInput from "./request-user-input/index.js";
 import initRalph from "./ralph/index.js";
-import initAutoresearch from "./autoresearch/index.js";
 import initGoal from "./goal/index.js";
 import initAgentsMenu from "./agents-menu/index.js";
 import { AgentConfig, AgentControl } from "./agent/services.js";
@@ -181,13 +180,6 @@ export const startTau = (pi: ExtensionAPI) => {
 		runPromise: <A, E>(effect: Effect.Effect<A, E, Goal>) => currentRuntime.runPromise(effect),
 		runFork: <A, E>(effect: Effect.Effect<A, E, Goal>) => currentRuntime.runFork(effect),
 	};
-	const runAutoresearch = <A, E>(
-		effect: Effect.Effect<
-			A,
-			E,
-			LoopEngine | Sandbox | ExecutionRuntime | AutoresearchLoopRunner
-		>,
-	) => currentRuntime.runPromise(effect);
 
 	const startup = Effect.gen(function* () {
 		const { default: initBacklog } = yield* Effect.promise(() => import("./backlog/tool.js"));
@@ -218,7 +210,8 @@ export const startTau = (pi: ExtensionAPI) => {
 			});
 			initRequestUserInput(pi);
 			initRalph(pi, runRalph);
-			initAutoresearch(pi, runAutoresearch);
+			// Built-in autoresearch is disabled; the external pi-autoresearch
+			// extension owns the /autoresearch command.
 			initGoal(pi, goalRuntime);
 		});
 
