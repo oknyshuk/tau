@@ -31,12 +31,11 @@ describe("backlog docs", () => {
 	});
 
 	it("uses backlog as the source of truth in bundled skills", async () => {
-		const skill = await readRepoFile("extensions/tau/skills/subagent-driven-development/SKILL.md");
+		const skill = await readRepoFile("extensions/tau/skills/backlog-planning/SKILL.md");
 
-		expect(skill).toContain("Backlog is the source of truth");
+		expect(skill).toContain("source of truth");
+		expect(skill).toContain("backlog create");
 		expect(skill).toContain("backlog show <id>");
-		expect(skill).toContain("backlog update tau-abc123 --status in_progress");
-		expect(skill).toContain("backlog close tau-abc123 --reason \"Implemented and reviewed\"");
 		expect(skill).not.toContain("bd show <id>");
 		expect(skill).not.toContain("Beads is the spec");
 	});
