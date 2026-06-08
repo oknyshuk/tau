@@ -40,7 +40,6 @@ export interface SessionInfra {
 	readonly cwd: string;
 	readonly approvalBroker: ApprovalBroker | undefined;
 	readonly definition: AgentDefinition;
-	readonly resultSchema: unknown | undefined;
 	readonly executionPolicy: ExecutionPolicy;
 	/**
 	 * Optional override for the parent model used to resolve `model: inherit`
@@ -115,7 +114,6 @@ export function createSessionForModel(
 		yield* applyAgentToolAllowlist(
 			session,
 			infra.definition,
-			infra.resultSchema,
 			infra.executionPolicy,
 		);
 

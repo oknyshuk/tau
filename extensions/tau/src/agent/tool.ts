@@ -62,12 +62,6 @@ export const AgentParams = Type.Object({
 		}),
 	),
 	message: Type.Optional(Type.String({ description: "Task instructions for the agent" })),
-	result_schema: Type.Optional(
-		Type.Any({
-			description:
-				"JSON schema for structured output. Agent must call submit_result with matching data.",
-		}),
-	),
 	// send/close
 	id: Type.Optional(Type.String({ description: "Target agent ID" })),
 	interrupt: Type.Optional(
@@ -90,9 +84,7 @@ export const AgentParams = Type.Object({
 	),
 });
 
-type DecodedAgentParams = Omit<Static<typeof AgentParams>, "result_schema"> & {
-	readonly result_schema?: unknown;
-};
+type DecodedAgentParams = Static<typeof AgentParams>;
 
 function decodeAgentParams(rawParams: unknown): DecodedAgentParams {
 	return Value.Parse(AgentParams, rawParams);
@@ -306,7 +298,6 @@ export function createAgentToolDef(
 						const id = yield* control.spawn({
 							agent: p.agent,
 							message: p.message,
-							result_schema: p.result_schema,
 							approvalBroker: context.approvalBroker,
 							parentSessionFile: context.parentSessionFile,
 							parentExecution,

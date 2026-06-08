@@ -5,8 +5,6 @@ import type { AgentDefinition } from "./types.js";
 import type { ExecutionPolicy } from "../execution/schema.js";
 import { rewriteShellToolNames } from "../sandbox/mutation-tools.js";
 
-const STRUCTURED_OUTPUT_TOOL_NAME = "submit_result";
-
 export function parseConfiguredToolNames(
 	value: unknown,
 	keyPath: string,
@@ -86,19 +84,12 @@ function getActiveToolNames(options: {
 	agentName: string;
 	configuredTools: readonly string[] | undefined;
 	availableToolNames: readonly string[];
-	structuredOutputRequired: boolean;
 }): readonly string[] | undefined {
 	if (options.configuredTools === undefined) {
 		return undefined;
 	}
 
 	const activeToolNames = [...options.configuredTools];
-	if (
-		options.structuredOutputRequired &&
-		!activeToolNames.includes(STRUCTURED_OUTPUT_TOOL_NAME)
-	) {
-		activeToolNames.push(STRUCTURED_OUTPUT_TOOL_NAME);
-	}
 
 	const available = new Set(options.availableToolNames);
 	const unknownToolNames = activeToolNames.filter((name) => !available.has(name));
@@ -117,7 +108,6 @@ function getActiveToolNames(options: {
 export function applyAgentToolAllowlist(
 	session: AgentSession,
 	definition: AgentDefinition,
-	resultSchema: unknown | undefined,
 	executionPolicy?: ExecutionPolicy,
 ): Effect.Effect<void, AgentError> {
 	return Effect.try({
@@ -133,7 +123,6 @@ export function applyAgentToolAllowlist(
 				agentName: definition.name,
 				configuredTools,
 				availableToolNames,
-				structuredOutputRequired: resultSchema !== undefined,
 			});
 			const baseToolNames = configuredActiveToolNames ?? sessionToolNames;
 			// Defense-in-depth (tau-9ka): always rewrite the pi-builtin `bash` tool to

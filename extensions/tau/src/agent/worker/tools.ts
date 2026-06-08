@@ -30,7 +30,6 @@ export function createWorkerCustomTools(
 
 export function buildWorkerAppendPrompts(options: {
 	definition: AgentDefinition;
-	resultSchema?: unknown;
 }): string[] {
 	const prompts: string[] = [];
 
@@ -38,12 +37,6 @@ export function buildWorkerAppendPrompts(options: {
 
 	if (options.definition.systemPrompt) {
 		prompts.push(options.definition.systemPrompt);
-	}
-
-	if (options.resultSchema) {
-		prompts.push(
-			`## Structured Output\n- You must call submit_result exactly once with JSON matching the provided schema.\n- Do not respond with free text.\n- Stop immediately after calling submit_result.\n\nSchema:\n\n\`\`\`json\n${JSON.stringify(options.resultSchema, null, 2)}\n\`\`\``,
-		);
 	}
 
 	return prompts;

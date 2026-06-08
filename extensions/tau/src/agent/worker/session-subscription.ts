@@ -42,13 +42,10 @@ function formatToolArgs(toolName: string, args: unknown): string {
 interface WorkerSessionSubscriptionOptions {
 	readonly session: AgentSession;
 	readonly tracking: WorkerTrackingState;
-	readonly resultSchema: unknown | undefined;
-	readonly maxSubmitResultRetries: number;
 	readonly publishRunningStatus: () => void;
 	readonly publishRunningStatusIfNotFinal: () => void;
 	readonly publishCompleted: (message: string | undefined) => void;
 	readonly publishFailed: (reason: string) => void;
-	readonly repromptForSubmitResult: (retry: number) => void;
 }
 
 export function subscribeToWorkerSession(
@@ -57,13 +54,10 @@ export function subscribeToWorkerSession(
 	const {
 		session,
 		tracking,
-		resultSchema,
-		maxSubmitResultRetries,
 		publishRunningStatus,
 		publishRunningStatusIfNotFinal,
 		publishCompleted,
 		publishFailed,
-		repromptForSubmitResult,
 	} = options;
 
 	return session.subscribe((event) => {
@@ -133,28 +127,11 @@ export function subscribeToWorkerSession(
 				}
 
 				if (assistantMsg?.stopReason === "aborted") {
-					if (tracking.structuredOutput !== undefined) {
-						publishCompleted(undefined);
-						return;
-					}
-
 					const textContent = getAssistantText(assistantMsg);
 					if (!textContent) {
 						publishFailed("Agent was aborted before producing a response");
 					} else {
 						publishCompleted(textContent);
-					}
-					return;
-				}
-
-				if (resultSchema !== undefined && tracking.structuredOutput === undefined) {
-					if (tracking.submitResultRetries < maxSubmitResultRetries) {
-						tracking.submitResultRetries += 1;
-						repromptForSubmitResult(tracking.submitResultRetries);
-					} else {
-						publishFailed(
-							`Agent did not call submit_result after ${maxSubmitResultRetries} retries`,
-						);
 					}
 					return;
 				}

@@ -1,8 +1,6 @@
 import type { Status, ToolRecord } from "../status.js";
 
 export interface WorkerTrackingState {
-	structuredOutput?: unknown;
-	submitResultRetries: number;
 	turns: number;
 	toolCalls: number;
 	workedMs: number;
@@ -14,8 +12,6 @@ export interface WorkerTrackingState {
 
 export function createWorkerTrackingState(): WorkerTrackingState {
 	return {
-		structuredOutput: undefined,
-		submitResultRetries: 0,
 		turns: 0,
 		toolCalls: 0,
 		workedMs: 0,
@@ -53,12 +49,10 @@ export function buildFailedStatus(tracking: WorkerTrackingState, reason: string)
 export function buildCompletedStatus(
 	tracking: WorkerTrackingState,
 	message: string | undefined,
-	structuredOutput: unknown,
 ): Status {
 	return {
 		state: "completed",
 		message,
-		...(structuredOutput !== undefined ? { structured_output: structuredOutput } : {}),
 		turns: tracking.turns,
 		toolCalls: tracking.toolCalls,
 		workedMs: tracking.workedMs,

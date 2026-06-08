@@ -60,11 +60,10 @@ vi.mock("../src/agent/tool-allowlist.js", async () => {
 			applyAgentToolAllowlistMock(...args);
 			return Effect.void;
 		},
-		STRUCTURED_OUTPUT_TOOL_NAME: "submit_result",
 	};
 });
 
-import { AgentWorker, toolOnlyStreamFn } from "../src/agent/worker.js";
+import { AgentWorker } from "../src/agent/worker.js";
 
 type FakeSessionManager = {
 	getEntries: () => unknown[];
@@ -200,7 +199,7 @@ const makeSession = (index: number, model: Model<Api>): FakeAgentSession => {
 	return session;
 };
 
-describe("AgentWorker structured-output wiring", () => {
+describe("AgentWorker wiring", () => {
 	beforeEach(() => {
 		createAgentSessionMock.mockReset();
 		applyAgentToolAllowlistMock.mockClear();
@@ -211,7 +210,7 @@ describe("AgentWorker structured-output wiring", () => {
 		}));
 	});
 
-	it("installs toolOnlyStreamFn on the created session when structured output is requested", async () => {
+	it("creates the worker session with the expected resource loader options", async () => {
 		await Effect.runPromise(
 			AgentWorker.make({
 				definition: TEST_DEFINITION,
@@ -224,7 +223,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: { type: "object", properties: { ok: { type: "boolean" } } },
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -238,7 +236,6 @@ describe("AgentWorker structured-output wiring", () => {
 		expect(resourceLoaderOptions[0]?.agentDir).toEqual(expect.any(String));
 		expect(resourceLoaderOptions[0]?.agentDir).not.toBe("");
 		expect(resourceLoaderOptions[0]?.noExtensions).toBe(true);
-		expect(createdSessions[0]?.agent.streamFn).toBe(toolOnlyStreamFn);
 		expect(applyAgentToolAllowlistMock).toHaveBeenCalledTimes(1);
 	});
 
@@ -259,7 +256,6 @@ describe("AgentWorker structured-output wiring", () => {
 					parentModel: TEST_MODEL,
 					approvalBroker: undefined,
 					modelRegistry: makeModelRegistry() as never,
-					resultSchema: undefined,
 					runPromise: async () => {
 						throw new Error("unused");
 					},
@@ -286,7 +282,6 @@ describe("AgentWorker structured-output wiring", () => {
 					parentModel: TEST_MODEL,
 					approvalBroker: undefined,
 					modelRegistry: undefined,
-					resultSchema: undefined,
 					runPromise: async () => {
 						throw new Error("unused");
 					},
@@ -311,7 +306,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				subagentDefaults: { model: undefined, thinking: undefined },
 				runPromise: async () => {
 					throw new Error("unused");
@@ -330,40 +324,6 @@ describe("AgentWorker structured-output wiring", () => {
 
 		expect(createdSessions[0]?.abortCount).toBe(0);
 		expect(createdSessions[0]?.disposeCount).toBe(1);
-	});
-
-	it("reinstalls toolOnlyStreamFn after session recreation on model switch", async () => {
-		const worker = await Effect.runPromise(
-			AgentWorker.make({
-				definition: TEST_DEFINITION,
-				depth: 0,
-				cwd: process.cwd(),
-				parentSessionFile: "parent-session",
-				executionState: TEST_EXECUTION_STATE,
-				executionProfile: TEST_EXECUTION_PROFILE,
-				parentSandboxConfig: PARENT_SANDBOX_CONFIG,
-				parentModel: TEST_MODEL,
-				approvalBroker: undefined,
-				modelRegistry: makeModelRegistry() as never,
-				resultSchema: { type: "object", properties: { ok: { type: "boolean" } } },
-				runPromise: async () => {
-					throw new Error("unused");
-				},
-				runFork: runForkForTests,
-				subagentDefaults: { model: undefined, thinking: undefined },
-			}),
-		);
-
-		await Effect.runPromise(
-			(
-				worker as unknown as {
-					switchToModel: (spec: { model: string }) => Effect.Effect<void, string>;
-				}
-			).switchToModel({ model: "openai-codex/gpt-5.4" }),
-		);
-
-		expect(createdSessions).toHaveLength(2);
-		expect(createdSessions[1]?.agent.streamFn).toBe(toolOnlyStreamFn);
 	});
 
 	it("updates inherited execution profile after worker model fallback", async () => {
@@ -387,7 +347,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -436,7 +395,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -470,7 +428,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},
@@ -513,7 +470,6 @@ describe("AgentWorker structured-output wiring", () => {
 				parentModel: TEST_MODEL,
 				approvalBroker: undefined,
 				modelRegistry: makeModelRegistry() as never,
-				resultSchema: undefined,
 				runPromise: async () => {
 					throw new Error("unused");
 				},

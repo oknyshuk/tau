@@ -43,19 +43,6 @@ const agentToolDefinition: ToolDefinition = {
 	},
 };
 
-const submitResultToolDefinition: ToolDefinition = {
-	name: "submit_result",
-	label: "submit_result",
-	description: "Submit structured result",
-	parameters: Type.Object({}),
-	async execute() {
-		return {
-			content: [{ type: "text" as const, text: "submitted" }],
-			details: { ok: true },
-		};
-	},
-};
-
 const execCommandToolDefinition: ToolDefinition = {
 	name: "exec_command",
 	label: "exec_command",
@@ -143,50 +130,14 @@ describe("agent tool allowlist", () => {
 				resourceLoader,
 				settingsManager,
 				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, submitResultToolDefinition],
+				customTools: [agentToolDefinition],
 			});
 
 			await Effect.runPromise(
-				applyAgentToolAllowlist(session, buildDefinition(["read", "agent"]), undefined),
+				applyAgentToolAllowlist(session, buildDefinition(["read", "agent"])),
 			);
 
 			expect(session.getActiveToolNames()).toEqual(["read", "agent"]);
-		});
-	});
-
-	it("auto-enables submit_result when structured output is required", async () => {
-		await withTempDir(async (cwd) => {
-			const settingsManager = SettingsManager.inMemory();
-			const resourceLoader = new DefaultResourceLoader({
-				cwd,
-				agentDir: path.join(cwd, ".agent"),
-				settingsManager,
-				noExtensions: true,
-				noSkills: true,
-				noPromptTemplates: true,
-				noThemes: true,
-			});
-			await resourceLoader.reload();
-
-			const { session } = await createAgentSession({
-				cwd,
-				authStorage: AuthStorage.create(),
-				modelRegistry: ModelRegistry.create(AuthStorage.create()),
-				resourceLoader,
-				settingsManager,
-				sessionManager: SessionManager.inMemory(cwd),
-				customTools: [agentToolDefinition, submitResultToolDefinition],
-			});
-
-			await Effect.runPromise(
-				applyAgentToolAllowlist(
-					session,
-					buildDefinition(["read"]),
-					Type.Object({ ok: Type.Boolean() }),
-				),
-			);
-
-			expect(session.getActiveToolNames()).toEqual(["read", "submit_result"]);
 		});
 	});
 
@@ -232,7 +183,7 @@ describe("agent tool allowlist", () => {
 			expect(session.getAllTools().map((t) => t.name)).toContain("bash");
 			expect(session.getActiveToolNames()).toContain("bash");
 
-			await Effect.runPromise(applyAgentToolAllowlist(session, buildDefinition(undefined), undefined));
+			await Effect.runPromise(applyAgentToolAllowlist(session, buildDefinition(undefined)));
 
 			// After the allowlist runs, bash must be gone and the sandboxed pair must replace it.
 			expect(session.getActiveToolNames()).not.toContain("bash");
@@ -275,7 +226,7 @@ describe("agent tool allowlist", () => {
 			});
 
 			await Effect.runPromise(
-				applyAgentToolAllowlist(session, buildDefinition(["read", "bash"]), undefined),
+				applyAgentToolAllowlist(session, buildDefinition(["read", "bash"])),
 			);
 
 			expect(session.getActiveToolNames()).not.toContain("bash");
@@ -314,7 +265,6 @@ describe("agent tool allowlist", () => {
 				applyAgentToolAllowlist(
 					session,
 					buildDefinition(undefined),
-					undefined,
 					requireToolsPolicy(["exec_command"]),
 				),
 			);
@@ -351,7 +301,6 @@ describe("agent tool allowlist", () => {
 				applyAgentToolAllowlist(
 					session,
 					buildDefinition(["read"]),
-					undefined,
 					requireToolsPolicy(["exec_command"]),
 				),
 			);
@@ -388,7 +337,6 @@ describe("agent tool allowlist", () => {
 				applyAgentToolAllowlist(
 					session,
 					buildDefinition(["read", "exec_command"]),
-					undefined,
 					allowlistPolicy(["read"]),
 				),
 			);
@@ -426,7 +374,6 @@ describe("agent tool allowlist", () => {
 					applyAgentToolAllowlist(
 						session,
 						buildDefinition(["read", "not-real"]),
-						undefined,
 					),
 				),
 			).rejects.toThrowError(AgentError);
@@ -435,7 +382,6 @@ describe("agent tool allowlist", () => {
 					applyAgentToolAllowlist(
 						session,
 						buildDefinition(["read", "not-real"]),
-						undefined,
 					),
 				),
 			).rejects.toThrow(/Invalid tools for agent "test-agent": not-real/);
