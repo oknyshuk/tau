@@ -36,10 +36,6 @@ import { isRecord } from "./shared/json.js";
 import { RalphRepoLive } from "./ralph/repo.js";
 import { LoopRepoLive } from "./loops/repo.js";
 import { LoopEngine, LoopEngineLive } from "./services/loop-engine.js";
-import {
-	AutoresearchLoopRunner,
-	AutoresearchLoopRunnerLive,
-} from "./services/autoresearch-loop-runner.js";
 
 const PersistenceLayer = PersistenceLive;
 const ShellLayer = ShellLive;
@@ -110,7 +106,6 @@ const createMainLayer = (agentRuntimeBridge: AgentRuntimeBridgeService) => {
 		ExecutionRuntimeLayer,
 		SandboxLayer,
 		FooterLayer,
-		AutoresearchLoopRunnerLive,
 		AgentLayer,
 		RalphLayer,
 		GoalLive,
@@ -127,8 +122,7 @@ type TauRuntime = ManagedRuntime.ManagedRuntime<
 	| AgentControl
 	| Ralph
 	| Goal
-	| LoopEngine
-	| AutoresearchLoopRunner,
+	| LoopEngine,
 	never
 >;
 
@@ -210,8 +204,7 @@ export const startTau = (pi: ExtensionAPI) => {
 			});
 			initRequestUserInput(pi);
 			initRalph(pi, runRalph);
-			// Built-in autoresearch is disabled; the external pi-autoresearch
-			// extension owns the /autoresearch command.
+			// Autoresearch is owned by the external pi-autoresearch extension.
 			initGoal(pi, goalRuntime);
 		});
 
