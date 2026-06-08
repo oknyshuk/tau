@@ -46,6 +46,7 @@ interface WorkerSessionSubscriptionOptions {
 	readonly publishRunningStatusIfNotFinal: () => void;
 	readonly publishCompleted: (message: string | undefined) => void;
 	readonly publishFailed: (reason: string) => void;
+	readonly onCompactionEnd?: (event: { readonly willRetry: boolean }) => void;
 }
 
 export function subscribeToWorkerSession(
@@ -58,6 +59,7 @@ export function subscribeToWorkerSession(
 		publishRunningStatusIfNotFinal,
 		publishCompleted,
 		publishFailed,
+		onCompactionEnd,
 	} = options;
 
 	return session.subscribe((event) => {
@@ -109,8 +111,11 @@ export function subscribeToWorkerSession(
 				return;
 			}
 			case "compaction_start":
+				publishRunningStatusIfNotFinal();
+				return;
 			case "compaction_end": {
 				publishRunningStatusIfNotFinal();
+				onCompactionEnd?.({ willRetry: event.willRetry });
 				return;
 			}
 			case "agent_end": {
