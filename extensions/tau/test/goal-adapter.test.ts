@@ -1788,6 +1788,77 @@ describe("goal adapter", () => {
 		expect(harness.sentMessages[1]?.message.customType).toBe("tau:goal-continuation");
 	});
 
+	it("auto-continues an active goal at agent_end while the run is still finalizing", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		// At agent_end pi keeps isStreaming true until every listener settles, so
+		// ctx.isIdle() reports false at the run-end boundary. The continuation must
+		// still dispatch as a follow-up; pi drains it once the run finalizes.
+		const runEndCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+		} as ExtensionContext;
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		await fireEvent(
+			harness,
+			"agent_end",
+			{
+				type: "agent_end",
+				messages: [{ ...makeAssistantMessage(0), content: [] }],
+			},
+			runEndCtx,
+		);
+
+		const snapshot = await harness.run(
+			Effect.gen(function* () {
+				const goal = yield* Goal;
+				return yield* goal.get("session-1");
+			}),
+		);
+		expect(snapshot?.status).toBe("active");
+		expect(harness.sentMessages).toHaveLength(1);
+		expect(harness.sentMessages[0]?.message.customType).toBe("tau:goal-continuation");
+		expect(harness.sentMessages[0]?.message.content).toContain("ship the feature");
+		expect(harness.sentMessages[0]?.options).toEqual({
+			triggerTurn: true,
+			deliverAs: "followUp",
+		});
+	});
+
+	it("skips auto-continuation at agent_end when a user message is already queued", async () => {
+		const harness = makeGoalAdapterHarness();
+		harnesses.push(harness);
+		const runEndCtx = {
+			...harness.ctx,
+			isIdle: () => false,
+			hasPendingMessages: () => true,
+		} as ExtensionContext;
+
+		await runGoalCommand(harness, "ship the feature");
+		harness.sentMessages.length = 0;
+		await fireEvent(harness, "before_agent_start", {
+			type: "before_agent_start",
+			systemPrompt: "system",
+		});
+		await fireEvent(
+			harness,
+			"agent_end",
+			{
+				type: "agent_end",
+				messages: [{ ...makeAssistantMessage(0), content: [] }],
+			},
+			runEndCtx,
+		);
+
+		expect(harness.sentMessages).toHaveLength(0);
+	});
+
 	it("starts an idle agent turn after /goal resume", async () => {
 		const harness = makeGoalAdapterHarness();
 		harnesses.push(harness);

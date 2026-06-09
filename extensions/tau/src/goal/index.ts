@@ -391,14 +391,29 @@ function describeGoalInline(goal: GoalSnapshot): string {
 	return compactGoalStatus(goal);
 }
 
+type AutoContinueOptions = {
+	/**
+	 * Set when the check runs inside the `agent_end` handler. The agent run has
+	 * reached its natural stopping point at `agent_end`, and the continuation is
+	 * queued as a follow-up that pi drains after the run finalizes. pi keeps
+	 * `isStreaming` true (so `ctx.isIdle()` reports false) until every
+	 * `agent_end` listener settles, so `atRunEnd` stands in for the idle check
+	 * at that boundary. `hasPendingMessages()` still gates the dispatch, so a
+	 * user message queued during the run drives the next turn on its own.
+	 */
+	readonly atRunEnd?: boolean;
+};
+
 function shouldAutoContinue(
 	goal: GoalSnapshot | null,
 	ctx: ExtensionContext,
+	options?: AutoContinueOptions,
 ): goal is GoalSnapshot {
+	const atRunEndOrIdle = options?.atRunEnd === true || ctx.isIdle();
 	return (
 		goal !== null &&
 		goal.status === "active" &&
-		ctx.isIdle() &&
+		atRunEndOrIdle &&
 		!ctx.hasPendingMessages()
 	);
 }
@@ -848,8 +863,9 @@ async function dispatchGoalContinuation(
 	runtime: GoalRuntime,
 	ctx: ExtensionContext,
 	snapshot: GoalSnapshot | null,
+	options?: AutoContinueOptions,
 ): Promise<void> {
-	if (!shouldAutoContinue(snapshot, ctx)) {
+	if (!shouldAutoContinue(snapshot, ctx, options)) {
 		return;
 	}
 	pi.sendMessage(
@@ -1787,10 +1803,12 @@ export default function initGoal(pi: ExtensionAPI, runtime: GoalRuntime): void {
 			}
 			clearGoalErrorRetry(sessionId);
 
-			if (!shouldAutoContinue(result.snapshot, ctx)) {
+			if (!shouldAutoContinue(result.snapshot, ctx, { atRunEnd: true })) {
 				return;
 			}
-			await dispatchGoalContinuation(pi, runtime, ctx, result.snapshot);
+			await dispatchGoalContinuation(pi, runtime, ctx, result.snapshot, {
+				atRunEnd: true,
+			});
 		} catch (error) {
 			if (isRuntimeShutdownError(error) || isStaleExtensionContextError(error)) {
 				return;
