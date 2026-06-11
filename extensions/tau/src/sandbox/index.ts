@@ -1472,33 +1472,13 @@ export default function initSandbox(
 		persistState();
 
 		const injected =
-			"<permissions instructions>\n" +
-			"Assume all tool calls execute under bubblewrap sandbox restrictions. Do not attempt to bypass restrictions by using other tools.\n" +
+			"<sandbox>\n" +
+			"Tool calls run in a bubblewrap sandbox; don't try to bypass it. The active preset, network policy, and approval mode are in SANDBOX_STATE at the start of the user message (SANDBOX_CHANGE when it changes mid-session).\n" +
 			"\n" +
-			"Sandbox presets:\n" +
-			"  - read-only: filesystem read-only (writes only to ephemeral /tmp), network denied, approval on-request\n" +
-			"  - workspace-write: workspace-write (writes to workspace + temp dirs, .git/hooks blocked, /tmp persistent), network denied, approval on-request\n" +
-			"  - full-access: unrestricted filesystem, unrestricted network, no approval prompts\n" +
+			"If a command fails because of the sandbox (e.g. \"Operation not permitted\" or \"Permission denied\" outside the workspace, or the network is unreachable), immediately retry the same command with sandbox_permissions: \"require_escalated\" and a short justification — don't ask first. For failures unrelated to the sandbox (bad arguments, a real test failure, a missing workspace file), fix the cause instead; don't escalate.\n" +
 			"\n" +
-			"Authoritative current sandbox state is injected into the start of the user message as content[0]:\n" +
-			"  - SANDBOX_STATE: ... (initial)\n" +
-			"  - SANDBOX_CHANGE: ... (when settings change mid-session)\n" +
-			"\n" +
-			"Subagent mode:\n" +
-			"  - When subagent=false: you are the orchestrator (main) agent\n" +
-			"  - As orchestrator, YOU are responsible for all VCS operations (jj describe / git commit, push, checkout, reset, etc.)\n" +
-			"  - Subagents you spawn cannot perform VCS operations - you must handle VCS yourself\n" +
-			"  - You coordinate work by spawning subagents, waiting for their results, and consolidating\n" +
-			"  - When subagent=true: you are a worker agent spawned by an orchestrator\n" +
-			"  - VCS commands (git, jj) are BLOCKED in subagent mode - the orchestrator handles all VCS operations\n" +
-			"  - Do not attempt to run jj describe, jj squash, jj git push, jj abandon, git commit, git push, git checkout, git reset, or similar\n" +
-			"\n" +
-			"Sandbox failure handling:\n" +
-			"  - When a sandboxed exec_command fails, the output may contain a SANDBOX_DIAGNOSTIC=<json> line and a [sandbox] ... explanation.\n" +
-			"  - If you see clear evidence that the failure was caused by sandbox restrictions (e.g., \"Operation not permitted\", \"Permission denied\" outside the workspace, DNS/network unreachable), you MUST immediately retry the SAME command with `sandbox_permissions: \"require_escalated\"` and a justification. Do not ask the user first.\n" +
-			"  - If the command failed for a reason unrelated to the sandbox (wrong arguments, a bug in the command, a test failure, missing file inside the allowed workspace), do NOT request escalation. Fix the underlying issue instead.\n" +
-			"  - Using sandbox_permissions=require_escalated for the same command will prompt the user for approval to run unsandboxed.\n" +
-			"</permissions instructions>";
+			"VCS (jj/git) is the orchestrator's job; as a subagent you cannot run VCS commands.\n" +
+			"</sandbox>";
 
 		return {
 			systemPrompt: `${event.systemPrompt}\n\n${injected}`,

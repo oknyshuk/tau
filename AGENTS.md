@@ -112,10 +112,9 @@ This runs: typecheck → lint → test
 This fork is a **jj-vcs** repository. The `.git/` directory is a colocated backing store; treat jj as the canonical VCS and prefer jj commands.
 
 - One change per logical feature (gerrit-like). Squash review feedback into the same change so the remote shows clean interdiffs.
-- Bookmarks (not branches) point at changes under review. Modern aliases are built in: `jj b a` (advance), `jj b s` (set), `jj b c` (create), `jj st`, `jj desc`, `jj ci`.
-- Vocabulary mapping: `branch` → `bookmark`, `git commit -m ...` → `jj describe -m ...` (jj auto-amends on the next jj command), `git commit --amend` / `git add -p` → `jj squash [-i]`, `git stash` → `jj new`, `git diff` → `jj diff`, `commit hash` → `change ID` (stable across rewrites), `git pull --rebase && git push` → `jj git fetch` then the **user** runs `jj git push -c @`.
-- The `git_commit_with_user_approval` tool wraps `jj describe` (and `jj squash` when consolidating) in this repo. The tool name is unchanged; the underlying VCS is jj.
-- **Agents do not push.** The user runs `jj git push -c @` when ready — their FIDO security key is the discipline gate against mindless pushes.
+- Bookmarks point at changes under review. Modern aliases are built in: `jj b a` (advance), `jj b s` (set), `jj b c` (create), `jj st`, `jj desc`, `jj ci`.
+- Describe changes by running `jj describe -m "<message>"` on `@` directly via `exec_command`; jj auto-amends the working-copy change - or use `jj commit -m ...` to not execute `jj desc` + `jj new`. Use `jj squash` to consolidate review-fix sub-changes into their parent.
+- **Agents do not push.** The user runs `jj git push -c @` when ready.
 
 ## Saying "Done" (chat / handoff rule)
 
@@ -135,7 +134,7 @@ Before the agent says "I'm done" (or hands off work as complete):
 
 1. **Stage 1 — File follow-up issues.** Use `backlog create` for anything that needs follow-up. Update or close in-progress items so the canonical backlog matches reality.
 2. **Stage 2 — Gate.** From `extensions/tau/`, run `npm run gate` (typecheck → lint → test). Fix anything your changes broke.
-3. **Stage 3 — Describe the change.** Run `jj describe -m "<message>"` on `@`. No commit/amend ceremony — jj auto-amends the working-copy change. If the change accumulated review-fix sub-changes, `jj squash` them into the parent so the remote sees one clean change with interdiffs.
+3. **Stage 3 — Describe the change.** Run `jj describe -m "<message>"` on `@`; jj auto-amends the working-copy change. If the change accumulated review-fix sub-changes, `jj squash` them into the parent so the remote sees one clean change with interdiffs.
 4. **Stage 4 — Hand off to the user.**
    - Confirm `jj st` is clean (or shows only the one change you intended).
    - Confirm `jj diff` (or `jj show`) matches what you described.

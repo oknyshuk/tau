@@ -1113,10 +1113,6 @@ export default function initBacklog(pi: ExtensionAPI): void {
 		),
 	}));
 
-	pi.on("before_agent_start", async (event) => ({
-		systemPrompt: `Backlog integration: Prefer the \`backlog\` tool for planning operations.\n\n${event.systemPrompt}`,
-	}));
-
 	pi.registerCommand("backlog", {
 		description: "backlog wrapper: /backlog <command>",
 		getArgumentCompletions: (prefix: string): AutocompleteItem[] | null => {

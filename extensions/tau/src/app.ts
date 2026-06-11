@@ -17,7 +17,6 @@ import initExa from "./exa/index.js";
 import initTerminalPrompt from "./terminal-prompt/index.js";
 import initWorkedFor from "./worked-for/index.js";
 import { initStatus } from "./status/index.js";
-import initCommit from "./commit/index.js";
 import initEditor from "./editor/index.js";
 import initAgent from "./agent/index.js";
 import initRequestUserInput from "./request-user-input/index.js";
@@ -198,7 +197,6 @@ export const startTau = (pi: ExtensionAPI) => {
 			initTerminalPrompt(pi, persistedAccess);
 			initWorkedFor(pi, persistedAccess);
 			initStatus(pi, persistedAccess);
-			initCommit(pi);
 			initEditor(pi, {
 				getSnapshot: persistence.getSnapshot,
 			});
