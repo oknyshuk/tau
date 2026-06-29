@@ -30,7 +30,6 @@ import { AgentRuntimeBridgeLive, type AgentRuntimeBridgeService } from "./agent/
 import { AgentRegistry } from "./agent/agent-registry.js";
 import { validateResolvedAgentConfiguration } from "./agent/startup-validation.js";
 import { buildToolDescription } from "./agent/tool.js";
-import { installSqliteExperimentalWarningFilter } from "./shared/sqlite-warning.js";
 import { isRecord } from "./shared/json.js";
 import { RalphRepoLive } from "./ralph/repo.js";
 import { LoopRepoLive } from "./loops/repo.js";
@@ -130,7 +129,6 @@ export const runTau = (pi: ExtensionAPI) => {
 };
 
 export const startTau = (pi: ExtensionAPI) => {
-	installSqliteExperimentalWarningFilter();
 	let runtime: TauRuntime | undefined;
 	let readySettled = false;
 	let resolveReady!: () => void;
@@ -205,6 +203,22 @@ export const startTau = (pi: ExtensionAPI) => {
 			// Autoresearch is owned by the external pi-autoresearch extension.
 			initGoal(pi, goalRuntime);
 		});
+
+		// AWS SSO refresh loads lazily and only when AWS_PROFILE is set, so non-AWS
+		// sessions never transpile/evaluate it. Forked as a daemon so it never
+		// blocks startup; before_provider_request (the operative refresh trigger)
+		// only fires once the user invokes the model, well after this import
+		// resolves.
+		const awsProfile = process.env["AWS_PROFILE"];
+		if (awsProfile !== undefined && awsProfile.length > 0) {
+			yield* Effect.tryPromise(() => import("./sso/index.js")).pipe(
+				Effect.flatMap(({ default: initSso }) => Effect.sync(() => initSso(pi))),
+				Effect.catch((error) =>
+					Effect.logWarning("Failed to initialize AWS SSO refresh", error),
+				),
+				Effect.forkDetach,
+			);
+		}
 
 		const agentRegistry = yield* AgentRegistry.load(process.cwd());
 		yield* validateResolvedAgentConfiguration(agentRegistry);

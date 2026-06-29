@@ -34,13 +34,7 @@ function makePiStub(): ExtensionAPI {
 }
 
 describe("tau startup validation ordering", () => {
-	const originalEmitWarning = process.emitWarning;
-
 	afterEach(() => {
-		process.emitWarning = originalEmitWarning;
-		delete (globalThis as Record<symbol, boolean | undefined>)[
-			Symbol.for("tau.sqlite-warning-filter-installed")
-		];
 		vi.restoreAllMocks();
 		vi.resetModules();
 	});
@@ -79,38 +73,5 @@ describe("tau startup validation ordering", () => {
 
 		await expect(tau(pi)).rejects.toThrow("startup failed");
 		expect(startTau).toHaveBeenCalledTimes(1);
-	});
-
-	it("suppresses only the node:sqlite experimental warning", async () => {
-		const startTau = vi.fn((pi: ExtensionAPI) => ({
-			fiber: Symbol("fiber"),
-			ready: Promise.resolve(),
-			pi,
-		}));
-
-		vi.doMock("../src/app.js", () => ({ startTau, runTau: vi.fn() }));
-
-		const original = process.emitWarning;
-		const forwarded: Array<{ warning: string | Error; args: unknown[] }> = [];
-		process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
-			forwarded.push({ warning, args });
-		}) as typeof process.emitWarning;
-
-		await import("../src/index.js");
-
-		process.emitWarning(
-			"SQLite is an experimental feature and might change at any time",
-			"ExperimentalWarning",
-		);
-		expect(forwarded).toHaveLength(0);
-
-		process.emitWarning("Something else", "ExperimentalWarning");
-		expect(forwarded).toHaveLength(1);
-		expect(forwarded[0]).toEqual({
-			warning: "Something else",
-			args: ["ExperimentalWarning"],
-		});
-
-		process.emitWarning = original;
 	});
 });
