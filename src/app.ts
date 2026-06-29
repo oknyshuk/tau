@@ -28,6 +28,13 @@ import { AgentRegistry } from "./agent/agent-registry.js";
 import { validateResolvedAgentConfiguration } from "./agent/startup-validation.js";
 import { buildToolDescription } from "./agent/tool.js";
 import { isRecord } from "./shared/json.js";
+import {
+	disposeAllTauRuntimes,
+	registerTauRuntime,
+	sweepTauRuntimes,
+	trackRunPromise,
+	type RuntimeEntry,
+} from "./effect/runtime-registry.js";
 import { RalphRepoLive } from "./ralph/repo.js";
 import { LoopRepoLive } from "./loops/repo.js";
 import { LoopEngine, LoopEngineLive } from "./services/loop-engine.js";
@@ -127,6 +134,7 @@ export const runTau = (pi: ExtensionAPI) => {
 
 export const startTau = (pi: ExtensionAPI) => {
 	let runtime: TauRuntime | undefined;
+	let runtimeEntry: RuntimeEntry | undefined;
 	let readySettled = false;
 	let resolveReady!: () => void;
 	let rejectReady!: (error: unknown) => void;
@@ -137,10 +145,12 @@ export const startTau = (pi: ExtensionAPI) => {
 
 	const agentRuntimeBridge: AgentRuntimeBridgeService = {
 		runPromise: (effect) => {
-			if (!runtime) {
+			const rt = runtime;
+			const entry = runtimeEntry;
+			if (!rt || !entry) {
 				return Promise.reject(new Error("tau runtime not initialized"));
 			}
-			return runtime.runPromise(effect);
+			return trackRunPromise(entry, () => rt.runPromise(effect));
 		},
 		runFork: (effect) => {
 			if (!runtime) {
@@ -162,10 +172,13 @@ export const startTau = (pi: ExtensionAPI) => {
 	const layer = createMainLayer(agentRuntimeBridge).pipe(Layer.provide(PiAPILive(pi)));
 	const currentRuntime = ManagedRuntime.make(layer);
 	runtime = currentRuntime;
+	const entry = registerTauRuntime(currentRuntime);
+	runtimeEntry = entry;
 	const runRalph = <A, E>(effect: Effect.Effect<A, E, Ralph | ExecutionRuntime>) =>
-		currentRuntime.runPromise(effect);
+		trackRunPromise(entry, () => currentRuntime.runPromise(effect));
 	const goalRuntime = {
-		runPromise: <A, E>(effect: Effect.Effect<A, E, Goal>) => currentRuntime.runPromise(effect),
+		runPromise: <A, E>(effect: Effect.Effect<A, E, Goal>) =>
+			trackRunPromise(entry, () => currentRuntime.runPromise(effect)),
 		runFork: <A, E>(effect: Effect.Effect<A, E, Goal>) => currentRuntime.runFork(effect),
 	};
 
@@ -216,28 +229,34 @@ export const startTau = (pi: ExtensionAPI) => {
 		const agentToolHandle = yield* Effect.sync(() => {
 			const handle = initAgent(pi, agentRuntimeBridge, agentToolDescription);
 
-			// The tau ManagedRuntime is created once per process in the extension
-			// factory and lives for the entire process lifetime. It backs every
-			// tau session (including sessions created mid-run via /new, /fork,
-			// switchSession, and the Ralph iteration boundary).
+			// The tau ManagedRuntime is created per session instance: pi re-runs
+			// this factory on every session replacement (/new, /resume, /fork,
+			// switchSession, /reload), building a fresh runtime bound to the new
+			// session's `pi`. Runtimes are tracked in a process-global registry
+			// (see ./effect/runtime-registry).
 			//
-			// pi emits `session_shutdown` on every session teardown — not just
-			// process exit — so disposing the runtime on that event would break
-			// any tool call running on the old session that still has pending
-			// effects. For example, `/ralph start` runs `ralph.runLoop` which
-			// itself calls `ctx.newSession(...)`; pi reacts by tearing down the
-			// current session and firing `session_shutdown` while the ralph
-			// effect is still awaiting results from the runtime.
+			// pi emits `session_shutdown` on every teardown, not just process exit.
+			// We must NOT dispose a runtime that still has in-flight `runPromise`
+			// work: `/ralph start` runs `ralph.runLoop` as a single runPromise that
+			// itself calls `ctx.newSession(...)`, so pi fires `session_shutdown`
+			// (reason "new") while the Ralph effect is still pending on this runtime
+			// and drives later sessions through it. The registry tracks in-flight
+			// runPromise work and only reaps idle, non-current runtimes.
+			//
+			// - quit: close subagents and dispose every runtime (process exit).
+			// - replacement: sweep — dispose idle, non-current runtimes orphaned by
+			//   the factory re-run; a runtime with a running Ralph loop is left for a
+			//   later sweep once it goes idle.
 			//
 			// Per-session cleanup still happens through each module's own
 			// `session_shutdown` handler (e.g. ralph loop state persistence).
-			// Process-level cleanup only runs on the terminal quit shutdown.
 			pi.on("session_shutdown", async (event: unknown) => {
-				if (!isRecord(event) || event["reason"] !== "quit") {
+				if (isRecord(event) && event["reason"] === "quit") {
+					await agentRuntimeBridge.closeAll();
+					disposeAllTauRuntimes();
 					return;
 				}
-				await agentRuntimeBridge.closeAll();
-				await currentRuntime.dispose();
+				sweepTauRuntimes();
 			});
 
 			return handle;
@@ -327,5 +346,5 @@ export const startTau = (pi: ExtensionAPI) => {
 
 	const rootFiber = currentRuntime.runFork(program);
 
-	return { fiber: rootFiber, ready };
+	return { fiber: rootFiber, ready, bridge: agentRuntimeBridge };
 };

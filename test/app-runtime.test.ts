@@ -8,8 +8,9 @@ import { Effect, Fiber } from "effect";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { runTau } from "../src/app.js";
+import { runTau, startTau } from "../src/app.js";
 import tau from "../src/index.js";
+import { disposeAllTauRuntimes, liveTauRuntimeCount } from "../src/effect/runtime-registry.js";
 
 const tempHomes: string[] = [];
 
@@ -132,12 +133,46 @@ function makePiStub(): ExtensionAPI {
 	return proxy;
 }
 
+type PiWithHandlers = ExtensionAPI & {
+	readonly __eventHandlers: Map<string, Array<(payload: unknown, ctx?: unknown) => unknown>>;
+};
+
+const shutdownCtx = {
+	cwd: process.cwd(),
+	hasUI: false,
+	sessionManager: {
+		getEntries: () => [],
+		getBranch: () => [],
+		getSessionId: () => "test-session",
+		getSessionFile: () => undefined,
+	},
+	ui: {
+		setStatus: () => undefined,
+		setWidget: () => undefined,
+		notify: () => undefined,
+		setFooter: () => () => undefined,
+		getEditorText: () => "",
+	},
+} as unknown;
+
+async function fireSessionShutdown(pi: PiWithHandlers, reason: string): Promise<void> {
+	for (const handler of pi.__eventHandlers.get("session_shutdown") ?? []) {
+		try {
+			await Promise.resolve(handler({ type: "session_shutdown", reason }, shutdownCtx));
+		} catch {
+			// Other modules' shutdown handlers may reject under the minimal stub
+			// ctx; the runtime-registry sweep handler exercised here never does.
+		}
+	}
+}
+
 describe("runTau runtime", () => {
 	beforeEach(() => {
 		useValidHome();
 	});
 
 	afterEach(() => {
+		disposeAllTauRuntimes();
 		vi.unstubAllEnvs();
 		while (tempHomes.length > 0) {
 			const tempHome = tempHomes.pop();
@@ -583,5 +618,56 @@ describe("runTau runtime", () => {
 		await expect(
 			Effect.runPromise(Fiber.await(fiber).pipe(Effect.timeout("200 millis"))),
 		).resolves.toBeDefined();
+	});
+
+	it("reaps idle non-current runtimes across repeated session replacement", async () => {
+		// Regression for tau-xs9s: pi re-runs the factory (new ManagedRuntime) on
+		// every /new, /resume, /fork. Idle, non-current runtimes must be reaped on
+		// session_shutdown instead of accumulating for the process lifetime.
+		let previous: PiWithHandlers | undefined;
+		for (let i = 0; i < 8; i++) {
+			if (previous) await fireSessionShutdown(previous, "new");
+			const pi = makePiStub() as PiWithHandlers;
+			const { ready } = startTau(pi);
+			await ready;
+			previous = pi;
+		}
+		// current runtime + at most the just-replaced one awaiting the next sweep;
+		// never the full 8.
+		expect(liveTauRuntimeCount()).toBeLessThanOrEqual(2);
+	});
+
+	it("keeps a runtime alive while a tracked runPromise is pending, then reaps it once idle", async () => {
+		// A Ralph loop runs as a single runPromise anchored to the runtime that
+		// started it and spans replacements; that runtime must survive until the
+		// effect settles, then be reaped.
+		const pi1 = makePiStub() as PiWithHandlers;
+		const s1 = startTau(pi1);
+		await s1.ready;
+
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const tracked = s1.bridge.runPromise(Effect.promise(() => pending));
+
+		// Two replacements while the effect is pending: the anchoring runtime must
+		// not be reaped.
+		await fireSessionShutdown(pi1, "new");
+		await startTau(makePiStub() as PiWithHandlers).ready;
+		const pi3 = makePiStub() as PiWithHandlers;
+		await fireSessionShutdown(pi1, "new");
+		await startTau(pi3).ready;
+		const liveWhilePending = liveTauRuntimeCount();
+
+		release();
+		await tracked;
+
+		// Next replacement now reaps the idle anchoring runtime.
+		await fireSessionShutdown(pi3, "new");
+		await startTau(makePiStub() as PiWithHandlers).ready;
+
+		expect(liveWhilePending).toBeGreaterThanOrEqual(3);
+		expect(liveTauRuntimeCount()).toBeLessThanOrEqual(2);
 	});
 });
