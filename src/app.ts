@@ -292,10 +292,11 @@ export const startTau = (pi: ExtensionAPI) => {
 			Effect.forkDetach,
 		);
 
-		// AWS SSO refresh loads lazily and only when AWS_PROFILE is set, so non-AWS
-		// sessions never evaluate it. Forked as a daemon so it never blocks startup;
-		// before_provider_request (the operative refresh trigger) only fires once the
-		// user invokes the model, well after this import resolves.
+		// AWS SSO refresh is gated on AWS_PROFILE, so non-AWS sessions never import
+		// it. When enabled it is awaited (its deps are only node builtins, so it is
+		// ~free pre-`ready`) which registers its before_provider_request handler
+		// ahead of the first turn (incl. non-interactive `pi -p`/RPC). The refresh
+		// itself is non-blocking unless the token is already expired — see ./sso.
 		const awsProfile = process.env["AWS_PROFILE"];
 		if (awsProfile !== undefined && awsProfile.length > 0) {
 			yield* Effect.tryPromise(() => import("./sso/index.js")).pipe(
@@ -303,7 +304,6 @@ export const startTau = (pi: ExtensionAPI) => {
 				Effect.catch((error) =>
 					Effect.logWarning("Failed to initialize AWS SSO refresh", error),
 				),
-				Effect.forkDetach,
 			);
 		}
 	});
