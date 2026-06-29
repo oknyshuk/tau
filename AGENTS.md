@@ -75,6 +75,11 @@ From the repo root:
 npm run gate    # typecheck → lint → test
 ```
 
+`format:check` (`oxfmt --check`) is intentionally **not** part of the gate. Apply
+oxfmt to the files you touch (`npm run format` formats `src test`); do not run a
+repo-wide reformat as part of unrelated work — a sweeping format-only diff is
+unreviewable and collides with other agents sharing the checkout.
+
 ## Finishing work (jj-first)
 
 Prefer jj. One change per logical feature; squash review-fixes into the same change for clean interdiffs.
