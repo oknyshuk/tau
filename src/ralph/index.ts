@@ -958,6 +958,7 @@ async function listTaskOnlyConfigureTargets(
 const HELP = `Ralph Wiggum - Long-running development loops
 
 Commands:
+  /ralph create <name|id> [desc]      Draft a task file with the model, then review
   /ralph start <name|path> [options]  Start a new loop
   /ralph pause                        Pause current loop
   /ralph stop                         End active loop (idle only)
@@ -979,6 +980,8 @@ To pause: press ESC or run /ralph pause
 To stop: press ESC to interrupt, then run /ralph stop when idle
 
 Examples:
+  /ralph create my-feature
+  /ralph create tau-1234 wire up the new config service
   /ralph start my-feature
   /ralph start review --items-per-iteration 5 --reflect-every 10
   /ralph resume review --max-iterations 100`;
@@ -1492,6 +1495,67 @@ export default function initRalph(
 				const rest = cmd ? args.slice(args.indexOf(cmd) + cmd.length).trim() : "";
 
 				switch (cmd) {
+					case "create": {
+						const createRest = rest.trim();
+						const nameMatch = createRest.match(/^(\S+)(?:\s+([\s\S]*))?$/);
+						const rawName = nameMatch?.[1];
+						if (rawName === undefined || rawName.startsWith("-")) {
+							ctx.ui.notify(
+								"Usage: /ralph create <name|backlog-id> [description]",
+								"warning",
+							);
+							return;
+						}
+						const name = rawName;
+						const description = (nameMatch?.[2] ?? "").trim();
+						const resolved = resolveLoopTarget(name);
+						const taskFileRel = resolved.taskFile;
+						const absoluteTaskFile = path.resolve(ctx.cwd, taskFileRel);
+
+						let alreadyExists = false;
+						try {
+							await fs.access(absoluteTaskFile);
+							alreadyExists = true;
+						} catch {
+							alreadyExists = false;
+						}
+						if (alreadyExists) {
+							ctx.ui.notify(
+								`Task file already exists at ${taskFileRel}. Edit it, or run /ralph start ${resolved.recommendedStartTarget}.`,
+								"warning",
+							);
+							return;
+						}
+
+						// Delegate task-file authoring to the current model: it follows the
+						// ralph-loop-creation skill, reads the backlog when <name> is an id,
+						// and writes the file with its own edit tool. The user reviews the
+						// draft and then runs /ralph start. sendUserMessage triggers a turn.
+						const promptLines = [
+							`Author a Ralph loop task file at \`${taskFileRel}\`.`,
+							"",
+							'Use the "ralph-loop-creation" skill for the required format: a compact prompt with pointers, a short checklist, and an empty Notebook section. Do not paste backlog descriptions, designs, or acceptance criteria — the loop reads the backlog directly.',
+							"",
+							"Decide the source first:",
+							`- Run \`backlog show ${name}\` to check whether "${name}" is a backlog item. If it resolves, treat the backlog item as the source of truth and use the backlog-backed template (also run \`backlog children ${name} --recursive\` if it is an epic).`,
+							`- If "${name}" is not a backlog item, use the free-form template.`,
+						];
+						if (description.length > 0) {
+							promptLines.push("", `Intended focus for this loop: ${description}`);
+						}
+						promptLines.push(
+							"",
+							`Write the file with your file-editing tool, keep it short, and leave the Notebook empty. When done, tell me to review \`${taskFileRel}\` and run \`/ralph start ${resolved.recommendedStartTarget}\` to begin the loop.`,
+						);
+
+						ctx.ui.notify(
+							`Drafting Ralph task file for "${resolved.loopName}" — review it, then run /ralph start ${resolved.recommendedStartTarget}.`,
+							"info",
+						);
+						pi.sendUserMessage(promptLines.join("\n"));
+						return;
+					}
+
 					case "start": {
 						const parsed = parseArgs(rest);
 						if (!parsed.ok) {
@@ -2142,7 +2206,7 @@ export default function initRalph(
 															submenuDone();
 															return;
 														}
-													executionProfileLabel = `${profile.model} / ${profile.thinking}`;
+														executionProfileLabel = `${profile.model} / ${profile.thinking}`;
 														recordMutation({
 															kind: "executionProfile",
 															profile,

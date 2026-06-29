@@ -5,6 +5,14 @@ description: Create compact Ralph loop task files when the user explicitly asks 
 
 # Ralph Loop Creation
 
+## Trigger
+
+The user-facing entry point is `/ralph create <name|backlog-id> [description]`. It
+asks the current model (you) to author the task file following this skill, then
+the user reviews the draft and runs `/ralph start <name>` to begin the loop. You
+may also be asked to prepare a task file directly in chat; the rules below apply
+either way.
+
 ## Core Idea
 
 A Ralph task file is injected into every later loop iteration. Keep it short, current, and useful for continuation.
