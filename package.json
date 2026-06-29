@@ -35,7 +35,7 @@
 	"scripts": {
 		"test": "vitest --run --passWithNoTests",
 		"typecheck": "tsc --noEmit",
-		"lint": "npx oxlint src && node ./scripts/check-runfork-usage.mjs",
+		"lint": "npx oxlint src",
 		"format": "npx oxfmt src test",
 		"format:check": "npx oxfmt --check src test",
 		"knip": "npx knip",

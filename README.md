@@ -1,49 +1,35 @@
 # tau
 
-Tau is a pi extension workspace centered on [`extensions/tau`](extensions/tau). It provides tau runtime features, backlog-backed planning, Exa search tools, memory helpers, and agent workflow wiring.
+tau is a [pi](https://github.com/earendil-works/pi) extension - its source is this repo root. It adds backlog-backed planning, Exa search, subagents, sandboxing, and tau runtime wiring.
 
-> **VCS:** this fork is a [jj-vcs](https://github.com/jj-vcs/jj) (Jujutsu) repository, colocated with a `.git/` backing store. Prefer `jj` commands over `git`. The user pushes via `jj git push -c @`; agents never push.
+## Install
 
-## Quick start
+Symlink the repo into pi's global extensions dir, then restart pi:
 
-- Install or refresh the global extension symlink:
-  ```bash
-  ./scripts/pi/install-extensions.sh
-  ```
-- Run the quality gate from the extension directory:
-  ```bash
-  cd extensions/tau
-  npm run gate
-  ```
+```bash
+ln -sfn "$PWD" ~/.pi/agent/extensions/tau
+```
 
-## Planning and backlog
+## Develop
 
-Tau’s planning surface is backlog.
+```bash
+npm run gate    # typecheck → lint → test
+```
 
-- Inspect work: `backlog show <id>`
-- List actionable work: `backlog ready`
-- List all work: `backlog list`
-- Create work: `backlog create "Title" --type task --priority 2`
-- Update work: `backlog update <id> --status in_progress`
-- Close work: `backlog close <id> --reason "Done"`
+Exa need `EXA_API_KEY` in the environment.
 
-## Storage model
+## Backlog
 
-Backlog state is event-sourced for shared repositories.
+Planning is event-sourced backlog:
 
-- Canonical tracked events live under `.pi/backlog/events/**`
-- Derived materialized cache lives under `.pi/backlog/cache/**`
-- `.pi/backlog/cache/**` is local, rebuildable, and ignored by both jj and git
-- Current issue state is replayed from canonical events, not edited in place
+```bash
+backlog ready                                    # unblocked work
+backlog show <id>                                # issue details
+backlog create "Title" --type task --priority 2  # new work
+backlog update <id> --status in_progress         # claim work
+backlog close <id> --reason "Done"               # finish work
+```
 
-## Development
-
-- Main implementation area: `extensions/tau/`
-- Gate command: `cd extensions/tau && npm run gate`
-- Exa features require `EXA_API_KEY` in the environment
-
-## Footguns
-
-- Do not edit `.pi/backlog/cache/**` by hand. It is derived state.
-- Keep tau-owned docs and prompts on backlog terminology. Tau exposes backlog commands directly.
-- When extending shared-repo planning behavior, preserve append-only events and cache rebuild semantics.
+- Canonical events live in `.pi/backlog/events/**` (tracked).
+- The materialized cache `.pi/backlog/cache/**` is local, rebuildable, and ignored by jj and git.
+- Issue state is replayed from canonical events, not edited in place — don't hand-edit the cache.

@@ -4,3 +4,5 @@ export type RunForkUsage = {
 };
 
 export function findRunForkUsages(sourceText: string, filePath: string): ReadonlyArray<RunForkUsage>;
+
+export function collectRunForkViolations(projectRoot: string): ReadonlyArray<string>;

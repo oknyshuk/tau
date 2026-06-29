@@ -391,6 +391,30 @@ function listTypeScriptFiles(dirPath) {
 	return files;
 }
 
+/**
+ * Enforcement entry point: returns `path:line` violations for every disallowed
+ * `Effect.runFork` usage under `<projectRoot>/src` (only `src/app.ts` is allowed).
+ * @param {string} projectRoot
+ * @returns {string[]}
+ */
+function collectRunForkViolations(projectRoot) {
+	const files = listTypeScriptFiles(path.join(projectRoot, SOURCE_ROOT));
+	const violations = [];
+
+	for (const file of files) {
+		const relativePath = path.relative(projectRoot, file).replaceAll(path.sep, "/");
+		if (ALLOWED_FILES.has(relativePath)) {
+			continue;
+		}
+		const locations = findRunForkUsages(readFileSync(file, "utf8"), file);
+		for (const location of locations) {
+			violations.push(`${relativePath}:${location.line}`);
+		}
+	}
+
+	return violations;
+}
+
 function main() {
 	const sourceDir = path.resolve(SOURCE_ROOT);
 	const files = listTypeScriptFiles(sourceDir);
@@ -425,4 +449,4 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
 	main();
 }
 
-export { findRunForkUsages };
+export { collectRunForkViolations, findRunForkUsages };

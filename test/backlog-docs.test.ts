@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-const repoRoot = path.resolve(process.cwd(), "../..");
+const repoRoot = path.resolve(process.cwd());
 
 async function readRepoFile(relativePath: string): Promise<string> {
 	return fs.readFile(path.join(repoRoot, relativePath), "utf8");
@@ -31,7 +31,7 @@ describe("backlog docs", () => {
 	});
 
 	it("uses backlog as the source of truth in bundled skills", async () => {
-		const skill = await readRepoFile("extensions/tau/skills/backlog-planning/SKILL.md");
+		const skill = await readRepoFile("skills/backlog-planning/SKILL.md");
 
 		expect(skill).toContain("source of truth");
 		expect(skill).toContain("backlog create");

@@ -1,53 +1,44 @@
-# Agent Instructions
+# Agent instructions
 
-This project uses the event-sourced **backlog** for planning and issue tracking.
-Inspect work with `backlog ready` and `backlog show <id>`.
+tau is a single **pi extension** (many features) whose source is this repo root (`package.json` + `pi.extensions` → `./src/index.ts`). Planning and issue tracking use the event-sourced **backlog**: start with `backlog ready` and `backlog show <id>`.
 
-## pi extension packaging (crucial)
+## Runtime & packaging
 
-- **tau is a single pi extension with many features**. Keep extension source code under `./extensions/tau/` (`package.json` + `pi.extensions`).
-- **Global pi config lives under `~/.pi`** and global extensions are discovered from **`~/.pi/agent/extensions/`**.
-- To install/update tau globally, symlink (or copy) `./extensions/tau` into `~/.pi/agent/extensions/`.
-- **Never create or use `./.pi/extensions/` inside this repo.** Project-local pi extension folders are not part of tau’s design.
-- Use the helper installer:
+- pi loads extension entrypoints via **jiti** (https://github.com/unjs/jiti): TypeScript/ESM runs directly, no build step. Keep entrypoints jiti/Node-ESM compatible (`type: "module"`, explicit `.js` import specifiers in TS).
+- The runtime is **bun**, first-class. Fix issues at the bun layer (e.g. `src/shared/home.ts` `getHomeDir()` instead of `os.homedir()`); do not route around bun through Node.
+- Global pi config lives under `~/.pi`; global extensions load from `~/.pi/agent/extensions/`. Install/update tau by symlinking the repo root there:
   ```bash
-  ./scripts/pi/install-extensions.sh
+  ln -sfn "$PWD" ~/.pi/agent/extensions/tau
   ```
-- **pi loads extension entrypoints via jiti** (https://github.com/unjs/jiti). This means TypeScript/ESM files are executed at runtime (no separate build step). Keep extension entrypoints compatible with jiti/Node ESM resolution (e.g. `type: "module"`, explicit `.js` import specifiers in TS where required).
 
-## parallel agent safety (crucial)
+## Parallel-agent safety (crucial)
 
-This fork uses **jj-vcs** (Jujutsu) as its canonical VCS. Multiple agents may work in the same checkout concurrently.
+Canonical VCS is **jj-vcs** (Jujutsu); `.git/` is a colocated backing store. Multiple agents may share one checkout.
 
-- **Do not run destructive jj or git commands** outside the extension directory you are actively working on.
-  - Never `jj abandon`, `jj op restore`, `jj undo`, `git restore`, `git checkout`, `git reset`, `git clean`, or similar on other extensions’ files.
-- If the working copy is dirty due to someone else’s work and it blocks `jj git fetch`, **stop and ask** instead of trying to “fix” it.
-- It is always safe to inspect backlog state. Canonical shared state lives under `.pi/backlog/events/**`, and `.pi/backlog/cache/**` is derived local cache.
+- Never run destructive jj/git on work that isn't yours: no `jj abandon`/`op restore`/`undo`, `git restore`/`checkout`/`reset`/`clean` touching other agents' files.
+- If the working copy is dirty from someone else and blocks `jj git fetch`, **stop and ask** — do not "fix" it.
+- Inspecting backlog state is always safe.
 
-## Naming Conventions
+## Code style — Final Form
 
-- All tool names, tool labels, and command names that are visible to the user should be **lowercase** to match pi's built-in tools (`read`, `bash`, `edit`, `write`, etc.).
-- If you need namespaces, use lowercase separators like `.` or `_` (e.g. `exa.web_search`, `exa.code_context`, `backlog`).
+- No fallbacks, no migrations, no deprecation: delete old code, don't keep it limping.
+- Explicit over implicit: mandatory fields, strict parsing, no silent defaults.
+- Make invalid states unrepresentable; on invalid data, fail fast with a clear error.
+- Smaller is better — prefer leaning on pi upstream over owning code.
 
-## Writing Conventions
+## TypeScript hardening (crucial)
 
-- Avoid contrastive phrasing that defines decisions by exclusion; state what the system does and the precise behavior/guarantee instead.
+Goal: make tau as safe as Rust.
 
-## Extension logging
+- `any` is forbidden (incl. `as any`, `Record<string, any>`). Use `unknown` at boundaries and narrow with guards/validation.
+- Keep strict options on in `tsconfig.json` (no implicit any, exact optional types, no unchecked indexed access).
+- Unused locals/params are warnings only; prefer `_name`.
 
-- Do not print startup banners or "extension loaded" messages (e.g. via `console.log`) from extensions.
-- Rely on pi's own reporting/rendering system (tool renderers, custom messages, UI status) instead.
+## Conventions
 
-## typescript hardening (crucial)
-
-Goal: make `extensions/tau` as safe as rust.
-
-- `any` is forbidden (including `as any`, `Record<string, any>`, and `unknown as any`).
-  - Use `unknown` at boundaries (JSON, tool inputs) and narrow with type guards/validation.
-  - Prefer explicit types over widening casts.
-- Unused locals/params are allowed as warnings only (do not fail builds on unused).
-  - Prefer `_name` for intentionally-unused values; lint reports warnings only.
-- Keep strict options on in `extensions/tau/tsconfig.json` (no implicit any, exact optional types, no unchecked indexed access).
+- User-visible tool and command names are **lowercase**, matching pi built-ins (`read`, `bash`, `edit`). Namespaces use `.`/`_` (`exa.web_search`).
+- No startup banners or "extension loaded" logs; use pi's own rendering (tool renderers, custom messages, UI status).
+- State what the system does and the exact guarantee; avoid phrasing that defines behavior by what it is not.
 
 <!-- effect-solutions:start -->
 
@@ -64,83 +55,34 @@ Topics: quick-start, project-setup, tsconfig, basics, services-and-layers, data-
 
 <!-- effect-solutions:end -->
 
-## Final Form Code Style
+## Backlog & memory
 
-Write code clean, explicit, without fallbacks:
-
-- **No fallback logic**: Remove old code entirely when changing schemas.
-- **No migrations**: Breaking changes fail fast with clear errors.
-- **Explicit over implicit**: Mandatory fields, strict parsing, no silent defaults.
-- **Delete, don't deprecate**: Remove old code rather than keeping it working temporarily.
-- **Invalid states are unrepresentable**: Design APIs and data structures so that invalid states cannot be expressed. When invalid data is encountered, stop immediately and report the error.
-
-## Backlog Storage
-
-- Canonical tracked backlog events live under `.pi/backlog/events/**`.
-- Materialized current-state cache lives under `.pi/backlog/cache/**` and is rebuildable.
-
-## Project memories (shared, tracked)
-
-- `.pi/tau/memories/PROJECT.jsonl` is the shared project-scope tau memory file. It is tracked in jj and travels with the repo, so new clones inherit team-wide tau memory immediately.
-- Save with `target: project` for facts that should follow the codebase (e.g. runtime conventions, project-specific guardrails).
-- Save with `target: user` or `target: global` only for personal/per-machine facts (those write to `~/.pi/agent/tau/memories/{USER,MEMORY}.jsonl` and never enter the repo).
-- The rest of `.pi/**` (backlog cache, per-machine memory, etc.) stays untracked via `.gitignore`.
-
-## Quick Reference
+- Canonical backlog events live in `.pi/backlog/events/**`. The materialized cache `.pi/backlog/cache/**` is rebuildable and untracked — never hand-edit it.
+- `.pi/tau/memories/PROJECT.jsonl` is shared, tracked project memory; save team-wide facts there (`target: project`). Personal/per-machine facts go to `~/.pi/agent/tau/memories/` (`target: user`/`global`) and are never tracked.
 
 ```bash
-backlog ready                                  # Find unblocked work
-backlog show <id>                              # View issue details
-backlog list                                   # List tracked work
-backlog create "Title" --type task --priority 2 # Create issue
-backlog update <id> --status in_progress       # Claim work
-backlog close <id> --reason "Done"            # Complete work
-backlog status                                 # Show summary counts
+backlog ready                                    # unblocked work
+backlog show <id>                                # issue details
+backlog create "Title" --type task --priority 2  # new work
+backlog update <id> --status in_progress         # claim work
+backlog close <id> --reason "Done"               # finish work
 ```
 
-## Quality Gate
+## Quality gate
 
-Run from `extensions/tau/`:
+From the repo root:
 ```bash
-npm run gate
+npm run gate    # typecheck → lint → test
 ```
 
-This runs: typecheck → lint → test
+## Finishing work (jj-first)
 
-## VCS workflow (jj-first)
+Prefer jj. One change per logical feature; squash review-fixes into the same change for clean interdiffs.
 
-This fork is a **jj-vcs** repository. The `.git/` directory is a colocated backing store; treat jj as the canonical VCS and prefer jj commands.
+Before saying "done" or handing off:
+1. **File follow-ups** in backlog; update or close in-progress items so the backlog matches reality.
+2. **Gate**: run `npm run gate`. Never present failing code as finished. If a failure looks pre-existing or unrelated, stop and ask, and record it in backlog.
+3. **Describe**: `jj describe -m "<message>"` on `@` (jj auto-amends the working copy); `jj squash` sub-changes into their parent.
+4. **Hand off**: confirm `jj st` is clean and `jj diff` matches the description, then announce ready-to-push.
 
-- One change per logical feature (gerrit-like). Squash review feedback into the same change so the remote shows clean interdiffs.
-- Bookmarks point at changes under review. Modern aliases are built in: `jj b a` (advance), `jj b s` (set), `jj b c` (create), `jj st`, `jj desc`, `jj ci`.
-- Describe changes by running `jj describe -m "<message>"` on `@` directly via `exec_command`; jj auto-amends the working-copy change - or use `jj commit -m ...` to not execute `jj desc` + `jj new`. Use `jj squash` to consolidate review-fix sub-changes into their parent.
-- **Agents do not push.** The user runs `jj git push -c @` when ready.
-
-## Saying "Done" (chat / handoff rule)
-
-Before the agent says "I'm done" (or hands off work as complete):
-
-1. The agent MUST run `npm run gate` in `extensions/tau/`.
-2. The agent MUST NOT present broken / failing code as finished work.
-3. If `npm run gate` fails:
-   - If the failure is caused by the agent's changes: fix it (or explicitly ask for approval to ship broken code).
-   - If the failure seems pre-existing or unrelated: stop and ask the user before continuing, and record it in backlog.
-
-## Landing the Plane (Session Completion)
-
-**When ending a work session**, you MUST complete ALL stages below in order. Work is NOT complete until the change is described and the user has been handed off cleanly.
-
-**MANDATORY WORKFLOW:**
-
-1. **Stage 1 — File follow-up issues.** Use `backlog create` for anything that needs follow-up. Update or close in-progress items so the canonical backlog matches reality.
-2. **Stage 2 — Gate.** From `extensions/tau/`, run `npm run gate` (typecheck → lint → test). Fix anything your changes broke.
-3. **Stage 3 — Describe the change.** Run `jj describe -m "<message>"` on `@`; jj auto-amends the working-copy change. If the change accumulated review-fix sub-changes, `jj squash` them into the parent so the remote sees one clean change with interdiffs.
-4. **Stage 4 — Hand off to the user.**
-   - Confirm `jj st` is clean (or shows only the one change you intended).
-   - Confirm `jj diff` (or `jj show`) matches what you described.
-   - Announce ready-to-push. The **user** runs `jj git push -c @`. Their FIDO key is the discipline gate; never push on their behalf.
-
-**CRITICAL RULES:**
-- NEVER run `jj git push`. Pushing is the user's responsibility, gated by their FIDO tap.
-- NEVER abandon, restore, or undo someone else's changes to “tidy up” before handoff.
-- If `jj git fetch` reveals divergence, stop and ask before rebasing or rewriting history.
+Agents never push — the **user** runs `jj git push -c @` (FIDO-gated). Never abandon/restore/undo someone else's work to tidy up. If `jj git fetch` shows divergence, stop and ask.

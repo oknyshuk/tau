@@ -1,7 +1,5 @@
-# node / extensions
+# node
 node_modules/
-extensions/**/node_modules/
-extensions/**/package-lock.json
 
 # logs
 npm-debug.log*
