@@ -15,14 +15,11 @@ import { Goal, GoalLive } from "./services/goal.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import initExa from "./exa/index.js";
 import initTerminalPrompt from "./terminal-prompt/index.js";
-import initWorkedFor from "./worked-for/index.js";
-import { initStatus } from "./status/index.js";
 import initEditor from "./editor/index.js";
 import initAgent from "./agent/index.js";
 import initRequestUserInput from "./request-user-input/index.js";
 import initRalph from "./ralph/index.js";
 import initGoal from "./goal/index.js";
-import initAgentsMenu from "./agents-menu/index.js";
 import { AgentConfig, AgentControl } from "./agent/services.js";
 import { AgentControlLive } from "./agent/control.js";
 import { AgentManagerLive } from "./agent/manager.js";
@@ -173,7 +170,6 @@ export const startTau = (pi: ExtensionAPI) => {
 	};
 
 	const startup = Effect.gen(function* () {
-		const { default: initBacklog } = yield* Effect.promise(() => import("./backlog/tool.js"));
 		const persistence = yield* Persistence;
 		const executionState = yield* ExecutionState;
 		const executionRuntime = yield* ExecutionRuntime;
@@ -189,59 +185,36 @@ export const startTau = (pi: ExtensionAPI) => {
 		yield* executionRuntime.setup;
 		yield* sandbox.setup;
 		yield* footer.setup;
+
+		// backlog is dynamically imported to keep it off app.ts's static graph, but
+		// awaited and registered before `ready` (its `backlog` tool/command are core
+		// planning surfaces expected to exist from session start).
+		const { default: initBacklog } = yield* Effect.promise(() => import("./backlog/tool.js"));
+
+		// Eager features: those whose session_start{reason:"startup"} behavior is
+		// load-bearing (goal restore, ralph loop resume), those that shape the first
+		// rendered frame (editor + its terminal-prompt render wrap), and those that
+		// register model-callable tools (backlog, exa, request_user_input) which a
+		// non-interactive `pi -p`/RPC turn could need immediately. pi awaits this
+		// factory before firing session_start, so all of these register before `ready`.
 		yield* Effect.sync(() => {
 			initBacklog(pi);
 			initExa(pi);
 			initTerminalPrompt(pi, persistedAccess);
-			initWorkedFor(pi, persistedAccess);
-			initStatus(pi, persistedAccess);
+			initRequestUserInput(pi);
 			initEditor(pi, {
 				getSnapshot: persistence.getSnapshot,
 			});
-			initRequestUserInput(pi);
 			initRalph(pi, runRalph);
 			// Autoresearch is owned by the external pi-autoresearch extension.
 			initGoal(pi, goalRuntime);
 		});
 
-		// AWS SSO refresh loads lazily and only when AWS_PROFILE is set, so non-AWS
-		// sessions never transpile/evaluate it. Forked as a daemon so it never
-		// blocks startup; before_provider_request (the operative refresh trigger)
-		// only fires once the user invokes the model, well after this import
-		// resolves.
-		const awsProfile = process.env["AWS_PROFILE"];
-		if (awsProfile !== undefined && awsProfile.length > 0) {
-			yield* Effect.tryPromise(() => import("./sso/index.js")).pipe(
-				Effect.flatMap(({ default: initSso }) => Effect.sync(() => initSso(pi))),
-				Effect.catch((error) =>
-					Effect.logWarning("Failed to initialize AWS SSO refresh", error),
-				),
-				Effect.forkDetach,
-			);
-		}
-
 		const agentRegistry = yield* AgentRegistry.load(process.cwd());
 		yield* validateResolvedAgentConfiguration(agentRegistry);
 		const agentToolDescription = buildToolDescription(agentRegistry);
-		yield* Effect.sync(() => {
-			const agentToolHandle = initAgent(pi, agentRuntimeBridge, agentToolDescription);
-			const configureRalphAgents: import("./agents-menu/index.js").RalphAgentConfigRunner =
-				async (cwd, loopName, enabledNames) => {
-					try {
-						const result = await runRalph(
-							Effect.gen(function* () {
-								const ralph = yield* Ralph;
-								return yield* ralph.configureLoopMany(cwd, loopName, [
-									{ kind: "capabilityContractAgents", enabledNames },
-								]);
-							}),
-						);
-						return { ok: true as const, status: result.status };
-					} catch (error) {
-						return { ok: false as const, reason: String(error) };
-					}
-				};
-			initAgentsMenu(pi, agentToolHandle, configureRalphAgents);
+		const agentToolHandle = yield* Effect.sync(() => {
+			const handle = initAgent(pi, agentRuntimeBridge, agentToolDescription);
 
 			// The tau ManagedRuntime is created once per process in the extension
 			// factory and lives for the entire process lifetime. It backs every
@@ -266,7 +239,73 @@ export const startTau = (pi: ExtensionAPI) => {
 				await agentRuntimeBridge.closeAll();
 				await currentRuntime.dispose();
 			});
+
+			return handle;
 		});
+
+		const configureRalphAgents: import("./agents-menu/index.js").RalphAgentConfigRunner = async (
+			cwd,
+			loopName,
+			enabledNames,
+		) => {
+			try {
+				const result = await runRalph(
+					Effect.gen(function* () {
+						const ralph = yield* Ralph;
+						return yield* ralph.configureLoopMany(cwd, loopName, [
+							{ kind: "capabilityContractAgents", enabledNames },
+						]);
+					}),
+				);
+				return { ok: true as const, status: result.status };
+			} catch (error) {
+				return { ok: false as const, reason: String(error) };
+			}
+		};
+
+		// Deferred features: these register no model-callable tools and carry no
+		// load-bearing session_start{reason:"startup"} work. Their commands, message
+		// renderers, and turn/context handlers are picked up live after registration
+		// (the runner reads its command/handler maps per invocation/emit), and a
+		// detached fiber resolves these imports within milliseconds — before the
+		// first user turn in interactive use. Loading them off the critical path
+		// keeps their (HTTP-client + schema) module evaluation out of `ready`.
+		const loadDeferredFeatures = Effect.gen(function* () {
+			const [workedFor, status, agentsMenu] = yield* Effect.all(
+				[
+					Effect.promise(() => import("./worked-for/index.js")),
+					Effect.promise(() => import("./status/index.js")),
+					Effect.promise(() => import("./agents-menu/index.js")),
+				],
+				{ concurrency: "unbounded" },
+			);
+			yield* Effect.sync(() => {
+				workedFor.default(pi, persistedAccess);
+				status.initStatus(pi, persistedAccess);
+				agentsMenu.default(pi, agentToolHandle, configureRalphAgents);
+			});
+		});
+		yield* loadDeferredFeatures.pipe(
+			Effect.tapCause((cause) =>
+				Effect.logWarning("Failed to load deferred tau features", cause),
+			),
+			Effect.forkDetach,
+		);
+
+		// AWS SSO refresh loads lazily and only when AWS_PROFILE is set, so non-AWS
+		// sessions never evaluate it. Forked as a daemon so it never blocks startup;
+		// before_provider_request (the operative refresh trigger) only fires once the
+		// user invokes the model, well after this import resolves.
+		const awsProfile = process.env["AWS_PROFILE"];
+		if (awsProfile !== undefined && awsProfile.length > 0) {
+			yield* Effect.tryPromise(() => import("./sso/index.js")).pipe(
+				Effect.flatMap(({ default: initSso }) => Effect.sync(() => initSso(pi))),
+				Effect.catch((error) =>
+					Effect.logWarning("Failed to initialize AWS SSO refresh", error),
+				),
+				Effect.forkDetach,
+			);
+		}
 	});
 
 	const program = Effect.scoped(
